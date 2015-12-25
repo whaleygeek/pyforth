@@ -5,35 +5,35 @@
 # Inspired by:
 # http://angg.twu.net/miniforth-article.html
 
-class FinishedException(Exception):
-    pass
 
-class Mode:
+# inner interpreter - will interpret bytecodes
+# outer interpreter - will interpret text
+
+class Forth:
     INTERPRET = "interpret"
     STOP      = "stop"
 
-    current   = INTERPRET
+    mode      = INTERPRET
+
+    def run(self):
+        while self.mode != self.STOP:
+            m = getattr(self, self.mode)
+            m()
 
     def interpret(self):
         print("will run interpreter here")
-        self.current = self.STOP
+        self.mode = self.STOP
 
-    def stop(self):
-        print("stopping")
-        raise FinishedException
+
+#class TextParser # the outer interpreter
+#class CodeRunner # the inner interpreter
 
 
 def run():
-    mode = Mode()
-    while True:
-        method = getattr(mode, mode.current)
-        method()
-
+    f = Forth()
+    f.run()
 
 if __name__ == "__main__":
-    try:
-        run()
-    except FinishedException:
-        pass
+    run()
 
 # END

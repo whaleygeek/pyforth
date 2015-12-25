@@ -9,7 +9,14 @@ class FinishedException(Exception):
     pass
 
 class Mode:
-    current = "stop"
+    INTERPRET = "interpret"
+    STOP      = "stop"
+
+    current   = INTERPRET
+
+    def interpret(self):
+        print("will run interpreter here")
+        self.current = self.STOP
 
     def stop(self):
         print("stopping")

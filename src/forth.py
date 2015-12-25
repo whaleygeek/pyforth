@@ -5,13 +5,32 @@
 # Inspired by:
 # http://angg.twu.net/miniforth-article.html
 
+# stack
+# has:
+#   push, pop, top
 
 # inner interpreter - will interpret bytecodes
+# has:
+#   dictionary (of words, primitive and non primitive)
+#   return stack
+#   data stack
+#   memory?? (for variables?)
+#   next (run next bytecode in bytecode list)
+
 # outer interpreter - will interpret text
+# has:
+#   parser:
+#     line being parsed
+#     pos on that line of next word
+#     parsers: pattern, spaces, word, newline, restofline, wordornewline
+#     getword, getwordornewline
+#   interpreter:
+#     interpretprimitive, interpretnonprimitive, interpretnumber
 
 class Forth:
     INTERPRET = "interpret"
     STOP      = "stop"
+
 
     mode      = INTERPRET
 
@@ -24,9 +43,10 @@ class Forth:
         print("will run interpreter here")
         self.mode = self.STOP
 
-
-#class TextParser # the outer interpreter
-#class CodeRunner # the inner interpreter
+    #other modes to write
+    #def head(self):
+    #def forth(self):
+    #def lit(self):
 
 
 def run():

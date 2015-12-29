@@ -168,8 +168,8 @@ class Forth:
                 ustart = last_end
                 uend   = start-1
                 usize  = uend-ustart-1
-                print("%10s %6d %6d %6d" %(uname, ustart, uend, usize))
-            print("%10s %6d %6d %6d" % (name, start, start+size-1, size))
+                print("%10s %5d %5d %5d" %(uname, ustart, uend, usize))
+            print("%10s %5d %5d %5d" % (name, start, start+size-1, size))
             last_end = start + size
 
 

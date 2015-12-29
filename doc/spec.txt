@@ -6,268 +6,221 @@ Prentice-Hall
 ISBN 0-13-843079-9
 
 
-BRODIE, CH1, P26  FUNDAMENTAL FORTH
-===================================
+: CR   ( -- ) ;         /P26 Carriage return/line feed
+: SPACES   ( n -- ) ;   /P26 Blank spaces
+: SPACE   ( -- ) ;      /P26 One space
+: EMIT   ( c -- ) ;     /P26 Send character to output
+: ." xxx"   ( -- ) ;    /P26 Displays the character string xxx. The " character terminates the string
+: +   ( n1 n2 -- sum) ; /P26 Adds
+: .   ( n -- )  ;       /P26 Display number followed by a space
+: ( xxx)   ( -- )  ;    /P26 Comment, terminated by )
 
-: CR   ( -- ) ;         / Carriage return/line feed
-: SPACES   ( n -- ) ;   / Blank spaces
-: SPACE   ( -- ) ;      / One space
-: EMIT   ( c -- ) ;     / Send character to output
-: ." xxx"   ( -- ) ;    / Displays the character string xxx. The " character terminates the string
-: +   ( n1 n2 -- sum) ; / Adds
-: .   ( n -- )  ;       / Display number followed by a space
-: ( xxx)   ( -- )  ;    / Comment, terminated by )
+: +   ( n1 n2 -- sum)               /P49 Adds
+: -   ( n1 n2 -- diff)              /P49 Subtracts (n1 - n2)
+: *   ( n1 n2 -- prod)              /P49 Multiplies
+: /   ( n1 n2 -- quot)              /P49 Divides (n1/n2)
+: MOD   ( n1 n2 -- n-rem)           /P49 Remainder from division
+: /MOD   ( n1 n2 -- n-rem n-quot)   /P49 Divides, remainder and quotient
+: SWAP   ( n1 n2 -- n2 n1)          /P49 Reverses top two stack items
+: DUP   ( n -- n n)                 /P49 Duplicates top stack item
+: OVER   ( n1 n2 -- n1 n2 n1)       /P49 Makes a copy of second item and puts on top
+: ROT   ( n1 n2 n3 -- n2 n3 n1)     /P49 Rotates 3rd item to top
+: DROP   ( n -- )                   /P49 Discards top item
+: 2SWAP   ( d1 d2 -- d2 d1)         /P49 Reverses top two pairs of numbers
+: 2DUP   ( d -- d d)                /P49 Duplicates top pair of numbers
+: 2OVER   ( d1 d2 -- d1 d2 d1)      /P49 Duplicates top pairs of numbers
+: 2DROP   ( d --)                   /P49 Discards top pair of numbers
 
+: FORGET name   ( -- )   /P77
+: LIST   ( n -- )   /P77
+: LOAD   ( n -- )   /P77
+: THRU   ( lo hi -- )   /P77
+: FLUSH   ( -- )   /P77
+: .( text)   ( -- )   /P77
+: TRIAD   ( n -- )   /P77
+: SHOW   (lo hi -- )   /P77
+: INDEX   (lo hi -- )   /P77
+: LOCATE xxx   ( -- )   /P77
+: VIEW xxx   ( -- )   /P77
 
-BRODIE, CH2, P49  HOW TO GET RESULTS
-====================================
-
-: +   ( n1 n2 -- sum)               / Adds
-: -   ( n1 n2 -- diff)              / Subtracts (n1 - n2)
-: *   ( n1 n2 -- prod)              / Multiplies
-: /   ( n1 n2 -- quot)              / Divides (n1/n2)
-: MOD   ( n1 n2 -- n-rem)           / Remainder from division
-: /MOD   ( n1 n2 -- n-rem n-quot)   / Divides, remainder and quotient
-: SWAP   ( n1 n2 -- n2 n1)          / Reverses top two stack items
-: DUP   ( n -- n n)                 / Duplicates top stack item
-: OVER   ( n1 n2 -- n1 n2 n1)       / Makes a copy of second item and puts on top
-: ROT   ( n1 n2 n3 -- n2 n3 n1)     / Rotates 3rd item to top
-: DROP   ( n -- )                   / Discards top item
-: 2SWAP   ( d1 d2 -- d2 d1)         / Reverses top two pairs of numbers
-: 2DUP   ( d -- d d)                / Duplicates top pair of numbers
-: 2OVER   ( d1 d2 -- d1 d2 d1)      / Duplicates top pairs of numbers
-: 2DROP   ( d --)                   / Discards top pair of numbers
-
-
-BRODIE, CH3, P77  WORKING WITH FORTH
-====================================
-
-: FORGET name   ( -- )
-: LIST   ( n -- )
-: LOAD   ( n -- )
-: THRU   ( lo hi -- )
-: FLUSH   ( -- )
-: .( text)   ( -- )
-: TRIAD   ( n -- )
-: SHOW   (lo hi -- )
-: INDEX   (lo hi -- )
-: LOCATE xxx   ( -- )
-: VIEW xxx   ( -- )
-
-(editing commands/line)
-(editing commands/string)
-(editing commands/misc)
-
-
-BRODIE, CH4, P92  DECISIONS, DECISIONS
-======================================
-
-: IF xxx   IF: ( ? -- )
+: IF xxx   IF: ( ? -- )   /P92
   ELSE yyy
   THEN zzz
-: =   ( n1 n2 -- ?)
-: <>   ( n1 n2 -- ?)
-: <   ( n1 n2 -- ?)
-: >   ( n1 n2 -- ?)
-: 0=   ( n -- ?)
-: 0<   ( n -- ?)
-: 0>   ( n -- ?)
-: NOT   (? -- -?)
-: AND   ( n1 n2 -- and)
-: OR   ( n1 n2 -- or)
-: XOR   ( n1 n2 -- xor)
-: ?DUP   ( n -- n n) or ( 0 -- 0)
-: ABORT" xxx"   ( ? -- )
+: =   ( n1 n2 -- ?)   /P92
+: <>   ( n1 n2 -- ?)   /P92
+: <   ( n1 n2 -- ?)   /P92
+: >   ( n1 n2 -- ?)   /P92
+: 0=   ( n -- ?)   /P92
+: 0<   ( n -- ?)   /P92
+: 0>   ( n -- ?)   /P92
+: NOT   (? -- -?)   /P92
+: AND   ( n1 n2 -- and)   /P92
+: OR   ( n1 n2 -- or)   /P92
+: XOR   ( n1 n2 -- xor)   /P92
+: ?DUP   ( n -- n n) or ( 0 -- 0)   /P92
+: ABORT" xxx"   ( ? -- )   /P92
 
+: 1+   ( n -- n+1)   /P113
+: 1-   ( n -- n-1)   /P113
+: 2+   ( n -- n+2)   /P113
+: 2-   ( n -- n-2)   /P113
+: 2*   ( n -- n*2)   /P113
+: 2/   ( n -- n/2)   /P113
+: ABS   ( n -- |n|)   /P113
+: NEGATE   ( n -- -n)   /P113
+: MIN   ( n1 n2 -- min)   /P113
+: MAX   ( n1 n2 -- max)   /P113
+: >R   ( n -- )   /P113
+: R>   ( -- n)   /P113
+: R@   ( -- n)   /P113
+: */   ( n1 n2 n3 -- result)   /P113
+: */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113
 
-BRODIE, CH5, P113  THE PHILOSOPHY OF INTEGER ARITHMETIC
-=======================================================
-
-: 1+   ( n -- n+1)
-: 1-   ( n -- n-1)
-: 2+   ( n -- n+2)
-: 2-   ( n -- n-2)
-: 2*   ( n -- n*2)
-: 2/   ( n -- n/2)
-: ABS   ( n -- |n|)
-: NEGATE   ( n -- -n)
-: MIN   ( n1 n2 -- min)
-: MAX   ( n1 n2 -- max)
-: >R   ( n -- )
-: R>   ( -- n)
-: R@   ( -- n)
-: */   ( n1 n2 n3 -- result)
-: */MOD   ( n1 n2 n3 -- n-rem n-result)
-
-
-BRODIE, CH6, P131  THROW IT A FOR LOOP
-======================================
-
-: DO ... LOOP   DO:
+: DO ... LOOP   DO:   /P131
                   ( limit index -- )
                 LOOP:  ( -- )
-: DO ... +LOOP  DO:
+: DO ... +LOOP  DO:   /P131
                   ( limit index -- )
                 +LOOP:  ( n -- )
-: LEAVE   ( -- )
-: BEGIN ... UNTIL   UNTIL: ( ? -- )
-: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )
-: .R   ( n width -- )
-: PAGE   ( -- )
-: QUIT   ( -- )
+: LEAVE   ( -- )   /P131
+: BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131
+: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131
+: .R   ( n width -- )   /P131
+: PAGE   ( -- )   /P131
+: QUIT   ( -- )   /P131
 
+: ASCII   ( -- c)   /P161
+: U.   ( u -- )   /P161
+: U.R   ( u width -- )   /P161
+: U<   ( u1 u2 -- ?)   /P161
+: HEX   ( -- )   /P161
+: OCTAL   ( -- )   /P161
+: DECIMAL   ( -- )   /P161
 
-BRODIE, CH7, P161  A NUMBER OF KINDS OF NUMBERS
-===============================================
+: <#   /P161
+: #   /P161
+: #S   /P161
+: c HOLD   /P161
+: n SIGN   /P161
+: #>   /P161
+: <# ... #>   ( d -- a u)   /P161
+              ( u 0 -- a u)   /P161
 
-: ASCII   ( -- c)
-: U.   ( u -- )
-: U.R   ( u width -- )
-: U<   ( u1 u2 -- ?)
-: HEX   ( -- )
-: OCTAL   ( -- )
-: DECIMAL   ( -- )
+: <# ... n SIGN #>   ( |d| -- a u)   /P161
+                or   ( |d| 0 -- a u)   /P161
+: D+   ( d1 d2 -- dsum)   /P161
+: D-   ( d1 d2 -- d-diff)   /P161
+: DNEGATE   ( d -- -d)   /P161
+: DABS   ( d -- |d|)   /P161
+: DMAX   ( d1 d2 -- d-max)   /P161
+: DMIN   ( d1 d2 -- d-min)   /P161
+: D=   ( d1 d2 -- ?)   /P161
+: D0=   ( d -- ?)   /P161
+: D<   ( d1 d2 -- ?)   /P161
+: DU<   (ud1 ud2 -- ?)   /P161
+: D.   ( d -- )   /P161
+: D.R   ( d width -- )   /P161
 
-: <#
-: #
-: #S
-: c HOLD
-: n SIGN
-: #>
-: <# ... #>   ( d -- a u)
-              ( u 0 -- a u)
+: UM*   ( u1 u2 -- ud)   /P161
+: UM/MOD   ( ud u1 -- u2 u3)   /P161
+: M*   ( n1 n2 -- d-prod)   /P161
+: M+   ( d n -- d-sum)   /P161
+: M/   ( d n -- n-quot)   /P161
+: M*/   ( d n u -- d)   /P161
 
-: <# ... n SIGN #>   ( |d| -- a u)
-                or   ( |d| 0 -- a u)
-: D+   ( d1 d2 -- dsum)
-: D-   ( d1 d2 -- d-diff)
-: DNEGATE   ( d -- -d)
-: DABS   ( d -- |d|)
-: DMAX   ( d1 d2 -- d-max)
-: DMIN   ( d1 d2 -- d-min)
-: D=   ( d1 d2 -- ?)
-: D0=   ( d -- ?)
-: D<   ( d1 d2 -- ?)
-: DU<   (ud1 ud2 -- ?)
-: D.   ( d -- )
-: D.R   ( d width -- )
+: CONSTANT xxx   ( n -- )   /P190
+           xxx:  ( -- n)   /P190
+: VARIABLE xxx   ( -- )   /P190
+           xxx: ( -- a)   /P190
+: CREATE xxx   ( -- )   /P190
+         xxx:  ( -- a)   /P190
+: !   ( n a -- )   /P190
+: @   ( a -- n)   /P190
+: ?   ( a -- )   /P190
+: +!   ( n a -- )   /P190
+: ALLOT   ( n -- )   /P190
+: ,   ( n -- )   /P190
+: C,   ( b -- )   /P190
+: C!   ( b a -- )   /P190
+: C@   ( a -- b)   /P190
+: FILL   ( a u b -- )   /P190
+: ERASE   ( a u -- )   /P190
+: BASE   ( -- a)   /P190
+: DUMP   ( a u -- )   /P190
 
-: UM*   ( u1 u2 -- ud)
-: UM/MOD   ( ud u1 -- u2 u3)
-: M*   ( n1 n2 -- d-prod)
-: M+   ( d n -- d-sum)
-: M/   ( d n -- n-quot)
-: M*/   ( d n u -- d)
-
-
-BRODIE, CH8, P190  VARIABLES, CONSTANTS, AND ARRAYS
-===================================================
-
-: CONSTANT xxx   ( n -- )
-           xxx:  ( -- n)
-: VARIABLE xxx   ( -- )
-           xxx: ( -- a)
-: CREATE xxx   ( -- )
-         xxx:  ( -- a)
-: !   ( n a -- )
-: @   ( a -- n)
-: ?   ( a -- )
-: +!   ( n a -- )
-: ALLOT   ( n -- )
-: ,   ( n -- )
-: C,   ( b -- )
-: C!   ( b a -- )
-: C@   ( a -- b)
-: FILL   ( a u b -- )
-: ERASE   ( a u -- )
-: BASE   ( -- a)
-: DUMP   ( a u -- )
-
-: 2VARIABLE xxx   ( -- )
+: 2VARIABLE xxx   ( -- )   /P190
             xxx:  ( -- a)
-: 2CONSTANT xxx   ( d -- )
+: 2CONSTANT xxx   ( d -- )   /P190
             xxx:  ( -- d)
 
-: 2!   ( d a -- )
-: 2@   ( a -- d)
+: 2!   ( d a -- )   /P190
+: 2@   ( a -- d)   /P190
 
-: 0   ( -- 0)
-: 1   ( -- 1)
-: 0.  ( -- 0 0)
-: FALSE   ( -- f)
-: TRUE   ( -- t)
+: 0   ( -- 0)   /P190
+: 1   ( -- 1)   /P190
+: 0.  ( -- 0 0)   /P190
+: FALSE   ( -- f)   /P190
+: TRUE   ( -- t)   /P190
 
-
-BRODIE, CH9, P221  UNDER THE HOOD
-=================================
-
-: ' xxx   ( -- a)
+: ' xxx   ( -- a)   /P221
 : [']   compile-time: ( -- )
         run-time: ( -- a)
-: EXECUTE   ( a -- )
-: @EXECUTE   ( a -- )
-: >BODY   ( cfa -- pfa)
-: EXIT   ( -- )
-: QUIT   ( -- )
-: ABORT   ( -- )
-: H   ( -- a)
-: DP   ( -- a)
-: HERE   ( -- a)
-: PAD   ( -- a)
-: SP@   ( -- a)
-: 'S   ( -- a)
-: S0   ( -- a)
-: TIB   ( -- a)
-: FORTH   ( -- )
-: EDITOR   ( -- )
-: ASSEMBLER   ( -- )
-: CONTEXT   ( -- a)
-: CURRENT   ( -- a)
-: DEFINITIONS   ( -- )
+: EXECUTE   ( a -- )   /P221
+: @EXECUTE   ( a -- )   /P221
+: >BODY   ( cfa -- pfa)   /P221
+: EXIT   ( -- )   /P221
+: QUIT   ( -- )   /P221
+: ABORT   ( -- )   /P221
+: H   ( -- a)   /P221
+: DP   ( -- a)   /P221
+: HERE   ( -- a)   /P221
+: PAD   ( -- a)   /P221
+: SP@   ( -- a)   /P221
+: 'S   ( -- a)   /P221
+: S0   ( -- a)   /P221
+: TIB   ( -- a)   /P221
+: FORTH   ( -- )   /P221
+: EDITOR   ( -- )   /P221
+: ASSEMBLER   ( -- )   /P221
+: CONTEXT   ( -- a)   /P221
+: CURRENT   ( -- a)   /P221
+: DEFINITIONS   ( -- )   /P221
 
+: UPDATE   ( -- )   /P254
+: SAVE-BUFFERS   ( -- )   /P254
+: FLUSH   ( -- )   /P254
+: EMPTY-BUFFERS   ( -- )   /P254
+: BLOCK   ( u -- a)   /P254
+: BUFFER   ( u -- a)   /P254
+: TYPE   ( a # -- )   /P254
+: -TRAILING   (a #1 -- a #2)   /P254
+: >TYPE   ( a # -- )   /P254
+: MOVE   ( a1 a2 # -- )   /P254
+: CMOVE   ( a1 a2 # -- )   /P254
+: CMOVE>   ( a1 a2 # -- )   /P254
+: BLANK   ( a # -- )   /P254
+: KEY   ( -- c)   /P254
+: EXPECT   ( a # -- )   /P254
+: SPAN   ( -- a)   /P254
+: WORD   ( c -- a)   /P254
+: COUNT   ( a -- a+1 #)   /P254
+: >IN   ( -- a)   /P254
+: BLK   ( -- a)   /P254
+: CONVERT   ( ud1 a1 -- ud2 a2)   /P254
+: NUMBER   ( a -- d)   /P254
+: -TEXT   ( a1 # a2 -- ?)   /P254
+: -MATCH   ( d # s # -- a ?)   /P254
+: STRING   ( c -- )   /P254
+: LIT" xxx"   run-time: ( -- a)   /P254
 
-BRODIE, CH10, P254  I/O AND YOU
-===============================
-
-: UPDATE   ( -- )
-: SAVE-BUFFERS   ( -- )
-: FLUSH   ( -- )
-: EMPTY-BUFFERS   ( -- )
-: BLOCK   ( u -- a)
-: BUFFER   ( u -- a)
-: TYPE   ( a # -- )
-: -TRAILING   (a #1 -- a #2)
-: >TYPE   ( a # -- )
-: MOVE   ( a1 a2 # -- )
-: CMOVE   ( a1 a2 # -- )
-: CMOVE>   ( a1 a2 # -- )
-: BLANK   ( a # -- )
-: KEY   ( -- c)
-: EXPECT   ( a # -- )
-: SPAN   ( -- a)
-: WORD   ( c -- a)
-: COUNT   ( a -- a+1 #)
-: >IN   ( -- a)
-: BLK   ( -- a)
-: CONVERT   ( ud1 a1 -- ud2 a2)
-: NUMBER   ( a -- d)
-: -TEXT   ( a1 # a2 -- ?)
-: -MATCH   ( d # s # -- a ?)
-: STRING   ( c -- )
-: LIT" xxx"   run-time: ( -- a)
-
-
-BRODIE, CH11, P286  EXTENDING THE COMPILER WITH DEFINING WORDS AND COMPILING WORDS
-==================================================================================
-
-: DOES>   run-time: ( -- a)
-: IMMEDIATE   ( -- )
-: COMPILE xxx   ( -- )
-: LITERAL   compile-time: ( n -- )
+: DOES>   run-time: ( -- a)   /P286
+: IMMEDIATE   ( -- )   /P286
+: COMPILE xxx   ( -- )   /P286
+: LITERAL   compile-time: ( n -- )   /P286
             run-time: ( -- n)
-: [   ( -- )
-: ]   ( -- )
-: [COMPILE] xxx   ( -- )
-: STATE   ( -- a)
-: INTERPRET   ( -- )
+: [   ( -- )   /P286
+: ]   ( -- )   /P286
+: [COMPILE] xxx   ( -- )   /P286
+: STATE   ( -- a)   /P286
+: INTERPRET   ( -- )   /P286
 

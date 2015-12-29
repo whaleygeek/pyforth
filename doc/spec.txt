@@ -1,48 +1,58 @@
+Minor extracts from the following book, to act as a 'spec' for implementation.
+
+Leo Brodie/Forth Inc.
+Starting Forth, 2nd Edition
+Prentice-Hall
+ISBN 0-13-843079-9
+
 
 BRODIE, CH1, P26  FUNDAMENTAL FORTH
+===================================
 
-: CR   ( -- ) {} ;       / Performs a carriage return and line feed at the current output device
-: SPACES   ( n -- ) {} ; / Displays the given number of blank spaces
-: SPACE   ( -- ) {} ;    / Displays one blank space
-: EMIT   ( c -- ) {} ;   / Transmits a character to the output device
-: ." xxx"   ( -- ) {} ;  / Displays the character string xxx. The " character terminates the string
-: +   ( n1 n2 -- sum) {} ; / Adds
-: .   ( n -- ) { } ;     / Displays a number, followed by one space
-: ( xxx)   ( -- ) {} ;   / Begins a comment ignored until the ) delimiter
+: CR   ( -- ) ;         / Carriage return/line feed
+: SPACES   ( n -- ) ;   / Blank spaces
+: SPACE   ( -- ) ;      / One space
+: EMIT   ( c -- ) ;     / Send character to output
+: ." xxx"   ( -- ) ;    / Displays the character string xxx. The " character terminates the string
+: +   ( n1 n2 -- sum) ; / Adds
+: .   ( n -- )  ;       / Display number followed by a space
+: ( xxx)   ( -- )  ;    / Comment, terminated by )
 
 
 BRODIE, CH2, P49  HOW TO GET RESULTS
+====================================
 
-: +
-: -
-: *
-: /
-: MOD
-: /MOD
-: SWAP
-: DUP
-: OVER
-: ROT
-: DROP
-: 2SWAP
-: 2DRUP
-: 2OVER
-: 2DROP
+: +   ( n1 n2 -- sum)               / Adds
+: -   ( n1 n2 -- diff)              / Subtracts (n1 - n2)
+: *   ( n1 n2 -- prod)              / Multiplies
+: /   ( n1 n2 -- quot)              / Divides (n1/n2)
+: MOD   ( n1 n2 -- n-rem)           / Remainder from division
+: /MOD   ( n1 n2 -- n-rem n-quot)   / Divides, remainder and quotient
+: SWAP   ( n1 n2 -- n2 n1)          / Reverses top two stack items
+: DUP   ( n -- n n)                 / Duplicates top stack item
+: OVER   ( n1 n2 -- n1 n2 n1)       / Makes a copy of second item and puts on top
+: ROT   ( n1 n2 n3 -- n2 n3 n1)     / Rotates 3rd item to top
+: DROP   ( n -- )                   / Discards top item
+: 2SWAP   ( d1 d2 -- d2 d1)         / Reverses top two pairs of numbers
+: 2DUP   ( d -- d d)                / Duplicates top pair of numbers
+: 2OVER   ( d1 d2 -- d1 d2 d1)      / Duplicates top pairs of numbers
+: 2DROP   ( d --)                   / Discards top pair of numbers
 
 
 BRODIE, CH3, P77  WORKING WITH FORTH
+====================================
 
-: FORGET
-: LIST
-: LOAD
-: THRU
-: FLUSH
-: .(
-: TRIAD
-: SHOW
-: INDEX
-: LOCATE
-: VIEW
+: FORGET name   ( -- )
+: LIST   ( n -- )
+: LOAD   ( n -- )
+: THRU   ( lo hi -- )
+: FLUSH   ( -- )
+: .( text)   ( -- )
+: TRIAD   ( n -- )
+: SHOW   (lo hi -- )
+: INDEX   (lo hi -- )
+: LOCATE xxx   ( -- )
+: VIEW xxx   ( -- )
 
 (editing commands/line)
 (editing commands/string)
@@ -50,193 +60,214 @@ BRODIE, CH3, P77  WORKING WITH FORTH
 
 
 BRODIE, CH4, P92  DECISIONS, DECISIONS
+======================================
 
-: IF xxx ELSE yyy THEN zzz
-: =
-: <>
-: <
-: >
-: 0=
-: 0<
-: 0>
-: NOT
-: AND
-: OR
-: XOR
-: ?DUP
-: ABORT" xxx"
+: IF xxx   IF: ( ? -- )
+  ELSE yyy
+  THEN zzz
+: =   ( n1 n2 -- ?)
+: <>   ( n1 n2 -- ?)
+: <   ( n1 n2 -- ?)
+: >   ( n1 n2 -- ?)
+: 0=   ( n -- ?)
+: 0<   ( n -- ?)
+: 0>   ( n -- ?)
+: NOT   (? -- -?)
+: AND   ( n1 n2 -- and)
+: OR   ( n1 n2 -- or)
+: XOR   ( n1 n2 -- xor)
+: ?DUP   ( n -- n n) or ( 0 -- 0)
+: ABORT" xxx"   ( ? -- )
 
 
 BRODIE, CH5, P113  THE PHILOSOPHY OF INTEGER ARITHMETIC
+=======================================================
 
-: 1+
-: 1-
-: 2+
-: 2-
-: 2*
-: 2/
-: ABS
-: NEGATE
-: MIN
-: MAX
-: >R
-: R>
-: R@
-: */
-: */MOD
+: 1+   ( n -- n+1)
+: 1-   ( n -- n-1)
+: 2+   ( n -- n+2)
+: 2-   ( n -- n-2)
+: 2*   ( n -- n*2)
+: 2/   ( n -- n/2)
+: ABS   ( n -- |n|)
+: NEGATE   ( n -- -n)
+: MIN   ( n1 n2 -- min)
+: MAX   ( n1 n2 -- max)
+: >R   ( n -- )
+: R>   ( -- n)
+: R@   ( -- n)
+: */   ( n1 n2 n3 -- result)
+: */MOD   ( n1 n2 n3 -- n-rem n-result)
 
 
 BRODIE, CH6, P131  THROW IT A FOR LOOP
+======================================
 
-: DO ... LOOP
-: DO ... +LOOP
-: LEAVE
-: BEGIN ... UNTIL
-: BEGIN xxx WHILE yyy REPEAT
-: .R
-: PAGE
-: QUIT
+: DO ... LOOP   DO:
+                  ( limit index -- )
+                LOOP:  ( -- )
+: DO ... +LOOP  DO:
+                  ( limit index -- )
+                +LOOP:  ( n -- )
+: LEAVE   ( -- )
+: BEGIN ... UNTIL   UNTIL: ( ? -- )
+: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )
+: .R   ( n width -- )
+: PAGE   ( -- )
+: QUIT   ( -- )
 
 
 BRODIE, CH7, P161  A NUMBER OF KINDS OF NUMBERS
+===============================================
 
-: ASCII
-: U.
-: U.R
-: U<
-: HEX
-: OCTAL
-: DECIMAL
+: ASCII   ( -- c)
+: U.   ( u -- )
+: U.R   ( u width -- )
+: U<   ( u1 u2 -- ?)
+: HEX   ( -- )
+: OCTAL   ( -- )
+: DECIMAL   ( -- )
 
 : <#
 : #
+: #S
 : c HOLD
 : n SIGN
 : #>
-: <# ... #>
-: <# ... n SIGN #>
+: <# ... #>   ( d -- a u)
+              ( u 0 -- a u)
 
-: D+
-: D-
-: DNEGATE
-: DABS
-: DMAX
-: DMIN
-: D=
-: D0=
-: D<
-: DU<
-: D.
-: D.R
+: <# ... n SIGN #>   ( |d| -- a u)
+                or   ( |d| 0 -- a u)
+: D+   ( d1 d2 -- dsum)
+: D-   ( d1 d2 -- d-diff)
+: DNEGATE   ( d -- -d)
+: DABS   ( d -- |d|)
+: DMAX   ( d1 d2 -- d-max)
+: DMIN   ( d1 d2 -- d-min)
+: D=   ( d1 d2 -- ?)
+: D0=   ( d -- ?)
+: D<   ( d1 d2 -- ?)
+: DU<   (ud1 ud2 -- ?)
+: D.   ( d -- )
+: D.R   ( d width -- )
 
-: UM*
-: UM/MOD
-: M*
-: M+
-: M/
-: M*/
+: UM*   ( u1 u2 -- ud)
+: UM/MOD   ( ud u1 -- u2 u3)
+: M*   ( n1 n2 -- d-prod)
+: M+   ( d n -- d-sum)
+: M/   ( d n -- n-quot)
+: M*/   ( d n u -- d)
 
 
 BRODIE, CH8, P190  VARIABLES, CONSTANTS, AND ARRAYS
+===================================================
 
-: CONSTANT xxx
-: VARIABLE xxx
-: CREATE xxx
-: !
-: @
-: ?
-: +!
-: ALLOT
-: ,
-: C,
-: C!
-: C@
-: FILL
-: ERASE
-: BASE
-: DUMP
+: CONSTANT xxx   ( n -- )
+           xxx:  ( -- n)
+: VARIABLE xxx   ( -- )
+           xxx: ( -- a)
+: CREATE xxx   ( -- )
+         xxx:  ( -- a)
+: !   ( n a -- )
+: @   ( a -- n)
+: ?   ( a -- )
+: +!   ( n a -- )
+: ALLOT   ( n -- )
+: ,   ( n -- )
+: C,   ( b -- )
+: C!   ( b a -- )
+: C@   ( a -- b)
+: FILL   ( a u b -- )
+: ERASE   ( a u -- )
+: BASE   ( -- a)
+: DUMP   ( a u -- )
 
-: 2VARIABLE xxx
-: 2CONSTANT xxx
-: 2!
-: 2@
+: 2VARIABLE xxx   ( -- )
+            xxx:  ( -- a)
+: 2CONSTANT xxx   ( d -- )
+            xxx:  ( -- d)
 
-: 0
-: 1
-: 0.
-: FALSE
-: TRUE
+: 2!   ( d a -- )
+: 2@   ( a -- d)
+
+: 0   ( -- 0)
+: 1   ( -- 1)
+: 0.  ( -- 0 0)
+: FALSE   ( -- f)
+: TRUE   ( -- t)
 
 
 BRODIE, CH9, P221  UNDER THE HOOD
+=================================
 
-: ' xxx
-: [']
-: EXECUTE
-: @EXECUTE
-: >BODY
-: EXIT
-: QUIT
-: ABORT
-: H
-: DP
-: HERE
-: PAD
-: SP@
-: 'S
-: S0
-: TIB
-: FORTH
-: EDITOR
-: ASSEMBLER
-: CONTEXT
-: CURRENT
-: DEFINITIONS
+: ' xxx   ( -- a)
+: [']   compile-time: ( -- )
+        run-time: ( -- a)
+: EXECUTE   ( a -- )
+: @EXECUTE   ( a -- )
+: >BODY   ( cfa -- pfa)
+: EXIT   ( -- )
+: QUIT   ( -- )
+: ABORT   ( -- )
+: H   ( -- a)
+: DP   ( -- a)
+: HERE   ( -- a)
+: PAD   ( -- a)
+: SP@   ( -- a)
+: 'S   ( -- a)
+: S0   ( -- a)
+: TIB   ( -- a)
+: FORTH   ( -- )
+: EDITOR   ( -- )
+: ASSEMBLER   ( -- )
+: CONTEXT   ( -- a)
+: CURRENT   ( -- a)
+: DEFINITIONS   ( -- )
 
 
 BRODIE, CH10, P254  I/O AND YOU
+===============================
 
-: UPDATE
-: SAVE-BUFFERS
-: FLUSH
-: EMPTY-BUFFERS
-: BLOCK
-: BUFFER
-: TYPE
-: -TRAILING
-: >TYPE
-: MOVE
-: CMOVE
-: CMOVE>
-: BLANK
-: KEY
-: EXPECT
-: SPAN
-: WORD
-: COUNT
-: >IN
-: BLK
-: CONVERT
-: NUMBER
-: -TEXT
-: -MATCH
-: STRING
-: LIT" xxx"
+: UPDATE   ( -- )
+: SAVE-BUFFERS   ( -- )
+: FLUSH   ( -- )
+: EMPTY-BUFFERS   ( -- )
+: BLOCK   ( u -- a)
+: BUFFER   ( u -- a)
+: TYPE   ( a # -- )
+: -TRAILING   (a #1 -- a #2)
+: >TYPE   ( a # -- )
+: MOVE   ( a1 a2 # -- )
+: CMOVE   ( a1 a2 # -- )
+: CMOVE>   ( a1 a2 # -- )
+: BLANK   ( a # -- )
+: KEY   ( -- c)
+: EXPECT   ( a # -- )
+: SPAN   ( -- a)
+: WORD   ( c -- a)
+: COUNT   ( a -- a+1 #)
+: >IN   ( -- a)
+: BLK   ( -- a)
+: CONVERT   ( ud1 a1 -- ud2 a2)
+: NUMBER   ( a -- d)
+: -TEXT   ( a1 # a2 -- ?)
+: -MATCH   ( d # s # -- a ?)
+: STRING   ( c -- )
+: LIT" xxx"   run-time: ( -- a)
 
 
 BRODIE, CH11, P286  EXTENDING THE COMPILER WITH DEFINING WORDS AND COMPILING WORDS
+==================================================================================
 
-: DOES>
-: IMMEDIATE
-: COMPILE xxx
-: LITERAL
-: [
-: ]
-: [COMPILE]
-: STATE
-: INTERPRET
-
-
-
-
+: DOES>   run-time: ( -- a)
+: IMMEDIATE   ( -- )
+: COMPILE xxx   ( -- )
+: LITERAL   compile-time: ( n -- )
+            run-time: ( -- n)
+: [   ( -- )
+: ]   ( -- )
+: [COMPILE] xxx   ( -- )
+: STATE   ( -- a)
+: INTERPRET   ( -- )
 

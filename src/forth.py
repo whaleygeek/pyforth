@@ -12,13 +12,6 @@
 # memory space and execution thread).
 
 
-# BOOT REST OF LANGUAGE (do this in FORTH itself)
-#   other compiler words
-#   conditionals
-#   other forth DS words
-#   other forth RS words
-#   other forth words
-
 #----- MEMORY -----------------------------------------------------------------
 #
 # Access to a block of memory, basically a Python list.
@@ -174,6 +167,8 @@ class Forth:
 
     def boot(self):
         self.makeds()
+
+
         #self.boot_sys_vars() (including init of base/ptr vars of various regions)
         #self.boot_user_vars()
         #self.boot_native_words()
@@ -235,7 +230,6 @@ class Forth:
 
     def boot_min_interpreter(self):
         # BOOT MIN INTERPRETER (some in FORTH, some in Python?)
-        #   BYE
         #   BL CR . ." EMIT
         #   RESET ABORT
         #   KEY? KEY
@@ -243,6 +237,7 @@ class Forth:
         #   WORD NUMBER
         #   EXPECT SPAN
         #   QUERY
+        #   BYE
         #   EXECUTE
         #   INTERPRET
         #   QUIT EXIT
@@ -255,6 +250,13 @@ class Forth:
         #   <BUILDS DOES> COMPILE
         #   : ;
         pass
+
+    # BOOT REST OF LANGUAGE (do this in FORTH itself)
+    #   other compiler words
+    #   conditionals
+    #   other forth DS words
+    #   other forth RS words
+    #   other forth words
 
     def run(self):
         #NOTE: can boot() then clone(), and then customise and run() multiple clones

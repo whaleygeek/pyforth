@@ -1,0 +1,242 @@
+
+BRODIE, CH1, P26  FUNDAMENTAL FORTH
+
+: CR   ( -- ) {} ;       / Performs a carriage return and line feed at the current output device
+: SPACES   ( n -- ) {} ; / Displays the given number of blank spaces
+: SPACE   ( -- ) {} ;    / Displays one blank space
+: EMIT   ( c -- ) {} ;   / Transmits a character to the output device
+: ." xxx"   ( -- ) {} ;  / Displays the character string xxx. The " character terminates the string
+: +   ( n1 n2 -- sum) {} ; / Adds
+: .   ( n -- ) { } ;     / Displays a number, followed by one space
+: ( xxx)   ( -- ) {} ;   / Begins a comment ignored until the ) delimiter
+
+
+BRODIE, CH2, P49  HOW TO GET RESULTS
+
+: +
+: -
+: *
+: /
+: MOD
+: /MOD
+: SWAP
+: DUP
+: OVER
+: ROT
+: DROP
+: 2SWAP
+: 2DRUP
+: 2OVER
+: 2DROP
+
+
+BRODIE, CH3, P77  WORKING WITH FORTH
+
+: FORGET
+: LIST
+: LOAD
+: THRU
+: FLUSH
+: .(
+: TRIAD
+: SHOW
+: INDEX
+: LOCATE
+: VIEW
+
+(editing commands/line)
+(editing commands/string)
+(editing commands/misc)
+
+
+BRODIE, CH4, P92  DECISIONS, DECISIONS
+
+: IF xxx ELSE yyy THEN zzz
+: =
+: <>
+: <
+: >
+: 0=
+: 0<
+: 0>
+: NOT
+: AND
+: OR
+: XOR
+: ?DUP
+: ABORT" xxx"
+
+
+BRODIE, CH5, P113  THE PHILOSOPHY OF INTEGER ARITHMETIC
+
+: 1+
+: 1-
+: 2+
+: 2-
+: 2*
+: 2/
+: ABS
+: NEGATE
+: MIN
+: MAX
+: >R
+: R>
+: R@
+: */
+: */MOD
+
+
+BRODIE, CH6, P131  THROW IT A FOR LOOP
+
+: DO ... LOOP
+: DO ... +LOOP
+: LEAVE
+: BEGIN ... UNTIL
+: BEGIN xxx WHILE yyy REPEAT
+: .R
+: PAGE
+: QUIT
+
+
+BRODIE, CH7, P161  A NUMBER OF KINDS OF NUMBERS
+
+: ASCII
+: U.
+: U.R
+: U<
+: HEX
+: OCTAL
+: DECIMAL
+
+: <#
+: #
+: c HOLD
+: n SIGN
+: #>
+: <# ... #>
+: <# ... n SIGN #>
+
+: D+
+: D-
+: DNEGATE
+: DABS
+: DMAX
+: DMIN
+: D=
+: D0=
+: D<
+: DU<
+: D.
+: D.R
+
+: UM*
+: UM/MOD
+: M*
+: M+
+: M/
+: M*/
+
+
+BRODIE, CH8, P190  VARIABLES, CONSTANTS, AND ARRAYS
+
+: CONSTANT xxx
+: VARIABLE xxx
+: CREATE xxx
+: !
+: @
+: ?
+: +!
+: ALLOT
+: ,
+: C,
+: C!
+: C@
+: FILL
+: ERASE
+: BASE
+: DUMP
+
+: 2VARIABLE xxx
+: 2CONSTANT xxx
+: 2!
+: 2@
+
+: 0
+: 1
+: 0.
+: FALSE
+: TRUE
+
+
+BRODIE, CH9, P221  UNDER THE HOOD
+
+: ' xxx
+: [']
+: EXECUTE
+: @EXECUTE
+: >BODY
+: EXIT
+: QUIT
+: ABORT
+: H
+: DP
+: HERE
+: PAD
+: SP@
+: 'S
+: S0
+: TIB
+: FORTH
+: EDITOR
+: ASSEMBLER
+: CONTEXT
+: CURRENT
+: DEFINITIONS
+
+
+BRODIE, CH10, P254  I/O AND YOU
+
+: UPDATE
+: SAVE-BUFFERS
+: FLUSH
+: EMPTY-BUFFERS
+: BLOCK
+: BUFFER
+: TYPE
+: -TRAILING
+: >TYPE
+: MOVE
+: CMOVE
+: CMOVE>
+: BLANK
+: KEY
+: EXPECT
+: SPAN
+: WORD
+: COUNT
+: >IN
+: BLK
+: CONVERT
+: NUMBER
+: -TEXT
+: -MATCH
+: STRING
+: LIT" xxx"
+
+
+BRODIE, CH11, P286  EXTENDING THE COMPILER WITH DEFINING WORDS AND COMPILING WORDS
+
+: DOES>
+: IMMEDIATE
+: COMPILE xxx
+: LITERAL
+: [
+: ]
+: [COMPILE]
+: STATE
+: INTERPRET
+
+
+
+
+

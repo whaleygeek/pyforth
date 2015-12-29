@@ -147,10 +147,17 @@ class Forth:
             # grows up towards high memory
             start = spec[0]
         ptr = spec[0]
-        limit = start + size
+        end = start + size
+
+        # check for overlaps with an existing region
+        for i in self.map:
+            iname, istart, isize = i
+            iend = istart + isize-1
+            if (start >= istart and start <= iend) or (end >= istart and end <= iend):
+                raise ValueError("Region %s overlaps with %s" % (name, iname))
 
         self.map.append((name, start, abs(size)))
-        return start, ptr, limit
+        return start, ptr, end
 
     def show_memmap(self):
         last_end = 0

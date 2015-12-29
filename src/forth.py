@@ -1,195 +1,234 @@
 # forth.py  25/12/2015  D.J.Whale
 #
-# An experiment to write a minimal FORTH language in Python
+# An experiment to write a minimal FORTH language on top of Python.
+# The main purpose of this is to study the design of the FORTH language
+# by attempting a modern implementation of it.
 #
-# Inspired by:
-# http://angg.twu.net/miniforth-article.html
+# The idea is to allow multiple simultaneous Forth context objects,
+# perhaps with some shared data with copy-on-write semantics,
+# so that core objects could be written in little Forth package
+# objects, and integrated into a bigger system (so each Forth
+# context is like a mini self-contained sandbox with it's own
+# memory space and execution thread).
 
 
-# Remember the following
-# at the interpreter, all words are passed to INTERPRET
-# : is just another word, it passes up to ; to the code stored against : (compiler)
-# if a word is not found in the dictionary, it is passed to NUMBER
-# NUMBER is just a forth word that tries to parse numbers.
-# . emits top of stack
-# ( ) comments - stack effects are ( -- )
-# ." msg" is a string
+# BOOT REST OF LANGUAGE (do this in FORTH itself)
+#   other compiler words
+#   conditionals
+#   other forth DS words
+#   other forth RS words
+#   other forth words
 
-
-import re
-
-
-#----- STACK ------------------------------------------------------------------
+#----- MEMORY -----------------------------------------------------------------
 #
-# A generic stack (for things like the return-stack, arithmetic-stack)
+# Access to a block of memory, basically a Python list.
 
-class Stack():
-    def size(self):
-        pass
+class Memory():
+    def __init__(self, size=65535):
+        self.size = size
+        self.mem = [0 for i in range(size)]
 
-    def push(self, item):
-        pass
+    def write(self, addr, value):
+        self.mem[addr] = value
 
-    def pop(self):
-        pass
-
-    def top(self):
-        pass
-
-    def __setattr__(self, key, value):
-        pass
-
-    def __getattr__(self, item):
-        pass
-
-    #TODO: stack underflow exception
+    def read(self, addr):
+        return self.mem[addr]
 
 
-#----- DICTIONARY -------------------------------------------------------------
+#---- INPUT -------------------------------------------------------------------
 #
-# A keyed dictionary (for storing words)
+# Interface to keyboard input
+
+class Input():
+    def __init__(self):
+        pass
+
+    def check(self):
+        return True
+
+    def read(self):
+        return '*'
+
+
+#----- OUTPUT -----------------------------------------------------------------
+#
+# Interface to screen output
+
+class Output():
+    def __init__(self):
+        pass
+
+    def write(self, ch):
+        print("out:%s" % ch)
+
+
+#----- DISK -------------------------------------------------------------------
+#
+# TODO: Probably an interface to reading and writing blocks in a nominated
+# disk file image.
+
+class Disk():
+    def __init__(self):
+        pass
+
+
+
+#----- PYTHON WRAPPERS FOR FORTH DATA STRUCTURES -----------------------------------
+#
+# A useful abstraction to allow Python to meddle directly with Forth's
+# data structure regions in memory. This is useful when you want to rewrite
+# the implementation code for a WORD in Python to get better execution speed.
+
+class SysVars():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, create, read, write
+
+
+class BlockBuffers():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, read, write, erase
+    # cache index
+
 
 class Dictionary():
-    pass
-# add
-# remove
-# find(name)
-# get(index)
-# list
-
-# Eventually will store a load of FORTH definitions in a file and load them
-# on start. Also note that a dictionary entry can point to any of the following:
-# pyfunction - function that implements a word natively
-# head? head of a chain of dictionary indexes that make up a word
-# items are stored in order of definition, this is a keyed stack, so
-# later definitions of words override earlier definitions.
-#
-# note - check what happens if a word definition binds by index, it will not
-# get the new word, this is probably correct forth semantics.
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, create, find, read, forget, here
 
 
-#----- OUTER TEXT INTERPRETER -------------------------------------------------
-#
-# The outer text interpreter, implements INTERPRET?
-# really this is the word parser.
-
-class Interpreter():
-    pos = 0
-    line = ""
-
-    def next(self):
-        pass # get the next word from interactive stream
-
-    def parsebypattern(self, pat):
-        capture, newpos = re.match(self.line, pat, self.pos)
-        if newpos:
-            self.pos = newpos
-            return capture
-
-    def parsespaces(self):
-        return self.parsebypattern("^([ \t]*)()")
-
-    def parseword(self):
-        return self.parsebypattern("^([^ \t\n]+)()")
-
-    def parsenewline(self):
-        return self.parsebypattern("^(\n)()")
-
-    def parserestofline(self):
-        return self.parsebypattern("^([^\n]*)()")
-
-    def parsewordornewline(self):
-        return self.parseword() or self.parsenewline()
-
-    def getword(self):
-        self.parsespaces()
-        return self.parseword()
-
-    def getwordornewline(self):
-        self.parsespaces()
-        return self.parsewordornewline()
+class UserVars():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr. create, find, read, write
 
 
-#----- NUMBER -----------------------------------------------------------------
-#
-# Number parser, implements NUMBER
-
-class Number():
-    pass
+class ReturnStack():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, push, pop, top, clear, size
 
 
-#---- COMPILER ----------------------------------------------------------------
-#
-# Compiler, implements ':' (i.e. appears in dictionary entry : only)
-# compiles into a head, and associates that with a new word in the dictionary.
-
-class Compiler():
-    pass
+class TextInputBuffer():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, erase, read, write, advance, retard
 
 
-#----- INNER BYTECODE INTERPRETER ---------------------------------------------
-#
-# Executor - executes a word from the dictionary
-# which includes manipulating stacks and other types of memory
-# looking up words by name and words by index in the dictionary
-
-class Executor():
-    rs   = Stack()
-    ds   = Stack()
-    memory = []
-
-    def next(self):
-        pass # get the next word reference along this chain from current head
+class DataStack():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, push, pop, top, clear, size
 
 
-#----- FORTH LANGUAGE ---------------------------------------------------------
+class Pad():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+    # addr, clear, read, write, advance, retard, reset, move?
+
+
+#----- FORTH CONTEXT ----------------------------------------------------------
 #
 # The Forth language - knits everything together into one helpful object.
 
 class Forth:
-    INTERPRET = "interpret"
-    STOP      = "stop"
-    HEAD      = "head"
-    LIT       = "lit"
-    FORTH     = "forth"
+    mem    = Memory()
+    input  = Input()
+    output = Output()
 
-    mode      = INTERPRET
-    dict      = Dictionary()
-    inner     = Executor()
-    outer     = Interpreter()
+    def region(self, name, at, size):
+        # reserved for a later memory-map overlap error checker
+        return at, at, size
+
+    def boot(self):
+        self.makeds()
+        #self.boot_sys_vars() (including init of base/ptr vars of various regions)
+        #self.boot_user_vars()
+        #self.boot_native_words()
+        #self.boot_forth_words()
+        #self.boot_min_interpreter()
+        #self.boot_min_compiler()
+        #self.boot_min_editor()
+        return self
+
+    def makeds(self):
+        # BOOT DATASTRUCTURES (base, ptr, limit for each)
+        #TODO: Need a way to define this memory map as a single configuration
+        #set of constants, that can be overriden with an external config file
+
+        #   init sysvars
+        svbase, svptr, svlimit = self.region("SV", at=0, size=1024)
+        self.sv = SysVars(self.mem, svbase, svptr, svlimit)
+
+        #   init block buffers
+        bbbase, bbptr, bblimit = self.region("BB", at=65535-(1024*2), size=(1024*2))
+        self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
+
+        #   init elective space??
+        #elbase, elptr, ellimit = self.region("EL", at=, size=)
+
+        #   init dictionary
+        dictbase, dictptr, dictlimit = self.region("DICT", at=0, size=1024)
+        self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
+
+        #   init user variables (BASE, S0,...)
+        uvbase, uvptr, uvlimit = self.region("UV", at=0, size=1024)
+        self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
+
+        #   init return stack
+        rsbase, rsptr, rslimit = self.region("RS", at=0, size=1024)
+        self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
+
+        #   init text input buffer
+        tibbase, tibptr, tiblimit = self.region("TIB", at=0, size=1024)
+        self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
+
+        #   init data stack
+        dsbase, dsptr, dslimit = self.region("DS", at=0, size=1024)
+        self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
+
+        #   init pad
+        padbase, padptr, padlimit = self.region("PAD", at=0, size=1024)
+        self.pad = Pad(self.mem, padbase, padptr, padlimit)
+
+    def boot_min_interpreter(self):
+        # BOOT MIN INTERPRETER (some in FORTH, some in Python?)
+        #   BYE
+        #   BL CR . ." EMIT
+        #   RESET ABORT
+        #   KEY? KEY
+        #   FALSE TRUE BEGIN UNTIL
+        #   WORD NUMBER
+        #   EXPECT SPAN
+        #   QUERY
+        #   EXECUTE
+        #   INTERPRET
+        #   QUIT EXIT
+        pass
+
+    def boot_min_compiler(self):
+        # BOOT MIN COMPILER (might do this in FORTH itself)
+        #   , @ ,C VARIABLE
+        #   CREATE
+        #   <BUILDS DOES> COMPILE
+        #   : ;
+        pass
 
     def run(self):
-        while self.mode != self.STOP:
-            m = getattr(self, self.mode)
-            m()
-
-    # Not really sure about modes yet, need to read paper more carefully
-    def interpret(self):
-        print("will run interpreter here")
-        # This is the command prompt that reads a line and passes to INTERPRET
-        #TODO: Enter mode STOP if execute 'BYE'
-        self.mode = self.STOP
-
-    def head(self):
-        # not quite sure what this is for yet, read paper fully.
-        print("unimplemented mode:head")
-
-    def forth(self):
-        # is this the runtime? Isn't it just 'Executor'?
-        print("unimplemented mode:forth")
-
-    def lit(self):
-        # if this implements the LIT command, does it need a state?
-        print("unimplemented mode:lit")
-
+        #NOTE: can boot() then clone(), and then customise and run() multiple clones
+        # optionally load app?
+        # run main interpreter loop (optionally in a thread?)
+        # only gets here when see a 'BYE' command.
+        print("warning: No interpreter yet")
 
 #----- RUNNER -----------------------------------------------------------------
 
-def run():
-    f = Forth()
+def test():
+    f = Forth().boot()
     f.run()
 
 if __name__ == "__main__":
-    run()
+    test()
 
 # END

@@ -27,6 +27,41 @@ class Memory():
     def __init__(self, size=65535):
         self.size = size
         self.mem = [0 for i in range(size)]
+        self.map = []
+
+    def region(self, name, spec):
+        size  = spec[1]
+        if size < 0:
+            # grows down towards low memory
+            start = spec[0] - -size
+        else:
+            # grows up towards high memory
+            start = spec[0]
+        ptr = spec[0]
+        end = start + size
+
+        # check for overlaps with an existing region
+        for i in self.map:
+            iname, istart, isize = i
+            iend = istart + isize-1
+            if (start >= istart and start <= iend) or (end >= istart and end <= iend):
+                raise ValueError("Region %s overlaps with %s" % (name, iname))
+
+        self.map.append((name, start, abs(size)))
+        return start, ptr, end
+
+    def show_map(self):
+        last_end = 0
+        for i in self.map:
+            name, start, size = i
+            if start != last_end:
+                uname  = "UNUSED"
+                ustart = last_end
+                uend   = start-1
+                usize  = uend-ustart-1
+                print("%10s %5d %5d %5d" %(uname, ustart, uend, usize))
+            print("%10s %5d %5d %5d" % (name, start, start+size-1, size))
+            last_end = start + size
 
     def write(self, addr, value):
         self.mem[addr] = value
@@ -136,42 +171,6 @@ class Forth:
     mem    = Memory()
     input  = Input()
     output = Output()
-    map    = []
-
-    def region(self, name, spec):
-        size  = spec[1]
-        if size < 0:
-            # grows down towards low memory
-            start = spec[0] - -size
-        else:
-            # grows up towards high memory
-            start = spec[0]
-        ptr = spec[0]
-        end = start + size
-
-        # check for overlaps with an existing region
-        for i in self.map:
-            iname, istart, isize = i
-            iend = istart + isize-1
-            if (start >= istart and start <= iend) or (end >= istart and end <= iend):
-                raise ValueError("Region %s overlaps with %s" % (name, iname))
-
-        self.map.append((name, start, abs(size)))
-        return start, ptr, end
-
-    def show_memmap(self):
-        last_end = 0
-        for i in self.map:
-            name, start, size = i
-            if start != last_end:
-                uname  = "UNUSED"
-                ustart = last_end
-                uend   = start-1
-                usize  = uend-ustart-1
-                print("%10s %5d %5d %5d" %(uname, ustart, uend, usize))
-            print("%10s %5d %5d %5d" % (name, start, start+size-1, size))
-            last_end = start + size
-
 
     def boot(self):
         self.makeds()
@@ -198,41 +197,41 @@ class Forth:
         BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
         #   init sysvars
-        svbase, svptr, svlimit = self.region("SV", SV_MEM)
+        svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
         self.sv = SysVars(self.mem, svbase, svptr, svlimit)
 
         #   init elective space??
         #elbase, elptr, ellimit = self.region("EL", at=, size=)
 
         #   init dictionary
-        dictbase, dictptr, dictlimit = self.region("DICT", DICT_MEM)
+        dictbase, dictptr, dictlimit = self.mem.region("DICT", DICT_MEM)
         self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
 
         #   init pad
-        padbase, padptr, padlimit = self.region("PAD", PAD_MEM)
+        padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
         self.pad = Pad(self.mem, padbase, padptr, padlimit)
 
         #   init data stack
-        dsbase, dsptr, dslimit = self.region("DS", DS_MEM)
+        dsbase, dsptr, dslimit = self.mem.region("DS", DS_MEM)
         self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
 
         #   init text input buffer
-        tibbase, tibptr, tiblimit = self.region("TIB", TIB_MEM)
+        tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
         self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
 
         #   init return stack
-        rsbase, rsptr, rslimit = self.region("RS", RS_MEM)
+        rsbase, rsptr, rslimit = self.mem.region("RS", RS_MEM)
         self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
 
         #   init user variables (BASE, S0,...)
-        uvbase, uvptr, uvlimit = self.region("UV", UV_MEM)
+        uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
         self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
 
         #   init block buffers
-        bbbase, bbptr, bblimit = self.region("BB", BB_MEM)
+        bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
         self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
 
-        self.show_memmap()
+        self.mem.show_map()
 
     def boot_min_interpreter(self):
         # BOOT MIN INTERPRETER (some in FORTH, some in Python?)

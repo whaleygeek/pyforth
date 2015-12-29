@@ -31,196 +31,196 @@ ISBN 0-13-843079-9
 : 2OVER   ( d1 d2 -- d1 d2 d1)      /P49 Duplicates top pairs of numbers
 : 2DROP   ( d --)                   /P49 Discards top pair of numbers
 
-: FORGET name   ( -- )   /P77
-: LIST   ( n -- )   /P77
-: LOAD   ( n -- )   /P77
-: THRU   ( lo hi -- )   /P77
-: FLUSH   ( -- )   /P77
-: .( text)   ( -- )   /P77
-: TRIAD   ( n -- )   /P77
-: SHOW   (lo hi -- )   /P77
-: INDEX   (lo hi -- )   /P77
-: LOCATE xxx   ( -- )   /P77
-: VIEW xxx   ( -- )   /P77
+: FORGET name   ( -- )              /P77
+: LIST   ( n -- )                   /P77
+: LOAD   ( n -- )                   /P77
+: THRU   ( lo hi -- )               /P77
+: FLUSH   ( -- )                    /P77
+: .( text)   ( -- )                 /P77
+: TRIAD   ( n -- )                  /P77
+: SHOW   (lo hi -- )                /P77
+: INDEX   (lo hi -- )               /P77
+: LOCATE xxx   ( -- )               /P77
+: VIEW xxx   ( -- )                 /P77
 
-: IF xxx   IF: ( ? -- )   /P92
+: IF xxx   IF: ( ? -- )             /P92
   ELSE yyy
   THEN zzz
-: =   ( n1 n2 -- ?)   /P92
-: <>   ( n1 n2 -- ?)   /P92
-: <   ( n1 n2 -- ?)   /P92
-: >   ( n1 n2 -- ?)   /P92
-: 0=   ( n -- ?)   /P92
-: 0<   ( n -- ?)   /P92
-: 0>   ( n -- ?)   /P92
-: NOT   (? -- -?)   /P92
-: AND   ( n1 n2 -- and)   /P92
-: OR   ( n1 n2 -- or)   /P92
-: XOR   ( n1 n2 -- xor)   /P92
+: =   ( n1 n2 -- ?)                 /P92
+: <>   ( n1 n2 -- ?)                /P92
+: <   ( n1 n2 -- ?)                 /P92
+: >   ( n1 n2 -- ?)                 /P92
+: 0=   ( n -- ?)                    /P92
+: 0<   ( n -- ?)                    /P92
+: 0>   ( n -- ?)                    /P92
+: NOT   (? -- -?)                   /P92
+: AND   ( n1 n2 -- and)             /P92
+: OR   ( n1 n2 -- or)               /P92
+: XOR   ( n1 n2 -- xor)             /P92
 : ?DUP   ( n -- n n) or ( 0 -- 0)   /P92
-: ABORT" xxx"   ( ? -- )   /P92
+: ABORT" xxx"   ( ? -- )            /P92
 
-: 1+   ( n -- n+1)   /P113
-: 1-   ( n -- n-1)   /P113
-: 2+   ( n -- n+2)   /P113
-: 2-   ( n -- n-2)   /P113
-: 2*   ( n -- n*2)   /P113
-: 2/   ( n -- n/2)   /P113
-: ABS   ( n -- |n|)   /P113
-: NEGATE   ( n -- -n)   /P113
-: MIN   ( n1 n2 -- min)   /P113
-: MAX   ( n1 n2 -- max)   /P113
-: >R   ( n -- )   /P113
-: R>   ( -- n)   /P113
-: R@   ( -- n)   /P113
-: */   ( n1 n2 n3 -- result)   /P113
+: 1+   ( n -- n+1)                  /P113
+: 1-   ( n -- n-1)                  /P113
+: 2+   ( n -- n+2)                  /P113
+: 2-   ( n -- n-2)                  /P113
+: 2*   ( n -- n*2)                  /P113
+: 2/   ( n -- n/2)                  /P113
+: ABS   ( n -- |n|)                 /P113
+: NEGATE   ( n -- -n)               /P113
+: MIN   ( n1 n2 -- min)             /P113
+: MAX   ( n1 n2 -- max)             /P113
+: >R   ( n -- )                     /P113
+: R>   ( -- n)                      /P113
+: R@   ( -- n)                      /P113
+: */   ( n1 n2 n3 -- result)        /P113
 : */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113
 
-: DO ... LOOP   DO:   /P131
+: DO ... LOOP   DO:                 /P131
                   ( limit index -- )
                 LOOP:  ( -- )
-: DO ... +LOOP  DO:   /P131
+: DO ... +LOOP  DO:                 /P131
                   ( limit index -- )
                 +LOOP:  ( n -- )
-: LEAVE   ( -- )   /P131
+: LEAVE   ( -- )                    /P131
 : BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131
 : BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131
-: .R   ( n width -- )   /P131
-: PAGE   ( -- )   /P131
-: QUIT   ( -- )   /P131
+: .R   ( n width -- )              /P131
+: PAGE   ( -- )                    /P131
+: QUIT   ( -- )                    /P131
 
-: ASCII   ( -- c)   /P161
-: U.   ( u -- )   /P161
-: U.R   ( u width -- )   /P161
-: U<   ( u1 u2 -- ?)   /P161
-: HEX   ( -- )   /P161
-: OCTAL   ( -- )   /P161
-: DECIMAL   ( -- )   /P161
+: ASCII   ( -- c)                  /P161
+: U.   ( u -- )                    /P161
+: U.R   ( u width -- )             /P161
+: U<   ( u1 u2 -- ?)               /P161
+: HEX   ( -- )                     /P161
+: OCTAL   ( -- )                   /P161
+: DECIMAL   ( -- )                 /P161
 
-: <#   /P161
-: #   /P161
-: #S   /P161
-: c HOLD   /P161
-: n SIGN   /P161
-: #>   /P161
-: <# ... #>   ( d -- a u)   /P161
-              ( u 0 -- a u)   /P161
+: <#                               /P161
+: #                                /P161
+: #S                               /P161
+: c HOLD                           /P161
+: n SIGN                           /P161
+: #>                               /P161
+: <# ... #>   ( d -- a u)          /P161
+              ( u 0 -- a u)        /P161
 
 : <# ... n SIGN #>   ( |d| -- a u)   /P161
                 or   ( |d| 0 -- a u)   /P161
-: D+   ( d1 d2 -- dsum)   /P161
-: D-   ( d1 d2 -- d-diff)   /P161
-: DNEGATE   ( d -- -d)   /P161
-: DABS   ( d -- |d|)   /P161
-: DMAX   ( d1 d2 -- d-max)   /P161
-: DMIN   ( d1 d2 -- d-min)   /P161
-: D=   ( d1 d2 -- ?)   /P161
-: D0=   ( d -- ?)   /P161
-: D<   ( d1 d2 -- ?)   /P161
-: DU<   (ud1 ud2 -- ?)   /P161
-: D.   ( d -- )   /P161
-: D.R   ( d width -- )   /P161
+: D+   ( d1 d2 -- dsum)            /P161
+: D-   ( d1 d2 -- d-diff)          /P161
+: DNEGATE   ( d -- -d)             /P161
+: DABS   ( d -- |d|)               /P161
+: DMAX   ( d1 d2 -- d-max)         /P161
+: DMIN   ( d1 d2 -- d-min)         /P161
+: D=   ( d1 d2 -- ?)               /P161
+: D0=   ( d -- ?)                  /P161
+: D<   ( d1 d2 -- ?)               /P161
+: DU<   (ud1 ud2 -- ?)             /P161
+: D.   ( d -- )                    /P161
+: D.R   ( d width -- )             /P161
 
-: UM*   ( u1 u2 -- ud)   /P161
-: UM/MOD   ( ud u1 -- u2 u3)   /P161
-: M*   ( n1 n2 -- d-prod)   /P161
-: M+   ( d n -- d-sum)   /P161
-: M/   ( d n -- n-quot)   /P161
-: M*/   ( d n u -- d)   /P161
+: UM*   ( u1 u2 -- ud)             /P161
+: UM/MOD   ( ud u1 -- u2 u3)       /P161
+: M*   ( n1 n2 -- d-prod)          /P161
+: M+   ( d n -- d-sum)             /P161
+: M/   ( d n -- n-quot)            /P161
+: M*/   ( d n u -- d)              /P161
 
-: CONSTANT xxx   ( n -- )   /P190
-           xxx:  ( -- n)   /P190
-: VARIABLE xxx   ( -- )   /P190
-           xxx: ( -- a)   /P190
-: CREATE xxx   ( -- )   /P190
-         xxx:  ( -- a)   /P190
-: !   ( n a -- )   /P190
-: @   ( a -- n)   /P190
-: ?   ( a -- )   /P190
-: +!   ( n a -- )   /P190
-: ALLOT   ( n -- )   /P190
-: ,   ( n -- )   /P190
-: C,   ( b -- )   /P190
-: C!   ( b a -- )   /P190
-: C@   ( a -- b)   /P190
-: FILL   ( a u b -- )   /P190
-: ERASE   ( a u -- )   /P190
-: BASE   ( -- a)   /P190
-: DUMP   ( a u -- )   /P190
+: CONSTANT xxx   ( n -- )          /P190
+           xxx:  ( -- n)
+: VARIABLE xxx   ( -- )            /P190
+           xxx: ( -- a)
+: CREATE xxx   ( -- )              /P190
+         xxx:  ( -- a)
+: !   ( n a -- )                   /P190
+: @   ( a -- n)                    /P190
+: ?   ( a -- )                     /P190
+: +!   ( n a -- )                  /P190
+: ALLOT   ( n -- )                 /P190
+: ,   ( n -- )                     /P190
+: C,   ( b -- )                    /P190
+: C!   ( b a -- )                  /P190
+: C@   ( a -- b)                   /P190
+: FILL   ( a u b -- )              /P190
+: ERASE   ( a u -- )               /P190
+: BASE   ( -- a)                   /P190
+: DUMP   ( a u -- )                /P190
 
-: 2VARIABLE xxx   ( -- )   /P190
+: 2VARIABLE xxx   ( -- )           /P190
             xxx:  ( -- a)
-: 2CONSTANT xxx   ( d -- )   /P190
+: 2CONSTANT xxx   ( d -- )         /P190
             xxx:  ( -- d)
 
-: 2!   ( d a -- )   /P190
-: 2@   ( a -- d)   /P190
+: 2!   ( d a -- )                  /P190
+: 2@   ( a -- d)                   /P190
 
-: 0   ( -- 0)   /P190
-: 1   ( -- 1)   /P190
-: 0.  ( -- 0 0)   /P190
-: FALSE   ( -- f)   /P190
-: TRUE   ( -- t)   /P190
+: 0   ( -- 0)                      /P190
+: 1   ( -- 1)                      /P190
+: 0.  ( -- 0 0)                    /P190
+: FALSE   ( -- f)                  /P190
+: TRUE   ( -- t)                   /P190
 
-: ' xxx   ( -- a)   /P221
+: ' xxx   ( -- a)                  /P221
 : [']   compile-time: ( -- )
         run-time: ( -- a)
-: EXECUTE   ( a -- )   /P221
-: @EXECUTE   ( a -- )   /P221
-: >BODY   ( cfa -- pfa)   /P221
-: EXIT   ( -- )   /P221
-: QUIT   ( -- )   /P221
-: ABORT   ( -- )   /P221
-: H   ( -- a)   /P221
-: DP   ( -- a)   /P221
-: HERE   ( -- a)   /P221
-: PAD   ( -- a)   /P221
-: SP@   ( -- a)   /P221
-: 'S   ( -- a)   /P221
-: S0   ( -- a)   /P221
-: TIB   ( -- a)   /P221
-: FORTH   ( -- )   /P221
-: EDITOR   ( -- )   /P221
-: ASSEMBLER   ( -- )   /P221
-: CONTEXT   ( -- a)   /P221
-: CURRENT   ( -- a)   /P221
-: DEFINITIONS   ( -- )   /P221
+: EXECUTE   ( a -- )               /P221
+: @EXECUTE   ( a -- )              /P221
+: >BODY   ( cfa -- pfa)            /P221
+: EXIT   ( -- )                    /P221
+: QUIT   ( -- )                    /P221
+: ABORT   ( -- )                   /P221
+: H   ( -- a)                      /P221
+: DP   ( -- a)                     /P221
+: HERE   ( -- a)                   /P221
+: PAD   ( -- a)                    /P221
+: SP@   ( -- a)                    /P221
+: 'S   ( -- a)                     /P221
+: S0   ( -- a)                     /P221
+: TIB   ( -- a)                    /P221
+: FORTH   ( -- )                   /P221
+: EDITOR   ( -- )                  /P221
+: ASSEMBLER   ( -- )               /P221
+: CONTEXT   ( -- a)                /P221
+: CURRENT   ( -- a)                /P221
+: DEFINITIONS   ( -- )             /P221
 
-: UPDATE   ( -- )   /P254
-: SAVE-BUFFERS   ( -- )   /P254
-: FLUSH   ( -- )   /P254
-: EMPTY-BUFFERS   ( -- )   /P254
-: BLOCK   ( u -- a)   /P254
-: BUFFER   ( u -- a)   /P254
-: TYPE   ( a # -- )   /P254
-: -TRAILING   (a #1 -- a #2)   /P254
-: >TYPE   ( a # -- )   /P254
-: MOVE   ( a1 a2 # -- )   /P254
-: CMOVE   ( a1 a2 # -- )   /P254
-: CMOVE>   ( a1 a2 # -- )   /P254
-: BLANK   ( a # -- )   /P254
-: KEY   ( -- c)   /P254
-: EXPECT   ( a # -- )   /P254
-: SPAN   ( -- a)   /P254
-: WORD   ( c -- a)   /P254
-: COUNT   ( a -- a+1 #)   /P254
-: >IN   ( -- a)   /P254
-: BLK   ( -- a)   /P254
-: CONVERT   ( ud1 a1 -- ud2 a2)   /P254
-: NUMBER   ( a -- d)   /P254
-: -TEXT   ( a1 # a2 -- ?)   /P254
-: -MATCH   ( d # s # -- a ?)   /P254
-: STRING   ( c -- )   /P254
-: LIT" xxx"   run-time: ( -- a)   /P254
+: UPDATE   ( -- )                  /P254
+: SAVE-BUFFERS   ( -- )            /P254
+: FLUSH   ( -- )                   /P254
+: EMPTY-BUFFERS   ( -- )           /P254
+: BLOCK   ( u -- a)                /P254
+: BUFFER   ( u -- a)               /P254
+: TYPE   ( a # -- )                /P254
+: -TRAILING   (a #1 -- a #2)       /P254
+: >TYPE   ( a # -- )               /P254
+: MOVE   ( a1 a2 # -- )            /P254
+: CMOVE   ( a1 a2 # -- )           /P254
+: CMOVE>   ( a1 a2 # -- )          /P254
+: BLANK   ( a # -- )               /P254
+: KEY   ( -- c)                    /P254
+: EXPECT   ( a # -- )              /P254
+: SPAN   ( -- a)                   /P254
+: WORD   ( c -- a)                 /P254
+: COUNT   ( a -- a+1 #)            /P254
+: >IN   ( -- a)                    /P254
+: BLK   ( -- a)                    /P254
+: CONVERT   ( ud1 a1 -- ud2 a2)    /P254
+: NUMBER   ( a -- d)               /P254
+: -TEXT   ( a1 # a2 -- ?)          /P254
+: -MATCH   ( d # s # -- a ?)       /P254
+: STRING   ( c -- )                /P254
+: LIT" xxx"   run-time: ( -- a)    /P254
 
-: DOES>   run-time: ( -- a)   /P286
-: IMMEDIATE   ( -- )   /P286
-: COMPILE xxx   ( -- )   /P286
+: DOES>   run-time: ( -- a)          /P286
+: IMMEDIATE   ( -- )                 /P286
+: COMPILE xxx   ( -- )               /P286
 : LITERAL   compile-time: ( n -- )   /P286
             run-time: ( -- n)
-: [   ( -- )   /P286
-: ]   ( -- )   /P286
-: [COMPILE] xxx   ( -- )   /P286
-: STATE   ( -- a)   /P286
-: INTERPRET   ( -- )   /P286
+: [   ( -- )                         /P286
+: ]   ( -- )                         /P286
+: [COMPILE] xxx   ( -- )             /P286
+: STATE   ( -- a)                    /P286
+: INTERPRET   ( -- )                 /P286
 

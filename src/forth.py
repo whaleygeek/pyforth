@@ -62,6 +62,193 @@ class Memory():
     def read(self, addr):
         return self.mem[addr]
 
+    def readn(self, addr):
+        """Read a cell sized 2 byte variable"""
+        #TODO endianness BIG?
+        value = self.mem[addr]<<8 + self.mem[addr+1]
+        return value
+
+    def readb(self, addr):
+        """Read a 1 byte variable"""
+        value = self.mem[addr]
+        return value
+
+    def readd(self, addr):
+        """Read a double length variable (4 byte, 32 bits)"""
+        #TODO endianness BIG?
+        value = self.mem[addr]<<24 + self.mem[addr+1]<<16 + self.mem[addr+2]<<8 + self.mem[addr+3]
+        return value
+
+    def writen(self, addr, value):
+        """Write a cell sized 2 byte variable"""
+        #TODO endianness BIG??
+        high = (value & 0xFF00)>>8
+        low = (value & 0xFF)
+        self.mem[addr] = high
+        self.mem[addr+1] = low
+
+    def writeb(self, addr, value):
+        """Write a 1 byte variable"""
+        low = (value & 0xFF)
+        self.mem[addr] = low
+
+    def writed(self, addr, value):
+        """Write a double length variable (4 byte, 32 bits)"""
+        byte0 = (value & 0xFF000000)>>24
+        byte1 = (value & 0x00FF0000)>>16
+        byte2 = (value & 0x0000FF00)>>8
+        byte3 = (value & 0x000000FF)
+        self.mem[addr]   = byte0
+        self.mem[addr+1] = byte1
+        self.mem[addr+2] = byte2
+        self.mem[addr+3] = byte3
+
+
+#----- PYTHON WRAPPERS FOR FORTH DATA STRUCTURES -----------------------------------
+#
+# A useful abstraction to allow Python to meddle directly with Forth's
+# data structure regions in memory. This is useful when you want to rewrite
+# the implementation code for a word in Python to get better execution speed.
+
+class Vars():
+    def __init__(self, mem, start, size):
+        self.mem = mem
+        self.base = start
+        self.ptr = start
+        self.limit = start + size-1
+
+    def create(self, size=2):
+        """Create a new constant or variable of the given size in bytes"""
+        addr = self.ptr
+        self.ptr += size
+        #TODO limit check?
+        return addr
+
+    def readn(self, addr):
+        #TODO limit check?
+        return self.mem.readn(addr)
+
+    def readb(self, addr):
+        #TODO limit check?
+        return self.mem.readb(addr)
+
+    def readd(self, addr):
+        #TODO limit check?
+        return self.mem.readd(addr)
+
+    def writen(self, addr, value):
+        #TODO limit check?
+        self.mem.writen(addr, value)
+
+    def writeb(self, addr, value):
+        #TODO limit check?
+        self.mem.writeb(addr, value)
+
+    def writed(self, addr, value):
+        #TODO limit check?
+        self.mem.writed(addr, value)
+
+
+class SysVars(Vars):
+    def __init__(self, mem, start, size):
+        Vars.__init__(self, mem, start, size)
+
+
+class UserVars(Vars):
+    def __init__(self, mem, start, size):
+        Vars.__init__(self, mem, start, size)
+
+
+class Dictionary():
+    def __init__(self, mem, base, ptr, limit):
+        pass
+
+    # probably just write native versions of all the usual FORTH words here
+    # CREATE
+    # ALLOT
+    # CFA
+    # PFA
+    # TICK
+    # FORGET
+    # HERE
+
+
+class Stack():
+    def __init__(self, mem, base, size):
+        self.mem  = mem
+        self.S0   = base
+        self.size = size
+        self.SP   = base
+
+    def pushn(self, value):
+        pass
+
+    def pushb(self, value):
+        pass
+
+    def pushd(self, value):
+        pass
+
+    def popn(self):
+        pass
+
+    def popb(self):
+        pass
+
+    def popd(self):
+        pass
+
+    def getn(self, relindex):
+        pass
+
+    def getb(self, relindex):
+        pass
+
+    def getd(self, relindex):
+        pass
+
+    def setn(self, relindex, value):
+        pass
+
+    def setb(self, relindex, value):
+        pass
+
+    def setd(self, relindex, value):
+        pass
+
+    def clear(self):
+        pass
+
+    #TODO: drop, dup, swap, rot, over
+
+class DataStack(Stack):
+    def __init__(self, mem, base, limit):
+        Stack.__init__(self, base, limit)
+
+
+class ReturnStack(Stack):
+    def __init__(self, mem, base, limit):
+        Stack.__init__(self, base, limit)
+
+
+#class TextInputBuffer():
+#    def __init__(self, mem, base, ptr, limit):
+#        pass
+#    # addr, erase, read, write, advance, retard
+
+
+#class Pad():
+#    def __init__(self, mem, base, ptr, limit):
+#        pass
+#    # addr, clear, read, write, advance, retard, reset, move?
+
+
+#class BlockBuffers():
+#    def __init__(self, mem, base, ptr, limit):
+#        pass
+#    # addr, read, write, erase
+#    # cache index
+
 
 #---- INPUT -------------------------------------------------------------------
 #
@@ -101,60 +288,6 @@ class Disk():
 
 
 
-#----- PYTHON WRAPPERS FOR FORTH DATA STRUCTURES -----------------------------------
-#
-# A useful abstraction to allow Python to meddle directly with Forth's
-# data structure regions in memory. This is useful when you want to rewrite
-# the implementation code for a WORD in Python to get better execution speed.
-
-class SysVars():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, create, read, write
-
-
-class BlockBuffers():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, read, write, erase
-    # cache index
-
-
-class Dictionary():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, create, find, read, forget, here
-
-
-class UserVars():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr. create, find, read, write
-
-
-class ReturnStack():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, push, pop, top, clear, size
-
-
-class TextInputBuffer():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, erase, read, write, advance, retard
-
-
-class DataStack():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, push, pop, top, clear, size
-
-
-class Pad():
-    def __init__(self, mem, base, ptr, limit):
-        pass
-    # addr, clear, read, write, advance, retard, reset, move?
-
 
 #----- FORTH CONTEXT ----------------------------------------------------------
 #
@@ -166,7 +299,8 @@ class Forth:
     output = Output()
 
     def boot(self):
-        self.makeds()
+        self.make_ds()
+        self.build_nucleus()
 
 
         #self.boot_sys_vars() (including init of base/ptr vars of various regions)
@@ -178,7 +312,7 @@ class Forth:
         #self.boot_min_editor()
         return self
 
-    def makeds(self):
+    def make_ds(self):
         # BOOT DATASTRUCTURES (base, ptr, limit for each)
 
         SV_MEM   = (0,               +1024      )
@@ -228,35 +362,9 @@ class Forth:
 
         self.mem.show_map()
 
-    def boot_min_interpreter(self):
-        # BOOT MIN INTERPRETER (some in FORTH, some in Python?)
-        #   BL CR . ." EMIT
-        #   RESET ABORT
-        #   KEY? KEY
-        #   FALSE TRUE BEGIN UNTIL
-        #   WORD NUMBER
-        #   EXPECT SPAN
-        #   QUERY
-        #   BYE
-        #   EXECUTE
-        #   INTERPRET
-        #   QUIT EXIT
+    def build_nucelus(self):
         pass
 
-    def boot_min_compiler(self):
-        # BOOT MIN COMPILER (might do this in FORTH itself)
-        #   , @ ,C VARIABLE
-        #   CREATE
-        #   <BUILDS DOES> COMPILE
-        #   : ;
-        pass
-
-    # BOOT REST OF LANGUAGE (do this in FORTH itself)
-    #   other compiler words
-    #   conditionals
-    #   other forth DS words
-    #   other forth RS words
-    #   other forth words
 
     def run(self):
         #NOTE: can boot() then clone(), and then customise and run() multiple clones

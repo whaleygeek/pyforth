@@ -1,29 +1,13 @@
-Minor extracts from the following book, to act as a 'spec' for implementation.
 
-Leo Brodie/Forth Inc.
-Starting Forth, 2nd Edition
-Prentice-Hall
-ISBN 0-13-843079-9
-
-
-TODO: Split this into layers of definition, native ones first
-
-NATIVE (i.e. created by Python, code is python)
-
-LOADED (i.e. created by forth, code is python?)
-
-SYSVARS - some of these are system variables, extract them
-
-USERVARS - some of these are user variables, extract them
-
-
------ VARIABLES ---------------------------------------------------------------
+----- CONSTANTS ---------------------------------------------------------------
 
 : 0   ( -- 0)                        /P190 const zero
 : 1   ( -- 1)                        /P190 const 1
 : 0.  ( -- 0 0)                      /P190 double length const 0
 : FALSE   ( -- f)                    /P190 false (0)
 : TRUE   ( -- t)                     /P190 true (-1)
+
+----- VARIABLES ---------------------------------------------------------------
 
 : H   ( -- a)                        /P221 Address of dictionary pointer
 : DP   ( -- a)                       /P221 Address of dictionary pointer
@@ -33,45 +17,31 @@ USERVARS - some of these are user variables, extract them
 : 'S   ( -- a)                       /P221 Address of top of data stack
 : S0   ( -- a)                       /P221 Address of bottom of data stack
 : TIB   ( -- a)                      /P221 Address of start of text input buffer
-
 : SPAN   ( -- a)                     /P254 number of chars read in expect
-: COUNT   ( a -- a+1 #)              /P254 convert counted string into TYPE expected format
 : >IN   ( -- a)                      /P254 present char offset in input stream
 : BLK   ( -- a)                      /P254 number of storage block being interpreted as input stream (0 means IN)
 : STATE   ( -- a)                    /P286 true if compiling, false if interpreting
-
 : CONTEXT   ( -- a)                  /P221 address of var that specifies dict search order
 : CURRENT   ( -- a)                  /P221 addr of var specifying the vocab for new defns
 : BASE   ( -- a)                     /P190 number base
 
-
-
------ NATIVE ------------------------------------------------------------------
+----- NOT SYNTHESISABLE ------------------------------------------------------------------
 
 i/o
 
 : EMIT   ( c -- ) ;                  /P26 Send character to output
 : KEY   ( -- c)                      /P254 next char from input
 : D.   ( d -- )                      /P161 print 32 bit number and 1 space
-: D.R   ( d width -- )               /P161 print 32 bit number right justified
 : ?   ( a -- )                       /P190 prints contents of addr followed by 1 space
 : U.   ( u -- )                      /P161 Print unsigned number and space
-: U.R   ( u width -- )               /P161 Print unsigned number right justified
 : U<   ( u1 u2 -- ?)                 /P161 Unsigned compare
-: .R   ( n width -- )                /P131 Prints number right justified to width
 
 memory
 
 : !   ( n a -- )                     /P190 store single number into addr
 : @   ( a -- n)                      /P190 replace addr with contents
-: +!   ( n a -- )                    /P190 add single len number to contents of addr
-: ALLOT   ( n -- )                   /P190 adds n bytes to parameter field of most recently defined word
-: ,   ( n -- )                       /P190 compiles n into next available cell in dict
-: C,   ( b -- )                      /P190 compiles b into next available byte in dict
 : C!   ( b a -- )                    /P190 store 8 bit value
 : C@   ( a -- b)                     /P190 fetch 8 bit value
-: 2!   ( d a -- )                    /P190 store double length number
-: 2@   ( a -- d)                     /P190 return double length contents
 
 arithmetic
 
@@ -80,15 +50,9 @@ arithmetic
 : *   ( n1 n2 -- prod)                /P49 Multiplies
 : /   ( n1 n2 -- quot)                /P49 Divides (n1/n2)
 : MOD   ( n1 n2 -- n-rem)             /P49 Remainder from division
-: /MOD   ( n1 n2 -- n-rem n-quot)     /P49 Divides, remainder and quotient
-: */   ( n1 n2 n3 -- result)          /P113 Multply then divide, 32bit intermediate
 : */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 Multiply then divide, double length intermediate
 : D+   ( d1 d2 -- dsum)              /P161 adds 32 bit
 : D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit
-: DNEGATE   ( d -- -d)               /P161 negates 32 bit
-: DABS   ( d -- |d|)                 /P161 absolute of 32 bit
-: DMAX   ( d1 d2 -- d-max)           /P161 max of 32 bit
-: DMIN   ( d1 d2 -- d-min)           /P161 min of 32 bit
 : UM*   ( u1 u2 -- ud)               /P161 multiply 16 bit, 32 bit result
 : UM/MOD   ( ud u1 -- u2 u3)         /P161 divide mod 16 bit, 32 bit result
 : M*   ( n1 n2 -- d-prod)            /P161 multiply 16 bit, 32 bit result
@@ -98,21 +62,9 @@ arithmetic
 
 logical
 
-: =   ( n1 n2 -- ?)                   /P92 True if n1 and n2 are equal
-: <>   ( n1 n2 -- ?)                  /P92 True if n1 and n2 are not equal
-: <   ( n1 n2 -- ?)                   /P92 True if ni less than n2
-: >   ( n1 n2 -- ?)                   /P92 True if n1 greater than n2
-: 0=   ( n -- ?)                      /P92 True if n is zero
-: 0<   ( n -- ?)                      /P92 True if n is negative
-: 0>   ( n -- ?)                      /P92 True if n is positive
-: NOT   (? -- -?)                     /P92 Reverse sense of flag
 : AND   ( n1 n2 -- and)               /P92 Logical AND
 : OR   ( n1 n2 -- or)                 /P92 Logical OR
 : XOR   ( n1 n2 -- xor)               /P92 Logical XOR
-: D=   ( d1 d2 -- ?)                 /P161 equality check
-: D0=   ( d -- ?)                    /P161 true if zero
-: D<   ( d1 d2 -- ?)                 /P161 true if less
-: DU<   (ud1 ud2 -- ?)               /P161 true if unsigned less
 
 data stack
 
@@ -121,10 +73,6 @@ data stack
 : OVER   ( n1 n2 -- n1 n2 n1)         /P49 Makes a copy of second item and puts on top
 : ROT   ( n1 n2 n3 -- n2 n3 n1)       /P49 Rotates 3rd item to top
 : DROP   ( n -- )                     /P49 Discards top item
-: 2SWAP   ( d1 d2 -- d2 d1)           /P49 Reverses top two pairs of numbers
-: 2DUP   ( d -- d d)                  /P49 Duplicates top pair of numbers
-: 2OVER   ( d1 d2 -- d1 d2 d1)        /P49 Duplicates top pairs of numbers
-: 2DROP   ( d --)                     /P49 Discards top pair of numbers
 
 return stack
 
@@ -133,39 +81,39 @@ return stack
 : R@   ( -- n)                        /P113 Copies top of return stack
 : EXIT   ( -- )                       /P221 removes return addr from RS, return to it (or terminate defn)
 
+dictionary
+
+: ' xxx   ( -- a)                    /P221 find dict address of xxx
+
 
 ===============================================================================
 
 TO BE CLASSIFIED
 
-: CR   ( -- ) ;                       /P26 Carriage return/line feed
-: SPACES   ( n -- ) ;                 /P26 Blank spaces
-: SPACE   ( -- ) ;                    /P26 One space
-: ." xxx"   ( -- ) ;                  /P26 Displays the character string xxx. The " character terminates the string
-: .   ( n -- )  ;                     /P26 Display number followed by a space
-: ( xxx)   ( -- )  ;                  /P26 Comment, terminated by )
-: FORGET name   ( -- )                /P77 Removes all dict entries up to and including this one
-: LIST   ( n -- )                     /P77 Lists a disk block
+text processing
+
+: ASCII   ( -- c)                    /P161 Next input char into ascii equivalent
+: WORD   ( c -- a)                   /P254 read 1 word from input stream
+: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 string to binary value
+: NUMBER   ( a -- d)                 /P254 using base, convert to binary value
+: LIT" xxx"   run-time: ( -- a)      /P254 compiles literal (used in definitions)
+
+block buffer handling
+
 : LOAD   ( n -- )                     /P77 Loads a disk block (compiles or executes)
-: THRU   ( lo hi -- )                 /P77 Loads all blocks inclusive
 : FLUSH   ( -- )                      /P77 Writes all updated disk buffers to disk, and unassigns
-: .( text)   ( -- )                   /P77 Display text
 : LOCATE xxx   ( -- )                 /P77 Lists block from which xxx has been loaded
 : VIEW xxx   ( -- )                   /P77 Lists block from which xxx has been loaded
+: UPDATE   ( -- )                    /P254 Most recently referenced block marked modified
+: SAVE-BUFFERS   ( -- )              /P254 Writes all updated buffers, un-updated, still assigned
+: FLUSH   ( -- )                     /P254 saves then unassigns all buffers
+: EMPTY-BUFFERS   ( -- )             /P254 marks all buffers empty without saving
+
+branching
+
 : IF xxx   IF: ( ? -- )               /P92 If non zero, executes xxx, otherwise yyy, continues with zzz
   ELSE yyy
   THEN zzz
-: ABORT" xxx"   ( ? -- )              /P92 If flag true, shows last word and text, clears user stacks, back to terminal.
-: 1+   ( n -- n+1)                    /P113 Add one
-: 1-   ( n -- n-1)                    /P113 Subtract one
-: 2+   ( n -- n+2)                    /P113 Add two
-: 2-   ( n -- n-2)                    /P113 Subtract two
-: 2*   ( n -- n*2)                    /P113 Multiply by two
-: 2/   ( n -- n/2)                    /P113 Divide by two
-: ABS   ( n -- |n|)                   /P113 Absolute value
-: NEGATE   ( n -- -n)                 /P113 Change the sign
-: MIN   ( n1 n2 -- min)               /P113 Minimum
-: MAX   ( n1 n2 -- max)               /P113 Maximum
 : DO ... LOOP   DO:                   /P131 Finite loop
                   ( limit index -- )
                 LOOP:  ( -- )
@@ -175,74 +123,31 @@ TO BE CLASSIFIED
 : LEAVE   ( -- )                      /P131 Terminate at next LOOP
 : BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131 Indefinite loop exits when ? true
 : BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 Indefinite loop always executes xxx
-: PAGE   ( -- )                      /P131 Clears display and resets to left top
-: QUIT   ( -- )                      /P131 Terminates execution, returns to interpreter
-: ASCII   ( -- c)                    /P161 Next input char into ascii equivalent
-: <#                                 /P161 Begin number conversion
-: #                                  /P161 Convert one digit into output char string
-: #S                                 /P161 Convert until result is zero
-: c HOLD                             /P161 Insert char
-: n SIGN                             /P161 Insert minus sign
-: #>                                 /P161 End conversion
-: <# ... #>   ( d -- a u)            /P161 32 bit unsigned
-              ( u 0 -- a u)          /P161 16 bit signed
-: <# ... n SIGN #>   ( |d| -- a u)   /P161 32 bit signed
-                or   ( |d| 0 -- a u) /P161 16 bit signed
 
+definition/compiling
 
-: CONSTANT xxx   ( n -- )            /P190 create constant with a value
-           xxx:  ( -- n)
-: VARIABLE xxx   ( -- )              /P190 create variable (returns addr when exec)
-           xxx: ( -- a)
 : CREATE xxx   ( -- )                /P190 create dictionary header, (xxx returns addr when exec)
          xxx:  ( -- a)
-: 2VARIABLE xxx   ( -- )             /P190 create double length var, addr when exec
-            xxx:  ( -- a)
-: 2CONSTANT xxx   ( d -- )           /P190 create double length const with value
-            xxx:  ( -- d)
-: ' xxx   ( -- a)                    /P221 find dict address of xxx
 : [']   compile-time: ( -- )         /P221 compiles address of next word in defn as a literal
         run-time: ( -- a)
-: EXECUTE   ( a -- )                 /P221 executes dict entry pfa on stack
-: @EXECUTE   ( a -- )                /P221 executes dict entry pfa pointed to by contents of a, nothing if zero
-: >BODY   ( cfa -- pfa)              /P221 pfa address of cfa address
-: QUIT   ( -- )                      /P221 clear RS, back to monitor
-: ABORT   ( -- )                     /P221 Clear DS and then quit
-: FORTH   ( -- )                     /P221 Make forth context vocab
-: EDITOR   ( -- )                    /P221 Make editor the context vocab
-: ASSEMBLER   ( -- )                 /P221 Make assembler the context vocab
-: DEFINITIONS   ( -- )               /P221 sets current vocab to context vocab
-: UPDATE   ( -- )                    /P254 Most recently referenced block marked modified
-: SAVE-BUFFERS   ( -- )              /P254 Writes all updated buffers, un-updated, still assigned
-: FLUSH   ( -- )                     /P254 saves then unassigns all buffers
-: EMPTY-BUFFERS   ( -- )             /P254 marks all buffers empty without saving
-: BLOCK   ( u -- a)                  /P254 Address of first byte in block
-: BUFFER   ( u -- a)                 /P254 like block, not necc read from mass storage
-: TYPE   ( a # -- )                  /P254 transmits # chars starting at addr
-: -TRAILING   (a #1 -- a #2)         /P254 eliminates trailing blanks from string
-: >TYPE   ( a # -- )                 /P254 output string moved to PAD before output
-: EXPECT   ( a # -- )                /P254 wait for chars or newline
-: WORD   ( c -- a)                   /P254 read 1 word from input stream
-: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 string to binary value
-: NUMBER   ( a -- d)                 /P254 using base, convert to binary value
-: -TEXT   ( a1 # a2 -- ?)            /P254 compare strings
-: -MATCH   ( d # s # -- a ?)         /P254 search for string
-: STRING   ( c -- )                  /P254 compiles string literal into dict as counted string
-: LIT" xxx"   run-time: ( -- a)      /P254 compiles literal (used in definitions)
 : DOES>   run-time: ( -- a)          /P286 creates defining word, end of compile-time begin of run-time
-: IMMEDIATE   ( -- )                 /P286 marks recently defined word by setting immediate bit
 : COMPILE xxx   ( -- )               /P286 compile a word
 : LITERAL   compile-time: ( n -- )   /P286 compiles a value
             run-time: ( -- n)
 : [   ( -- )                         /P286 leaves compile mode
 : ]   ( -- )                         /P286 enters compile mode
 : [COMPILE] xxx   ( -- )             /P286 immediate word gets compiled
-: INTERPRET   ( -- )                 /P286 text interpret input stream until exhausted
+
+running
+
+: EXECUTE   ( a -- )                 /P221 executes dict entry pfa on stack
+: QUIT   ( -- )                      /P221 clear RS, back to monitor
+: ABORT   ( -- )                     /P221 Clear DS and then quit
 
 
 
 --------------------------------------------------------------------------------
-OBVIOUSLY SYTHESISABLE
+SYTHESISABLE
 
 : ?DUP   ( n -- n n) or ( 0 -- 0)     /P92 Duplicates only if n is nonzero
 : BLANK   ( a # -- )                 /P254 fills with ascii 0
@@ -258,6 +163,118 @@ OBVIOUSLY SYTHESISABLE
 : TRIAD   ( n -- )                    /P77 Displays 3 blocks
 : SHOW   ( lo hi -- )                 /P77 Lists in triad form
 : INDEX   ( lo hi -- )                /P77 Displays comment lines only
+: COUNT   ( a -- a+1 #)              /P254 convert counted string into TYPE expected format
+: CR   ( -- ) ;                       /P26 Output a carriage return/line feed
+: SPACES   ( n -- ) ;                 /P26 Blank spaces
+: SPACE   ( -- ) ;                    /P26 One space
+: FORGET name   ( -- )                /P77 Removes all dict entries up to and including this one
+: 1+   ( n -- n+1)                    /P113 Add one
+: 1-   ( n -- n-1)                    /P113 Subtract one
+: 2+   ( n -- n+2)                    /P113 Add two
+: 2-   ( n -- n-2)                    /P113 Subtract two
+: 2*   ( n -- n*2)                    /P113 Multiply by two
+: 2/   ( n -- n/2)                    /P113 Divide by two
+: ABS   ( n -- |n|)                   /P113 Absolute value
+: NEGATE   ( n -- -n)                 /P113 Change the sign
+: MIN   ( n1 n2 -- min)               /P113 Minimum
+: MAX   ( n1 n2 -- max)               /P113 Maximum
+: <#                                 /P161 Begin number conversion
+: #                                  /P161 Convert one digit into output char string
+: #S                                 /P161 Convert until result is zero
+: c HOLD                             /P161 Insert char
+: n SIGN                             /P161 Insert minus sign
+: #>                                 /P161 End conversion
+: <# ... #>   ( d -- a u)            /P161 32 bit unsigned
+              ( u 0 -- a u)          /P161 16 bit signed
+: <# ... n SIGN #>   ( |d| -- a u)   /P161 32 bit signed
+                or   ( |d| 0 -- a u) /P161 16 bit signed
+: CONSTANT xxx   ( n -- )            /P190 create constant with a value
+           xxx:  ( -- n)
+: VARIABLE xxx   ( -- )              /P190 create variable (returns addr when exec)
+           xxx: ( -- a)
+: 2VARIABLE xxx   ( -- )             /P190 create double length var, addr when exec
+            xxx:  ( -- a)
+: 2CONSTANT xxx   ( d -- )           /P190 create double length const with value
+            xxx:  ( -- d)
+: PAGE   ( -- )                      /P131 Clears display and resets to left top
+: FORTH   ( -- )                     /P221 Make forth context vocab
+: EDITOR   ( -- )                    /P221 Make editor the context vocab
+: ASSEMBLER   ( -- )                 /P221 Make assembler the context vocab
+: DEFINITIONS   ( -- )               /P221 sets current vocab to context vocab
+: ." xxx"   ( -- ) ;                  /P26 Displays the character string xxx. The " character terminates the string
+: .   ( n -- )  ;                     /P26 Display number followed by a space
+: ( xxx)   ( -- )  ;                  /P26 Comment, terminated by )
+: LIST   ( n -- )                     /P77 Lists a disk block
+: .( text)   ( -- )                   /P77 Display text
+: THRU   ( lo hi -- )                 /P77 Loads all blocks inclusive
+: ABORT" xxx"   ( ? -- )              /P92 If flag true, shows last word and text, clears user stacks, back to terminal.
+: BLOCK   ( u -- a)                  /P254 Address of first byte in block
+: BUFFER   ( u -- a)                 /P254 like block, not necc read from mass storage
+: TYPE   ( a # -- )                  /P254 transmits # chars starting at addr
+: -TRAILING   (a #1 -- a #2)         /P254 eliminates trailing blanks from string
+: >TYPE   ( a # -- )                 /P254 output string moved to PAD before output
+: -TEXT   ( a1 # a2 -- ?)            /P254 compare strings
+: -MATCH   ( d # s # -- a ?)         /P254 search for string
+: EXPECT   ( a # -- )                /P254 wait for chars or newline
+: IMMEDIATE   ( -- )                 /P286 marks recently defined word by setting immediate bit
+: INTERPRET   ( -- )                 /P286 text interpret input stream until exhausted
+: >BODY   ( cfa -- pfa)              /P221 pfa address of cfa address
+: @EXECUTE   ( a -- )                /P221 executes dict entry pfa pointed to by contents of a, nothing if zero
+: STRING   ( c -- )                  /P254 compiles string literal into dict as counted string
+: NOT   (? -- -?)                     /P92 Reverse sense of flag
+: =   ( n1 n2 -- ?)                   /P92 True if n1 and n2 are equal
+: <>   ( n1 n2 -- ?)                  /P92 True if n1 and n2 are not equal
+: <   ( n1 n2 -- ?)                   /P92 True if ni less than n2
+: >   ( n1 n2 -- ?)                   /P92 True if n1 greater than n2
+: 0=   ( n -- ?)                      /P92 True if n is zero
+: 0<   ( n -- ?)                      /P92 True if n is negative
+: 0>   ( n -- ?)                      /P92 True if n is positive
+: D0=   ( d -- ?)                    /P161 true if zero
+: D=   ( d1 d2 -- ?)                 /P161 equality check
+: D<   ( d1 d2 -- ?)                 /P161 true if less
+: DU<   (ud1 ud2 -- ?)               /P161 true if unsigned less
+: DNEGATE   ( d -- -d)               /P161 negates 32 bit
+: DABS   ( d -- |d|)                 /P161 absolute of 32 bit
+: DMAX   ( d1 d2 -- d-max)           /P161 max of 32 bit
+: DMIN   ( d1 d2 -- d-min)           /P161 min of 32 bit
+: ALLOT   ( n -- )                   /P190 adds n bytes to parameter field of most recently defined word
+: ,   ( n -- )                       /P190 compiles n into next available cell in dict
+: C,   ( b -- )                      /P190 compiles b into next available byte in dict
+: +!   ( n a -- )                    /P190 add single len number to contents of addr
+: 2!   ( d a -- )                    /P190 store double length number
+: 2@   ( a -- d)                     /P190 return double length contents
+: U.R   ( u width -- )               /P161 Print unsigned number right justified
+: .R   ( n width -- )                /P131 Prints number right justified to width
+: D.R   ( d width -- )               /P161 print 32 bit number right justified
+: /MOD   ( n1 n2 -- n-rem n-quot)     /P49 Divides, remainder and quotient
+: */   ( n1 n2 n3 -- result)          /P113 Multply then divide, 32bit intermediate
+: 2SWAP   ( d1 d2 -- d2 d1)           /P49 Reverses top two pairs of numbers
+: 2DUP   ( d -- d d)                  /P49 Duplicates top pair of numbers
+: 2OVER   ( d1 d2 -- d1 d2 d1)        /P49 Duplicates top pairs of numbers
+: 2DROP   ( d --)                     /P49 Discards top pair of numbers
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -59,6 +59,21 @@ the dictionary at moment.
 : AND   ( n1 n2 -- and)               /P92 Logical AND
 : OR   ( n1 n2 -- or)                 /P92 Logical OR
 : XOR   ( n1 n2 -- xor)               /P92 Logical XOR
+: (LOAD) ( n b -- )                   /ADD Loads disk block into memory block
+: (SAVE) ( b n -- )                   /ADD Saves memory block to disk block
+: (EXECUTE) ( a -- )                  /ADD execute from address
+
+Possibly synth?
+: EXIT   ( -- )                       /P221 removes return addr from RS, return to it (or terminate defn)
+: (LOADED) ( n b ? -- )               /ADD block buffer loaded or unloaded
+
+Access to carry bit would allow this to be synth
+: D+   ( d1 d2 -- dsum)              /P161 adds 32 bit
+: D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit
+
+Note, given access to addresses and top of data stack pointer, and top of return
+stack pointer, a number of the stack ones might be synthesisable, but non optimal.
+
 : SWAP   ( n1 n2 -- n2 n1)            /P49 Reverses top two stack items
 : DUP   ( n -- n n)                   /P49 Duplicates top stack item
 : OVER   ( n1 n2 -- n1 n2 n1)         /P49 Makes a copy of second item and puts on top
@@ -67,13 +82,7 @@ the dictionary at moment.
 : >R   ( n -- )                       /P113 Move data stack to return stack
 : R>   ( -- n)                        /P113 Move return stack to data stack
 : R@   ( -- n)                        /P113 Copies top of return stack
-: EXIT   ( -- )                       /P221 removes return addr from RS, return to it (or terminate defn)
-: (LOAD) ( n b -- )                   /ADD Loads disk block into memory block
-: (SAVE) ( b n -- )                   /ADD Saves memory block to disk block
-: (LOADED) ( n b ? -- )               /ADD block buffer loaded or unloaded
-: (EXECUTE) ( a -- )                  /ADD execute from address
-: D+   ( d1 d2 -- dsum)              /P161 adds 32 bit
-: D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit
+
 
 --------------------------------------------------------------------------------
 SYTHESISABLE

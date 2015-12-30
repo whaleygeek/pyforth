@@ -1,5 +1,15 @@
 
------ CONSTANTS ---------------------------------------------------------------
+This is a non optimal list, but a good first stab at a minimal kernel
+that is required to build up the next layers.
+
+The whole point is to define as little as possible natively to allow fast porting,
+and then optimise later when on a real platform and have an appropriate assembler
+written.
+
+57 that have to be hand-written in target language and manually linked into
+the dictionary at moment.
+
+----- CONSTANTS (5) ---------------------------------------------------------------
 
 : 0   ( -- 0)                        /P190 const zero
 : 1   ( -- 1)                        /P190 const 1
@@ -7,7 +17,7 @@
 : FALSE   ( -- f)                    /P190 false (0)
 : TRUE   ( -- t)                     /P190 true (-1)
 
------ VARIABLES ---------------------------------------------------------------
+----- VARIABLES (16) ---------------------------------------------------------------
 
 : H   ( -- a)                        /P221 Address of dictionary pointer
 : DP   ( -- a)                       /P221 Address of dictionary pointer
@@ -24,130 +34,52 @@
 : CONTEXT   ( -- a)                  /P221 address of var that specifies dict search order
 : CURRENT   ( -- a)                  /P221 addr of var specifying the vocab for new defns
 : BASE   ( -- a)                     /P190 number base
+: BINDEX ( -- a)                     /ADD array of block buffer index info (0 not loaded)
 
------ NOT SYNTHESISABLE ------------------------------------------------------------------
-
-i/o
+----- NOT SYNTHESISABLE (36) ------------------------------------------------------------------
 
 : EMIT   ( c -- ) ;                  /P26 Send character to output
 : KEY   ( -- c)                      /P254 next char from input
-: D.   ( d -- )                      /P161 print 32 bit number and 1 space
-: ?   ( a -- )                       /P190 prints contents of addr followed by 1 space
-: U.   ( u -- )                      /P161 Print unsigned number and space
-: U<   ( u1 u2 -- ?)                 /P161 Unsigned compare
-
-memory
-
 : !   ( n a -- )                     /P190 store single number into addr
 : @   ( a -- n)                      /P190 replace addr with contents
 : C!   ( b a -- )                    /P190 store 8 bit value
 : C@   ( a -- b)                     /P190 fetch 8 bit value
-
-arithmetic
-
 : +   ( n1 n2 -- sum)                 /P49 Adds
 : -   ( n1 n2 -- diff)                /P49 Subtracts (n1 - n2)
 : *   ( n1 n2 -- prod)                /P49 Multiplies
 : /   ( n1 n2 -- quot)                /P49 Divides (n1/n2)
 : MOD   ( n1 n2 -- n-rem)             /P49 Remainder from division
 : */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 Multiply then divide, double length intermediate
-: D+   ( d1 d2 -- dsum)              /P161 adds 32 bit
-: D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit
 : UM*   ( u1 u2 -- ud)               /P161 multiply 16 bit, 32 bit result
 : UM/MOD   ( ud u1 -- u2 u3)         /P161 divide mod 16 bit, 32 bit result
 : M*   ( n1 n2 -- d-prod)            /P161 multiply 16 bit, 32 bit result
 : M+   ( d n -- d-sum)               /P161 32bit add to 16 bit 32 bit result
 : M/   ( d n -- n-quot)              /P161 32bit divide 16 bit, 32 bit result
 : M*/   ( d n u -- d)                /P161 mult 32 bit number by 16 bit, 32 bit result
-
-logical
-
 : AND   ( n1 n2 -- and)               /P92 Logical AND
 : OR   ( n1 n2 -- or)                 /P92 Logical OR
 : XOR   ( n1 n2 -- xor)               /P92 Logical XOR
-
-data stack
-
 : SWAP   ( n1 n2 -- n2 n1)            /P49 Reverses top two stack items
 : DUP   ( n -- n n)                   /P49 Duplicates top stack item
 : OVER   ( n1 n2 -- n1 n2 n1)         /P49 Makes a copy of second item and puts on top
 : ROT   ( n1 n2 n3 -- n2 n3 n1)       /P49 Rotates 3rd item to top
 : DROP   ( n -- )                     /P49 Discards top item
-
-return stack
-
 : >R   ( n -- )                       /P113 Move data stack to return stack
 : R>   ( -- n)                        /P113 Move return stack to data stack
 : R@   ( -- n)                        /P113 Copies top of return stack
 : EXIT   ( -- )                       /P221 removes return addr from RS, return to it (or terminate defn)
-
-dictionary
-
-: ' xxx   ( -- a)                    /P221 find dict address of xxx
-
-
-===============================================================================
-
-TO BE CLASSIFIED
-
-text processing
-
-: ASCII   ( -- c)                    /P161 Next input char into ascii equivalent
-: WORD   ( c -- a)                   /P254 read 1 word from input stream
-: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 string to binary value
-: NUMBER   ( a -- d)                 /P254 using base, convert to binary value
-: LIT" xxx"   run-time: ( -- a)      /P254 compiles literal (used in definitions)
-
-block buffer handling
-
-: LOAD   ( n -- )                     /P77 Loads a disk block (compiles or executes)
-: FLUSH   ( -- )                      /P77 Writes all updated disk buffers to disk, and unassigns
-: LOCATE xxx   ( -- )                 /P77 Lists block from which xxx has been loaded
-: VIEW xxx   ( -- )                   /P77 Lists block from which xxx has been loaded
-: UPDATE   ( -- )                    /P254 Most recently referenced block marked modified
-: SAVE-BUFFERS   ( -- )              /P254 Writes all updated buffers, un-updated, still assigned
-: FLUSH   ( -- )                     /P254 saves then unassigns all buffers
-: EMPTY-BUFFERS   ( -- )             /P254 marks all buffers empty without saving
-
-branching
-
-: IF xxx   IF: ( ? -- )               /P92 If non zero, executes xxx, otherwise yyy, continues with zzz
-  ELSE yyy
-  THEN zzz
-: DO ... LOOP   DO:                   /P131 Finite loop
-                  ( limit index -- )
-                LOOP:  ( -- )
-: DO ... +LOOP  DO:                   /P131 Finite stepped loop
-                  ( limit index -- )
-                +LOOP:  ( n -- )
-: LEAVE   ( -- )                      /P131 Terminate at next LOOP
-: BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131 Indefinite loop exits when ? true
-: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 Indefinite loop always executes xxx
-
-definition/compiling
-
-: CREATE xxx   ( -- )                /P190 create dictionary header, (xxx returns addr when exec)
-         xxx:  ( -- a)
-: [']   compile-time: ( -- )         /P221 compiles address of next word in defn as a literal
-        run-time: ( -- a)
-: DOES>   run-time: ( -- a)          /P286 creates defining word, end of compile-time begin of run-time
-: COMPILE xxx   ( -- )               /P286 compile a word
-: LITERAL   compile-time: ( n -- )   /P286 compiles a value
-            run-time: ( -- n)
-: [   ( -- )                         /P286 leaves compile mode
-: ]   ( -- )                         /P286 enters compile mode
-: [COMPILE] xxx   ( -- )             /P286 immediate word gets compiled
-
-running
-
-: EXECUTE   ( a -- )                 /P221 executes dict entry pfa on stack
-: QUIT   ( -- )                      /P221 clear RS, back to monitor
-: ABORT   ( -- )                     /P221 Clear DS and then quit
-
-
+: (LOAD) ( n b -- )                   /ADD Loads disk block into memory block
+: (SAVE) ( b n -- )                   /ADD Saves memory block to disk block
+: (LOADED) ( n b ? -- )               /ADD block buffer loaded or unloaded
+: (EXECUTE) ( a -- )                  /ADD execute from address
+: D+   ( d1 d2 -- dsum)              /P161 adds 32 bit
+: D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit
 
 --------------------------------------------------------------------------------
 SYTHESISABLE
+
+Note, some might be required by the non-synthesisable group.
+E.G. A lot of the compiling/defining words, for example might be needed next.
 
 : ?DUP   ( n -- n n) or ( 0 -- 0)     /P92 Duplicates only if n is nonzero
 : BLANK   ( a # -- )                 /P254 fills with ascii 0
@@ -225,6 +157,7 @@ SYTHESISABLE
 : =   ( n1 n2 -- ?)                   /P92 True if n1 and n2 are equal
 : <>   ( n1 n2 -- ?)                  /P92 True if n1 and n2 are not equal
 : <   ( n1 n2 -- ?)                   /P92 True if ni less than n2
+: U<   ( u1 u2 -- ?)                 /P161 Unsigned compare (use sub)
 : >   ( n1 n2 -- ?)                   /P92 True if n1 greater than n2
 : 0=   ( n -- ?)                      /P92 True if n is zero
 : 0<   ( n -- ?)                      /P92 True if n is negative
@@ -252,6 +185,61 @@ SYTHESISABLE
 : 2DUP   ( d -- d d)                  /P49 Duplicates top pair of numbers
 : 2OVER   ( d1 d2 -- d1 d2 d1)        /P49 Duplicates top pairs of numbers
 : 2DROP   ( d --)                     /P49 Discards top pair of numbers
+: WORD   ( c -- a)                   /P254 read 1 word from input stream
+: LIT" xxx"   run-time: ( -- a)      /P254 compiles literal (used in definitions)
+: QUIT   ( -- )                      /P221 clear RS, back to monitor
+: ABORT   ( -- )                     /P221 Clear DS and then quit
+: ASCII   ( -- c)                    /P161 Next input char into ascii equivalent
+: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 string to binary value
+: NUMBER   ( a -- d)                 /P254 using base, convert to binary value
+: LOAD   ( n -- )                     /P77 Loads a disk block (compiles or executes) assume (LOAD)
+: FLUSH   ( -- )                      /P77 Writes all updated disk buffers to disk, and unassigns
+: LOCATE xxx   ( -- )                 /P77 Lists block from which xxx has been loaded
+: VIEW xxx   ( -- )                   /P77 Lists block from which xxx has been loaded
+: UPDATE   ( -- )                    /P254 Most recently referenced block marked modified
+: SAVE-BUFFERS   ( -- )              /P254 Writes all updated buffers, un-updated, still assigned
+: FLUSH   ( -- )                     /P254 saves then unassigns all buffers
+: EMPTY-BUFFERS   ( -- )             /P254 marks all buffers empty without saving
+: [']   compile-time: ( -- )         /P221 compiles address of next word in defn as a literal
+        run-time: ( -- a)
+: LITERAL   compile-time: ( n -- )   /P286 compiles a value
+            run-time: ( -- n)
+: [   ( -- )                         /P286 leaves compile mode
+: ]   ( -- )                         /P286 enters compile mode
+: COMPILE xxx   ( -- )               /P286 compile a word
+: [COMPILE] xxx   ( -- )             /P286 immediate word gets compiled
+: EXECUTE   ( a -- )                 /P221 executes dict entry pfa on stack
+: CREATE xxx   ( -- )                /P190 create dictionary header, (xxx returns addr when exec)
+         xxx:  ( -- a)
+: DOES>   run-time: ( -- a)          /P286 creates defining word, end of compile-time begin of run-time
+: ; ( -- )                           /ADD end of definition
+
+
+Hmm, possibly synthesisable? Is the loop return point on return stack?
+Read brodie, think it is, because you can't have a net effect on return stack when in a loop
+
+: IF xxx   IF: ( ? -- )               /P92 If non zero, executes xxx, otherwise yyy, continues with zzz
+  ELSE yyy
+  THEN zzz
+: DO ... LOOP   DO:                   /P131 Finite loop
+                  ( limit index -- )
+                LOOP:  ( -- )
+: DO ... +LOOP  DO:                   /P131 Finite stepped loop
+                  ( limit index -- )
+                +LOOP:  ( n -- )
+: LEAVE   ( -- )                      /P131 Terminate at next LOOP
+: BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131 Indefinite loop exits when ? true
+: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 Indefinite loop always executes xxx
+
+Probably non optimal in Forth, but could be made to work and replaced later
+: D.   ( d -- )                      /P161 print 32 bit number and 1 space
+: ?   ( a -- )                       /P190 prints contents of addr followed by 1 space
+: U.   ( u -- )                      /P161 Print unsigned number and space
+: ' xxx   ( -- a)                    /P221 find dict address of xxx
+
+
+
+
 
 
 

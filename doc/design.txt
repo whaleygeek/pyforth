@@ -1,5 +1,14 @@
 / design.txt  30/12/2015  D.J.Whale
 
+PLAN
+- try to write implementation spec for all native routines
+- resolve any misunderstandings in what they do
+- write a unit test for them in python
+- implement and test python native dispatch mechanism
+- write python version of all native routines
+- review, refactor, replan
+
+
 ===== CORE DATA STRUCTURES ====================================================
 
 ----- DICTIONARY --------------------------------------------------------------
@@ -23,6 +32,33 @@ code field is class method (action), parameters are instance variables
 All of the "hard work" of a defining word is done by a kernel word, CREATE, which parses a
 name from the input stream, builds the header and Code Field for a new word, and links it into the
 dictionary. (In fig-Forth this word is called <BUILDS.)
+
+
+----- USER VARIABLE TABLE ----------------------------------------------------------
+
+For tasking (multi programming), each user task needs its own user variable table,
+and variables must be stored as offsets into this table rather than absolute addresses.
+That way, each task can have it's own instance of a user variable.
+
+System variables are shared between all tasks, as is the dictionary.
+
+Not sure yet what happens about parameter stack and return stack, block buffers, pad, tib,
+need to look into various multi-programmed forth designs first to see how that works.
+
+USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
+  DICT entry points to VARIABLE CODE
+  PFA contains offset into USER TABLE
+  USER TABLE stores actual value.
+
+  This means that the baseaddr of the USER TABLE can be changed
+  between each USER (TASK), the dict is shared, but the user table
+  is unique for each user/task. e.g. BASE is defined in the USER TABLE.
+  Not defined using VARIABLE (ordinary variable).
+  (This will be useful for multi-instanced pyforth objects that share the
+  same memory image and runtime for expediency)
+
+  Q? So how are these defined?
+
 
 ===== MACHINE CODE ============================================================
 
@@ -500,6 +536,182 @@ once an initial language port is completed)
 
 ===== IMPLEMENTATION SPEC =====================================================
 
+----- BEHAVIOUR SPEC OF NATIVE ROUTINES ---------------------------------------
+
+These will be written in Python (or whatever host language)
+
+Could *specify* these using a forth like definition syntax, even if not
+implemented that way.
+
+
+: n_NOP ( -- )   { } ;
+
+---- READ/WRITE
+
+/todo: endianness?
+/pre: stack has at least 2 16-bit items
+/pre: address is 16 bit aligned
+: n_STORE   ( n a -- )   { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;
+
+/todo: endianness?
+/pre: stack has at least 1 16-bit items
+: n_FETCH  ( a -- n)   { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;
+
+/pre: stack has at least 3 8 bit items
+: n_STORE8  ( b a -- )   { a=ds_pop; b=ds_pop8; mem[a]=b } ;
+
+/pre: stack has at least 1 16 bit item
+: n_FETCH8   ( a -- b)   { a=ds_pop; b=mem[a]; ds_push8(b) } ;
+
+
+---- I/O
+
+: n_KEYQ   ( -- ?)   { ds_push8(kbhit) } ;         / how many chars waiting in input stream (could be 0/1 if no lookahead)
+
+: n_KEY   ( -- c)   { ds_push8(getch) } ;          / read next char in input stream, or block
+
+: n_EMIT   ( c -- )   { putch(ds_pop8) } ;        / output 1 char to output stream, block if full
+
+
+---- ALU
+
+/pre: stack has at least 2 16 bit items
+: n_ADD   ( n1 n2 -- n-sum)   { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_SUB   ( n1 n2 -- n-diff)   { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_AND   ( n1 n2 -- n-and)   { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_OR   ( n1 n2 -- n-or)   { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_XOR   ( n1 n2 -- n-xor)   { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_MULT   ( n1 n2 -- n-prod)   { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_DIV   ( n1 n2 -- n-quot)   { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;
+
+/pre: stack has at least 2 16 bit items
+: n_MOD   ( n1 n2 -- n-rem)   { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;
+
+: n_FLAGS   ( -- )   { mem[FLAGS]=flags } ;
+
+
+---- BRANCHING
+
+: n_BRANCH   ( -- )   { r=mem[ip]; ip = ip-r } ;  / branch using relative offset in following cell (IP points to it)
+
+/pre: stack has at least 1 byte on it
+/todo: check what the relative jump is relative to (where does it assume ip points to?)
+: n_0BRANCH   ( ? -- )   { f=ds_pop; r=mem[ip]; if !f:ip=ip-r else: ip+=2 } ; / branch if TOS=0, using relative offset following
+
+TODO: accessing IP will need to be done via a native, as it's an internal register
+
+
+--- DATA STACK
+
+TODO: accessing DP will need to be done via a native, as it's an internal register
+
+: n_SWAP   ( n1 n2 -- n2 n1)   { n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n1) } ;
+
+/todo: check if dp is next free, or last used
+: n_DUP   ( n -- n n)   { n = ds[dp]; ds_push(n) } ;
+
+/todo: check if dp is next free, or last used
+/todo: check direction of growth of dp
+: n_OVER   ( n1 n2 -- n1 n2 n1)   { n1=ds[dp-2]; ds_push(n1) } ;
+
+: n_ROT   ( n1 n2 n3 -- n2 n3 n1)   { n3=ds_pop; n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n3); ds_push(n1) } ;
+
+: n_DROP   ( n -- )   { ds_pop } ;
+
+
+---- VARIABLE ACCESS
+
+/pre: at least 1 16-bit value on DS
+/pre: address is 16 bit aligned?
+: n_RDCONST   ( a-pfa -- n)   { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;     / read constant out from PFA and push to DS
+
+/pre: at least 1 16-bit value on DS
+/pre: address is 16 bit aligned?
+: n_ADRSV   ( a-pfa -- a)   { pfa=ds_pop; a=mem[pfa]; ds_push(a) } ;       / get address of system variable from PFA and push to DS
+
+/pre: at least 1 16-bit value on DS
+/pre: address is 16 bit aligned?
+
+: n_ADRUV   ( a-pfa -- a)   { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;       / get address of user variable from offset in PFA and push to DS
+
+
+---- DISK ACCESS
+
+/pre: at least two 16 bit items on stack
+/pre: disk block is in range
+: n_RBLK  ( n a -- )   { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;       / Load 1K disk block n into memory at addr (see MMSForth)
+
+/pre: at least two 16 bit items on stack
+/pre: disk block is in range
+: n_WBLK  ( n a -- )   { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;       / Save 1K memory from addr to disk block n (see MMSForth)
+
+
+---- EXECUTION
+
+#### HERE ####
+
+: n_DODOES   ( -- ) { } ;          / (PFA containing high level thread of CFA addresses, sometimes called ENTER, runs high level forth code)
+
+: n_NEXT   ( -- ) { } ;            / run next high level addr pointed to by IP)
+                                   / is this exposed as a callable routine though, or just part of the python execute loop?)
+
+: n_ENTER   ( -- ) { } ;           / same as DODOES??
+
+: n_EXECUTE   ( -- ) { } ;         / ??? high level? does this do anything extra to above?)
+
+: n_LIT   ( -- ) { } ;             / put LIT in next IP address on TOS) - is this a native routine or a high level routine?
+
+: n_EXIT   ( -- ) { } ;            / pops IP from return stack and jumps to NEXT)
+
+
+---- CREATIONAL
+
+: n_CREATE   ( -- ) { } ;    / root of all creation words, creates a new dict entry
+
+: n_DOCOL   ( -- ) { } ;     / colon definition, define a new high level word)
+
+: n_DOCON   ( -- ) { } ;     / ??constant value)
+
+: n_DOVAR   ( -- ) { } ;     / ??storage for a var) what about uservar and sysvar differences?
+
+: n_DOVOC   ( -- ) { } ;     / something to do with vocabulary change? could be synthesised?)
+
+: n_DOLIT   ( -- ) { } ;     / compile a literal at H?)
+                             / I thought the DO words were runtime behaviour, not compile time behaviour.
+                             / TODO: Do we need a naming convention for compile time words and runtime words?
+                             / Remember the immediate bit in the count byte?
+
+
+
+===== BEHAVIOUR SPEC OF HIGH LEVEL ROUTINES ===================================
+
+for each word in the synthesisable list, need to show:
+- DS before and after
+- RS before and after
+- DICT before and after
+- other side effects
+- write a colon definition of it, regardless of whether we will synthesise
+  it as a high level word, or write it as a native. It will form a complete
+  spec of behaviour. We can resolve dependencies and inefficiencies later.
+
+  In fact, any word could be defined this way, even some of the native ones?
+  No point with ALU ops, but some of the others could be specified that way.
+
+===============================================================================
+OTHER STUFF, STILL WORKING OUT WHERE IT GOES.
+
 --------
 CONSTANT and 2CONSTANT
 
@@ -598,19 +810,7 @@ pfa: [(2LITERAL), 65535, 65535]
 
 
 --------
-USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
-  DICT entry points to VARIABLE CODE
-  PFA contains offset into USER TABLE
-  USER TABLE stores actual value.
 
-  This means that the baseaddr of the USER TABLE can be changed
-  between each USER (TASK), the dict is shared, but the user table
-  is unique for each user/task. e.g. BASE is defined in the USER TABLE.
-  Not defined using VARIABLE (ordinary variable).
-  (This will be useful for multi-instanced pyforth objects that share the
-  same memory image and runtime for expediency)
-
-  Q? So how are these defined?
 
 
 

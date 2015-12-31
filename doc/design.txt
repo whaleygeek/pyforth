@@ -7,9 +7,132 @@
 / and then optimise later when on a real platform and have an appropriate assembler
 / written, to replace synthesised versions with platform specific assembled versions.
 
-NOTE: tick ' attempts to find next word in input stream in the DICT and get it's address.
-I think in one or two places, I have seen this incorrectly in the text below???
+NFA - Name field address (name)
+LFA - link field address (link) points to NFA of previous entry (holds 0 at end)
+CFA - code field address (code)
+PFA - parameter field address (parameters)
 
+CFA (CODE) is address of assembly routine
+PFA (PARAMETERS) are parameters to the routine
+(i.e. parameters always follow the code address, rather than being pushed on stack)
+code field is class method (action), parameters are instance variables
+(so it's object oriented)
+
+possible CFA values: (all written in machine code)
+  DODOES (PFA containing high level thread of CFA addresses, sometimes called ENTER, runs high level forth code)
+  DOCON (constant value)
+  DOVAR (storage for a var)
+  DOVOC (vocabularly info)??
+  NEXT (run next CODE pointed to by IP) - note IP can be in a processor index register!
+
+Note also, if enough processor registers, DP and RP can be processor registers.
+Machinecode with pre-inc/post dec will be very tight code for these stacks.
+
+
+----- MACHINE CODE AND HIGH LEVEL ROUTINES ONE AND THE SAME -------------------
+
+Note, CFA is always the address of a machine code routine to call when executing
+a word.
+
+For a machine code word
+  put addr of PFA in CFA
+  store machine code in PFA
+  ending with JMP EXIT
+
+For a high level routine:
+  put addr of DODOES in CFA
+  list of CFA word addresses in PFA
+  end with CFA(EXIT)
+
+: DODOES ( machine code)
+  Push PFA onto DS?
+  Pop CPU stack to get address of high level action routine (this is the PFA)
+  Save old IP on RS
+  load address of high level thread (PFA) into IP
+  NEXT to continue interpretation at IP
+
+
+
+DOES> and (DOES>)
+
+: CONSTANT ( n -- )
+    CREATE      \ create the new word
+    ,           \ append the TOS value to the dictionary,
+                \   as the 1st cell of the Parameter Field
+    DOES>       \ end "create" part & start "action" part
+    @           \ given the PFA, fetch its contents
+    ;
+
+(everything from : to DOES> is executed when CONSTANT is executed, and it builds the parameter
+field of the defined word.
+
+Everything from DOES> to ; is high level code that is executed when children of CONSTANT
+get executed, i.e. the high level fragment that it's CFA will point to.
+
+i.e. the create part, and the action part.
+The create part is run at creation time.
+The action part is run at runtime of the created word.
+
+
+DOES> is executed when CONSTANT is compiled. Thus DOES> is a Forth IMMEDIATE word. It does two things:
+
+a. It compiles the Forth word (DOES>) into CONSTANT.
+b. It compiles a JSR DODOES into CONSTANT.
+
+Note that DOES> leaves the Forth compiler running, in order to compile the high-level fragment which follows.
+Also, even though JSR DODOES is not itself Forth code, an IMMEDIATE word such as DOES> can cause it to be compiled
+in the middle of Forth code.
+
+
+
+(DOES>) is part of the word CONSTANT, so it executes when CONSTANT executes. It does the following:
+
+a. It gets the address of the machine code that immediately follows (JSR DODOES), by popping IP from the
+Forth Return Stack.
+
+b. It puts that address into the Code Field of the word just defined by CREATE.
+
+c. It performs the action of EXIT, causing CONSTANT to terminate here and not attempt to execute the fragment
+that follows.
+
+NFA:   8,CONSTANT
+LFA:   prev
+CFA:   addr(DOCOL)
+PFA:   <-- create part -->
+       CFAof CREATE
+       CFAof ,
+       CFAof (DOES>)
+       <-- "DOCON" action routine -->
+       CFA: JSR DODOES
+       PFA: CFAof @
+            CFAof EXIT
+
+
+--------------------------------------------------------------------------------
+
+
+
+
+dictionary has header(name, link) and body(code, param)
+
+All of the "hard work" of a defining word is done by a kernel word, CREATE, which parses a
+name from the input stream, builds the header and Code Field for a new word, and links it into the
+dictionary. (In fig-Forth this word is called <BUILDS.)
+
+
+3 parts of the defining lifecycle
+sequence 1: CONSTANT is being defined
+sequence 2: CONSTANT is being executed
+sequence 3: constant-type word is being executed
+
+
+Address of a word is the address of it's CFA
+tick returns PFA
+
+branching words as compiled into PFA are followed by a branch offset???
+
+LOOP is an immediate word that compiles in a (LOOP)
+." is an immediate word that compiles in (.")
 
 PLAN:
 1. define everything in forth, ignoring dependencies
@@ -386,17 +509,36 @@ pfa: [(2LITERAL), 65535, 65535]
 
 ######## HERE ########
 
-Q? how differentiate between list of addresses and real machine code?? #### CHECK BRODIE!
-- look at the assembler, and see how it jumps to real machine code
+HOW CODE works... (BRODIE P205)
 
-CODE (native)
-  ? space is allocated in NUCLEUS for a native redirect (why not in dict?)
-  ? cell in nucleus stores some native identifier (real platform it could be a trap/call) (why not in dict?)
-  ?DICT holds {name, link=prev, cfa=?, pfa=[?]}
-  ?how does this vary between python hosted and processor hosted?
-  processor hosted would just be machine code
-  python hosted the machine code means access a certain internal structure
-  but how differentiate reads and writes and different access sizes?
+EXECUTE of a word will call the machine code pointed to by CFA.
+: EXECUTE
+  reads cell at IP, pushes value on DS
+  adds 1 to IP
+  uses cell addr on DS as the CFA of the defined word
+  jumps to machinecode routine (special case 0 here does nothing?)
+
+  For defined words, this is a machine code routine for ':'
+
+  ':' is defined in machine code as:
+    saves IP onto return stack
+    move address of PFA into IP
+    call EXECUTE
+
+
+
+USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
+  DICT entry points to VARIABLE CODE
+  PFA contains offset into USER TABLE
+  USER TABLE stores actual value.
+
+  This means that the baseaddr of the USER TABLE can be changed
+  between each USER (TASK), the dict is shared, but the user table
+  is unique for each user/task. e.g. BASE is defined in the USER TABLE.
+  Not defined using VARIABLE (ordinary variable)
+
+  Q? So how are these defined?
+
 
 
 

@@ -1,0 +1,12 @@
+Using this book as the spec:
+
+http://www.forth.com/starting-forth/
+
+
+Also some details in page 221 etc from here:
+https://books.google.co.uk/books?id=I79N-8QTzjwC&pg=PA222&lpg=PA222&dq=forth+cfa+0&source=bl&ots=OW5aSWbQLm&sig=F_QypddQHpElRoLUs76t-HHr_I8&hl=en&sa=X&ved=0ahUKEwiNn82_9ITKAhWLvRQKHcpmAooQ6AEISTAI#v=onepage&q&f=false
+
+
+Also...
+http://www.bradrodriguez.com/papers/moving3.htm
+

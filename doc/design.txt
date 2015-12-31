@@ -365,7 +365,7 @@ CODE (non native, i.e. threaded addresses)
 
 
 note, interpret loop is:
-: INTERPRET ( -- ) BEGIN IP DUP @ SWAP 1 + >R IP ! UNTIL FALSE ;
+: INTERPRET ( -- ) BEGIN IP DUP @ SWAP 1 + >R IP ! FALSE UNTIL ;
 : EXIT   ( -- )   R> IP ! ;
 
 Literals are coded into the PFA as follows
@@ -379,6 +379,9 @@ pfa: [(2LITERAL), 65535, 65535]
 : LITERAL   ( n -- )   DOES> ; / TODO compile literal at HERE
 : 2LITERAL   ( d -- )  DOES> ; / TODO compile 2literal at HERE
 
+
+: BEGIN  ( -- )   IP >R ;
+: UNTIL   ( ? -- )   IF R> IP ! THEN ;
 
 
 ######## HERE ########

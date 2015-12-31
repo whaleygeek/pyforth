@@ -1,5 +1,42 @@
 / design.txt  30/12/2015  D.J.Whale
 
+
+/TODO native calls into python
+
+read CFA number means load from that address
+at that address in low memory (e.g. 2) could be a FF 02 e.g.(TRAP 02)
+causes python to index into a list of functions
+2 in the list is ("DOCON", docon)
+when building that dict entry at nucleus boot,
+search for "DOCON" and store 2 in the DICT to complete the circle.
+When the docon() returns, it returns to the python loop that is driving
+the forth, so it will all just tick away nicely.
+
+The native words are then just defined as normal functions with a simple
+dispatch table and dispatcher function in the CFA handler. Then all we
+have to do is work out the minimum number of native functions required
+to allow all other functions to be synthesisable as high level code
+for an initial quick port.
+
+Porting to a new language then becomes
+- translate the forth.py into the new target language
+- including translating the native functions into new target language
+- including knitting up in/out/disk to target IO
+- run it, and it should self boot.
+
+Other languages to try ports for: java, C, php, lua, javascript
+php and javascript are interesting because it allows use in web context
+including server side and browser side.
+
+Could then write an in-browser forth system that could be used by people
+learning the language, and for experimentation. Python is then the first
+port and the initial specification validation language.
+
+If want to later write a 6502 simulator or any processor simulator, could
+still do it, it could be extended to that.
+
+
+
 / This is a non optimal list, but a good first stab at a minimal kernel
 / that is required to build up the next layers.
 

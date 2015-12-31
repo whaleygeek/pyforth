@@ -1,22 +1,106 @@
 / design.txt  30/12/2015  D.J.Whale
 
-PLAN 1
-- look at restriction that CFA always points to machine code.
-  This might make it impossible to boot a minimal machine with full expandability.
-  Re-read BRODIE CH 11 (extending the compiler)
+PLAN 1 - nucleus native word implementation
 
---------------------------------------------------------------------------------
-PLAN 2
 
-- try to write implementation spec for all native routines
-- resolve any misunderstandings in what they do
+Here is the behavioural spec of the nucleus of native routines:
+
+: n_STORE   ( n a -- )              { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;
+: n_FETCH  ( a -- n)                { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;
+: n_STORE8  ( b a -- )              { a=ds_pop; b=ds_pop8; mem[a]=b } ;
+: n_FETCH8   ( a -- b)              { a=ds_pop; b=mem[a]; ds_push8(b) } ;
+: n_ADD   ( n1 n2 -- n-sum)         { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;
+: n_SUB   ( n1 n2 -- n-diff)        { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;
+: n_AND   ( n1 n2 -- n-and)         { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;
+: n_OR   ( n1 n2 -- n-or)           { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;
+: n_XOR   ( n1 n2 -- n-xor)         { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;
+: n_MULT   ( n1 n2 -- n-prod)       { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;
+: n_DIV   ( n1 n2 -- n-quot)        { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;
+: n_MOD   ( n1 n2 -- n-rem)         { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;
+: n_FLAGS   ( -- )                  { mem[FLAGS]=flags } ;
+: n_SWAP   ( n1 n2 -- n2 n1)        { n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n1) } ;
+: n_DUP   ( n -- n n)               { n=ds[dp]; ds_push(n) } ;
+: n_OVER   ( n1 n2 -- n1 n2 n1)     { n1=ds[dp-2]; ds_push(n1) } ;
+: n_ROT   ( n1 n2 n3 -- n2 n3 n1)   { n3=ds_pop; n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n3); ds_push(n1) } ;
+: n_DROP   ( n -- )                 { ds_pop } ;
+: n_KEYQ   ( -- ?)                  { ds_push8(kbhit) } ;
+: n_KEY   ( -- c)                   { ds_push8(getch) } ;
+: n_EMIT   ( c -- )                 { putch(ds_pop8) } ;
+: n_RDPFA   ( a-pfa -- n)           { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;
+: n_ADRUV   ( a-pfa -- a)           { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;
+: n_BRANCH   ( -- )                 { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;
+: n_0BRANCH   ( ? -- )              { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;
+: n_NEXT   ( -- )                   { cfa=mem[ip]; ip+=2; jsr(cfa) } ;
+: n_EXIT   ( -- )                   { ip=rs_pop() } ;
+: n_DODOES   ( -- )                 { while True: n_NEXT} ; / beware of python stack on return?
+: n_RBLK  ( n a -- )                { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
+: n_WBLK  ( n a -- )                { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
+
 - write a unit test for them in python
+  - they will be functions of Forth() class?
+
 - implement and test python native dispatch mechanism
+  - jsr to a CFA just looks up the CFA value in a dispatch table
+  - this table dispatches to the function
+
 - write python version of all native routines
-- review, refactor, replan
+
+- investigate and write/test creational words, so we can seed the dictionary
+
+: n_CREATE   ( -- )                 { } ;     / root of all creation words, creates a new dict entry
+: n_DOCOL   ( -- )                  { } ;     / colon definition, define a new high level word
+: n_DOCON   ( -- )                  { } ;     / create a new constant value
+: n_DOVAR   ( -- )                  { } ;     / create a new uservar in usertable
+: n_DOLIT   ( -- )                  { } ;     / compile a literal at HERE?
 
 
-===== CORE DATA STRUCTURES ====================================================
+- seed the dictionary with definitions for system constants
+: SV0   ( -- a)                      /ADD  CODE 'n_RDPFA' Address of start of system vars
+: D0   ( -- a)                       /ADD  CODE 'n_RDPFA' Address of bottom of dictionary
+: H    ( -- a)                       /P213 CODE 'n_RDPFA' Address of variable holding next free dict addr
+: S0   ( -- a)                       /P221 CODE 'n_RDPFA' Address of bottom of data stack
+: SP   ( -- a)                       /P215 CODE 'n_RDPFA' Address of data stack pointer var
+: R0   ( -- a)                       /ADD  CODE 'n_RDPFA' Address of bottom of return stack
+: RP   ( -- a)                       /ADD  CODE 'n_RDPFA' Address of return stack pointer var
+: IP   ( -- a)                       /ADD  CODE 'n_RDPFA' Address of instruction pointer var
+: 0   ( -- 0)                        /P190 CODE 'n_RDPFA' const zero
+: 1   ( -- 1)                        /P190 CODE 'n_RDPFA' const 1
+
+- seed the dictionary with definitions for system variables
+: BB0   ( -- a)                      /ADD CODE 'n_RDPFA' Lowest address of start of 1K block buffers
+: BBN   ( -- #)                      /ADD CODE 'n_RDPFA' Number of 1K block buffers
+
+- seed the dictionary with definitions for user variables
+(eventually, add BASE, but not yet)
+
+- seed the dictionary with definitions for nucleus words
+: !   ( n a -- )                     /P190 CODE 'n_STORE'  store single number into addr
+: @   ( a -- n)                      /P190 CODE 'n_FETCH'  replace addr with contents
+: C!   ( b a -- )                    /P190 CODE 'n_STORE8' store 8 bit value
+: C@   ( a -- b)                     /P190 CODE 'n_FETCH8' fetch 8 bit value
+: KEY?  ( -- ?)                      /ADD  CODE 'n_KEYN' Check if a key is waiting
+: KEY   ( -- c)                      /P254 CODE 'n_KEY'  Get next char from input
+: EMIT   ( c -- )                    /P26  CODE 'n_EMIT' Send character to output
+: SWAP   ( n1 n2 -- n2 n1)           /P49  CODE 'n_SWAP' Reverse top two stack items
+: DUP   ( n -- n n)                  /P49  CODE 'n_DUP'  Duplicate top stack item
+: OVER   ( n1 n2 -- n1 n2 n1)        /P49  CODE 'n_OVER' Make a copy of second item and puts on top
+: ROT   ( n1 n2 n3 -- n2 n3 n1)      /P49  CODE 'n_ROT'  Rotate 3rd item to top
+: DROP   ( n -- )                    /P49  CODE 'n_DROP' Discard top item
+: +   ( n1 n2 -- n-sum)              /P49  CODE 'n_ADD'    Add
+: -   ( n1 n2 -- n-diff)             /P49  CODE 'n_SUB'    Subtract (n1 - n2)
+: AND   ( n1 n2 -- n-and)            /P92  CODE 'n_AND'    Logical AND
+: OR   ( n1 n2 -- n-or)              /P92  CODE 'n_OR'     Logical OR
+: XOR   ( n1 n2 -- n-xor)            /P92  CODE 'n_XOR'    Logical XOR
+: *   ( n1 n2 -- n-prod)             /P49  CODE 'n_MULT'   Multiply
+: /   ( n1 n2 -- n-quot)             /P49  CODE 'n_DIV'    Divide (n1/n2)
+: MOD   ( n1 n2 -- n-rem)            /P49  CODE 'n_MOD'    Remainder from division (n1/n2)
+: FLAGS  ( -- a)                     /ADD  CODE 'n_RDPFA'  Address of var of flags from last saved ALU operation
+: FLAGS>   ( -- )                    /ADD  CODE 'n_FLAGS'  Save last ALU C,V,Z,P flags to FLAGS
+: BRANCH                             /ADD CODE 'n_BRANCH'  branch using relative offset following
+: 0BRANCH                            /ADD CODE 'n_BRANCH0' branch if TOS=0, using relative offset following
+: RBLK  ( n a -- )                   /ADD CODE 'n_RBLK'    Load 1K disk block n into memory at addr (see MMSForth)
+: WBLK  ( n a -- )                   /ADD CODE 'n_WBLK'    Save 1K memory from addr to disk block n (see MMSForth)
+
 
 TODO need to decide if
 a)  SP, RP, IP are really in forth memory,
@@ -25,6 +109,23 @@ b) they are registers in the native language that poke through memory holes
 
 so that if we want to access them in high level forth we do get the correct values.
 Prefer (b) - more like how you would implement on a real CPU.
+This will allow us to expose these to use by the high level words as variables,
+as they will really exist in memory, but accessing them will access the
+python variables behind them, like mapped memory regions.
+
+
+--------------------------------------------------------------------------------
+PLAN 2
+
+- look at restriction that CFA always points to machine code.
+  This might make it impossible to boot a minimal machine that allows all other words
+  to be defined as high level words synthesised.
+  Re-read BRODIE CH 11 (extending the compiler)
+
+
+
+===== CORE DATA STRUCTURES ====================================================
+
 
 
 ----- DICTIONARY --------------------------------------------------------------

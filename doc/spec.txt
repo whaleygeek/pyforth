@@ -113,6 +113,7 @@ NUCLEUS (20 WORDS) - more needed? see design.txt
 : n_DOVOC   ( -- ) { } ;     / something to do with vocabulary change? could be synthesised?
 : n_DOLIT   ( -- ) { } ;     / compile a literal at HERE?
 
+---- DEFINITION
 
 ================================================================================
 

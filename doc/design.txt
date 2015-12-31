@@ -1,12 +1,22 @@
 / design.txt  30/12/2015  D.J.Whale
 
-PLAN
+PLAN 1
+- look at restriction that CFA always points to machine code.
+  This might make it impossible to boot a minimal machine with full expandability.
+  Re-read BRODIE CH 11 (extending the compiler)
+
+--------------------------------------------------------------------------------
+PLAN 2
+
 - try to write implementation spec for all native routines
 - resolve any misunderstandings in what they do
 - write a unit test for them in python
 - implement and test python native dispatch mechanism
 - write python version of all native routines
 - review, refactor, replan
+
+
+===== CORE DATA STRUCTURES ====================================================
 
 TODO need to decide if
 a)  SP, RP, IP are really in forth memory,
@@ -16,7 +26,6 @@ b) they are registers in the native language that poke through memory holes
 so that if we want to access them in high level forth we do get the correct values.
 Prefer (b) - more like how you would implement on a real CPU.
 
-===== CORE DATA STRUCTURES ====================================================
 
 ----- DICTIONARY --------------------------------------------------------------
 
@@ -546,6 +555,11 @@ once an initial language port is completed)
 ===== IMPLEMENTATION SPEC =====================================================
 
 ----- BEHAVIOUR SPEC OF NATIVE ROUTINES ---------------------------------------
+
+NOTE: the real problem here is that CFA can only ever point to a native routine,
+never a threaded instruction list. So, the 'base' code must always be native.
+This *might* make it impossible to boot a minimal kernel then extend it incrementally
+unless we look into this.
 
 
 ---- READ/WRITE

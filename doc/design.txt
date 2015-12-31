@@ -1,7 +1,119 @@
 / design.txt  30/12/2015  D.J.Whale
 
+===== CORE DATA STRUCTURES ====================================================
 
-/TODO native calls into python
+----- DICTIONARY --------------------------------------------------------------
+
+dictionary has
+  header(name, link)
+  body(code, param)
+
+NFA - Name field address (name)
+LFA - link field address (link) points to NFA of previous entry (holds 0 at end)
+CFA - code field address (code)
+PFA - parameter field address (parameters)
+
+CFA (CODE) is address of assembly routine
+PFA (PARAMETERS) are parameters to the routine
+(i.e. parameters always follow the code address, rather than being pushed on stack)
+code field is class method (action), parameters are instance variables
+(so it's object oriented)
+
+
+All of the "hard work" of a defining word is done by a kernel word, CREATE, which parses a
+name from the input stream, builds the header and Code Field for a new word, and links it into the
+dictionary. (In fig-Forth this word is called <BUILDS.)
+
+===== MACHINE CODE ============================================================
+
+CFA is always the address of a machine code routine to call when executing a word.
+
+For a machine code word
+  put addr of PFA in CFA
+  store machine code in PFA
+  ending with JMP EXIT
+
+For a high level routine:
+  put addr of DODOES in CFA
+  list of CFA word addresses in PFA
+  end with CFA(EXIT)
+
+: DODOES ( machine code)
+  Push PFA onto DS?
+  Pop CPU stack to get address of high level action routine (this is the PFA)
+  Save old IP on RS
+  load address of high level thread (PFA) into IP
+  NEXT to continue interpretation at IP
+
+
+DOES> and (DOES>)
+
+: CONSTANT ( n -- )
+    CREATE      \ create the new word
+    ,           \ append the TOS value to the dictionary,
+                \   as the 1st cell of the Parameter Field
+    DOES>       \ end "create" part & start "action" part
+    @           \ given the PFA, fetch its contents
+    ;
+
+(everything from : to DOES> is executed when CONSTANT is executed, and it builds the parameter
+field of the defined word.
+
+Everything from DOES> to ; is high level code that is executed when children of CONSTANT
+get executed, i.e. the high level fragment that it's CFA will point to.
+
+i.e. the create part, and the action part.
+The create part is run at creation time.
+The action part is run at runtime of the created word.
+
+
+DOES> is executed when CONSTANT is compiled. Thus DOES> is a Forth IMMEDIATE word. It does two things:
+
+a. It compiles the Forth word (DOES>) into CONSTANT.
+b. It compiles a JSR DODOES into CONSTANT.
+
+Note that DOES> leaves the Forth compiler running, in order to compile the high-level fragment which follows.
+Also, even though JSR DODOES is not itself Forth code, an IMMEDIATE word such as DOES> can cause it to be compiled
+in the middle of Forth code.
+
+
+(DOES>) is part of the word CONSTANT, so it executes when CONSTANT executes. It does the following:
+
+a. It gets the address of the machine code that immediately follows (JSR DODOES), by popping IP from the
+Forth Return Stack.
+
+b. It puts that address into the Code Field of the word just defined by CREATE.
+
+c. It performs the action of EXIT, causing CONSTANT to terminate here and not attempt to execute the fragment
+that follows.
+
+NFA:   8,CONSTANT
+LFA:   prev
+CFA:   addr(DOCOL)
+PFA:   <-- create part -->
+       CFAof CREATE
+       CFAof ,
+       CFAof (DOES>)
+       <-- "DOCON" action routine -->
+       CFA: JSR DODOES
+       PFA: CFAof @
+            CFAof EXIT
+
+3 parts of the defining lifecycle
+sequence 1: CONSTANT is being defined
+sequence 2: CONSTANT is being executed
+sequence 3: constant-type word is being executed
+
+Address of a word is the address of it's CFA
+tick returns PFA
+
+branching words as compiled into PFA are followed by a branch offset???
+
+LOOP is an immediate word that compiles in a (LOOP)
+." is an immediate word that compiles in (.")
+
+
+----- NATIVE CALLS ------------------------------------------------------------
 
 read CFA number means load from that address
 at that address in low memory (e.g. 2) could be a FF 02 e.g.(TRAP 02)
@@ -36,435 +148,359 @@ If want to later write a 6502 simulator or any processor simulator, could
 still do it, it could be extended to that.
 
 
-
-/ This is a non optimal list, but a good first stab at a minimal kernel
-/ that is required to build up the next layers.
-
-/ The whole point is to define as little as possible natively to allow fast porting,
-/ and then optimise later when on a real platform and have an appropriate assembler
-/ written, to replace synthesised versions with platform specific assembled versions.
-
-NFA - Name field address (name)
-LFA - link field address (link) points to NFA of previous entry (holds 0 at end)
-CFA - code field address (code)
-PFA - parameter field address (parameters)
-
-CFA (CODE) is address of assembly routine
-PFA (PARAMETERS) are parameters to the routine
-(i.e. parameters always follow the code address, rather than being pushed on stack)
-code field is class method (action), parameters are instance variables
-(so it's object oriented)
-
-possible CFA values: (all written in machine code)
-  DODOES (PFA containing high level thread of CFA addresses, sometimes called ENTER, runs high level forth code)
-  DOCON (constant value)
-  DOVAR (storage for a var)
-  DOVOC (vocabularly info)??
-  NEXT (run next CODE pointed to by IP) - note IP can be in a processor index register!
-
-Note also, if enough processor registers, DP and RP can be processor registers.
-Machinecode with pre-inc/post dec will be very tight code for these stacks.
-
-
------ MACHINE CODE AND HIGH LEVEL ROUTINES ONE AND THE SAME -------------------
-
-Note, CFA is always the address of a machine code routine to call when executing
-a word.
-
-For a machine code word
-  put addr of PFA in CFA
-  store machine code in PFA
-  ending with JMP EXIT
-
-For a high level routine:
-  put addr of DODOES in CFA
-  list of CFA word addresses in PFA
-  end with CFA(EXIT)
-
-: DODOES ( machine code)
-  Push PFA onto DS?
-  Pop CPU stack to get address of high level action routine (this is the PFA)
-  Save old IP on RS
-  load address of high level thread (PFA) into IP
-  NEXT to continue interpretation at IP
-
-
-
-DOES> and (DOES>)
-
-: CONSTANT ( n -- )
-    CREATE      \ create the new word
-    ,           \ append the TOS value to the dictionary,
-                \   as the 1st cell of the Parameter Field
-    DOES>       \ end "create" part & start "action" part
-    @           \ given the PFA, fetch its contents
-    ;
-
-(everything from : to DOES> is executed when CONSTANT is executed, and it builds the parameter
-field of the defined word.
-
-Everything from DOES> to ; is high level code that is executed when children of CONSTANT
-get executed, i.e. the high level fragment that it's CFA will point to.
-
-i.e. the create part, and the action part.
-The create part is run at creation time.
-The action part is run at runtime of the created word.
-
-
-DOES> is executed when CONSTANT is compiled. Thus DOES> is a Forth IMMEDIATE word. It does two things:
-
-a. It compiles the Forth word (DOES>) into CONSTANT.
-b. It compiles a JSR DODOES into CONSTANT.
-
-Note that DOES> leaves the Forth compiler running, in order to compile the high-level fragment which follows.
-Also, even though JSR DODOES is not itself Forth code, an IMMEDIATE word such as DOES> can cause it to be compiled
-in the middle of Forth code.
-
-
-
-(DOES>) is part of the word CONSTANT, so it executes when CONSTANT executes. It does the following:
-
-a. It gets the address of the machine code that immediately follows (JSR DODOES), by popping IP from the
-Forth Return Stack.
-
-b. It puts that address into the Code Field of the word just defined by CREATE.
-
-c. It performs the action of EXIT, causing CONSTANT to terminate here and not attempt to execute the fragment
-that follows.
-
-NFA:   8,CONSTANT
-LFA:   prev
-CFA:   addr(DOCOL)
-PFA:   <-- create part -->
-       CFAof CREATE
-       CFAof ,
-       CFAof (DOES>)
-       <-- "DOCON" action routine -->
-       CFA: JSR DODOES
-       PFA: CFAof @
-            CFAof EXIT
-
-
---------------------------------------------------------------------------------
-
-
-
-
-dictionary has header(name, link) and body(code, param)
-
-All of the "hard work" of a defining word is done by a kernel word, CREATE, which parses a
-name from the input stream, builds the header and Code Field for a new word, and links it into the
-dictionary. (In fig-Forth this word is called <BUILDS.)
-
-
-3 parts of the defining lifecycle
-sequence 1: CONSTANT is being defined
-sequence 2: CONSTANT is being executed
-sequence 3: constant-type word is being executed
-
-
-Address of a word is the address of it's CFA
-tick returns PFA
-
-branching words as compiled into PFA are followed by a branch offset???
-
-LOOP is an immediate word that compiles in a (LOOP)
-." is an immediate word that compiles in (.")
+===== INTERFACE SPEC ==========================================================
 
 PLAN:
 1. define everything in forth, ignoring dependencies
 2. make sure sorting is correct for good boot order
-3. spot bad dependencies
-
-could write a tool to take definitions as list of words, and sort into best dependency order
-might want to 'seed' it with some immovable definitions so we can balance it in our favour
-as there will be infinite cycles, but we want to sort the rest into the best order.
-
-This is just like the dependency sorter in the excel2php converter we wrote.
-
+3. spot bad dependencies with a dependency tool (def some to break dependencies)
+   This is just like the dependency sorter in the excel2php converter we wrote.
 4. write native implementations to break bad dependencies
 5. write boot code in python to get nano kernel booted into memory
 
 
-===== SPECIFICATION OF INTERFACE OF WORDS =====================================
+----- NANO KERNEL ---------------------------------------------------------------------
 
------ NANO KERNEL (35) ------------------------------------------------------------------
+This is a non optimal list, but a good first stab at a minimal kernel
+that is required to build up the next layers.
 
-These instructions will be hand-generated by the platform language and each will invoke
-a specific bit of platform code (probably native_xx() such as native_SV0() so that binding
-to a native function can be done via introspection rather than table lookup.
-
-For the dictionary entries and variable entries (so that the variables are linked to real
-python variables), there might be some convention coded into the pfa field such as
-a native flag. This will then cause the python dispatcher to create a native_NAME()
-call based on the name of that item in the dictionary. Adding a new native is then just
-a matter of defining the function of that name in the python, and entering an entry
-in the dictionary with the native indicator in the pfa field.
-
--------- GROUP 1
-: SV0   ( -- a)                      /ADD CONST Address of start of system vars
-: D0   ( -- a)                       /ADD CONST Address of bottom of dictionary
-: HERE   ( -- a)                     /P213 SYSVAR Address of dictionary pointer var
-: S0   ( -- a)                       /P221 CONST Address of bottom of data stack
-: SP   ( -- a)                       /P215 SYSVAR Address of data stack pointer var
-: 0   ( -- 0)                        /P190 CONST const zero
-: 1   ( -- 1)                        /P190 CONST const 1
-: R0   ( -- a)                       /ADD CONST Address of bottom of return stack
-: RP   ( -- a)                       /ADD SYSVAR Address of return stack pointer var
-: IP   ( -- a)                       /ADD SYSVAR Address of instruction pointer var
-: !   ( n a -- )                     /P190 store single number into addr
-: @   ( a -- n)                      /P190 (fetch) replace addr with contents
-
--------- GROUP 2
-: KEY   ( -- c)                      /P254 Get next char from input
-: EMIT   ( c -- )                    /P26 Send character to output
-: C!   ( b a -- )                    /P190 store 8 bit value
-: C@   ( a -- b)                     /P190 fetch 8 bit value
-: +   ( n1 n2 -- n-sum)              /P49 Add
-: -   ( n1 n2 -- n-diff)             /P49 Subtract (n1 - n2)
-
--------- GROUP 3
-: SWAP   ( n1 n2 -- n2 n1)           /P49 Reverse top two stack items
-: DUP   ( n -- n n)                  /P49 Duplicate top stack item
-: OVER   ( n1 n2 -- n1 n2 n1)        /P49 Make a copy of second item and puts on top
-: ROT   ( n1 n2 n3 -- n2 n3 n1)      /P49 Rotate 3rd item to top
-: DROP   ( n -- )                    /P49 Discard top item
-
--------- GROUP 4
-: AND   ( n1 n2 -- n-and)            /P92 Logical AND
-: OR   ( n1 n2 -- n-or)              /P92 Logical OR
-: XOR   ( n1 n2 -- n-xor)            /P92 Logical XOR
-: *   ( n1 n2 -- n-prod)             /P49 Multiply
-: /   ( n1 n2 -- n-quot)             /P49 Divide (n1/n2)
-: MOD   ( n1 n2 -- n-rem)            /P49 Remainder from division (n1/n2)
-: FLAGS  ( -- a)                     /ADD SYSVAR Address of var of flags from last saved ALU operation
-: FLAGS>   ( -- )                    /ADD Save last ALU C,V,Z,P flags to FLAGS
-
--------- GROUP 5
-: BB0   ( -- a)                      /ADD CONST Lowest address of start of 1K block buffers
-: BBN   ( -- #)                      /ADD CONST Number of 1K block buffers
-: (LOAD) ( n a -- )                  /ADD Load 1K disk block n into memory at addr
-: (SAVE) ( a n -- )                  /ADD Save 1K memory from addr to disk block n
---------
+The whole point is to define as little as possible natively to allow fast porting,
+and then optimise later when on a real platform and have an appropriate assembler
+written, to replace synthesised versions with platform specific assembled versions.
 
 
-/ --------------------------------------------------------------------------------
-/ SYTHESISABLE
+----- NATIVE ROUTINE INTERFACE SPEC -------------------------------------------
 
-/ Implies: need definition capability first, even if in python still at this point
+(39 in list, 78 bytes of MEM at start for vectors if use vectors?)
+Only need to use vectors if might want to insert a CPU simulator later.
+If don't want that, just 'running native' a number stored at CFA will do it.
+Could be a build option to save a level of indirection if no CPU simulator
+required. i.e. does CFA store address of machine code, or machine code instruction
+(direct, indirect, subroutine option)
 
-: UV0   ( -- a)                      /ADD CONST Address of start of user vars
+NOP       (does nothing)
+--- memory read/write
+STORE     (store 16bit at address)
+FETCH     (read 16 bit from address)
+STORE8    (store 8 bit at address)
+FETCH8    (read 8 bit from address)
+--- I/O
+KEY?      (checks number of keys waiting in input stream)
+KEY       (removes next key from input stream)
+EMIT      (writes one byte to output stream)
+--- ALU
+ADD       (add top two stack items, if exists)
+SUB       (subract top two stack items, if exists)
+AND       (bit-and top two stack items, if exists)
+OR        (bit-or top two stack items, if exists)
+XOR       (bit-xor top two stack items, if exists)
+MULT      (16 bit multiply top two stack items, if exists)
+DIV       (16 bit divide top two stack items, if exists)
+MOD       (remainder from 16 bit divide top two stack items, if exists)
+FLAGS     (update FLAGS variable from last operation)
+--- branching
+BRANCH    (branch based on relative stored in next IP)
+BRANCH0   (branch only if tos=0 based on relative stored in next IP)
+--- data stack access
+SWAP      (swap top two items on stack if exists)
+DUP       (copy top item to top of DS if exists)
+OVER      (copy 2nd item to top of DS if exists)
+ROT       (rotate 3 items on top of DS if exists)
+DROP      (remove top of DS if exists)
+--- variable table access
+RDCONST   (read constant out from PFA and push to DS)
+ADRVAR    (get address of variable from PFA and push to DS)
+--- disk block access
+RBLK      (read a disk block)
+WBLK      (write a disk block)
+--- executional words
+NEXT      (run next high level addr pointed to by IP)
+DODOES    (PFA containing high level thread of CFA addresses, sometimes called ENTER, runs high level forth code)
+EXIT      (pops IP from return stack and jumps to NEXT)
+EXECUTE   (??? high level? does this do anything extra to above?)
+LIT       (put LIT in next IP address on TOS) - is this a native routine or a high level routine?
+--- creational words
+CREATE    (??root of all creation words)
+DOCOL     (colon definition, define a new high level word)
+DOCON     (??constant value)
+DOVAR     (??storage for a var)
+DOVOC     (something to do with vocabulary change? could be synthesised?)
+DOLIT     (compile a literal at H)
 
-: FALSE   ( -- 0)                    /P190 CONST false (0)    : FALSE 0 ;
-: TRUE   ( -- -1)                    /P190 CONST true (-1)    : TRUE 0 1 - ;
-: 2   ( -- 2)                        /ADD CONST const 2 (for simple shifts/multiplies) : 2 1 1 + ;
 
-: (EXECUTE)   ( a -- )               /ADD execute from address (IP !)
+----- MANUALLY BOOTED DICT SPEC -----------------------------------------------
+
+These instructions will be hand-generated into the dictionary by the platform language
+
+-------- initial constants and variables
+: SV0   ( -- a)                      /ADD  CODE 'RDCONST' Address of start of system vars
+: D0   ( -- a)                       /ADD  CODE 'RDCONST' Address of bottom of dictionary
+: H    ( -- a)                       /P213 CODE 'ADRVAR'  Address of variable holding next free dict addr
+: S0   ( -- a)                       /P221 CODE 'RDCONST' Address of bottom of data stack
+: SP   ( -- a)                       /P215 CODE 'ADRVAR'  Address of data stack pointer var
+: R0   ( -- a)                       /ADD  CODE 'RDCONST' Address of bottom of return stack
+: RP   ( -- a)                       /ADD  CODE 'ADRVAR'  Address of return stack pointer var
+: IP   ( -- a)                       /ADD  CODE 'ADRVAR'  Address of instruction pointer var
+: 0   ( -- 0)                        /P190 CODE 'RDCONST' const zero
+: 1   ( -- 1)                        /P190 CODE 'RDCONST' const 1
+
+----- store and fetch
+: !   ( n a -- )                     /P190 CODE 'STORE'  store single number into addr
+: @   ( a -- n)                      /P190 CODE 'FETCH'  replace addr with contents
+: C!   ( b a -- )                    /P190 CODE 'STORE8' store 8 bit value
+: C@   ( a -- b)                     /P190 CODE 'FETCH8' fetch 8 bit value
+
+-------- Simple IO
+: KEY   ( -- c)                      /P254 CODE 'KEY'  Get next char from input
+: EMIT   ( c -- )                    /P26  CODE 'EMIT' Send character to output
+
+-------- Data stack
+: SWAP   ( n1 n2 -- n2 n1)           /P49  CODE 'SWAP' Reverse top two stack items
+: DUP   ( n -- n n)                  /P49  CODE 'DUP'  Duplicate top stack item
+: OVER   ( n1 n2 -- n1 n2 n1)        /P49  CODE 'OVER' Make a copy of second item and puts on top
+: ROT   ( n1 n2 n3 -- n2 n3 n1)      /P49  CODE 'ROT'  Rotate 3rd item to top
+: DROP   ( n -- )                    /P49  CODE 'DROP' Discard top item
+
+-------- ALU
+: +   ( n1 n2 -- n-sum)              /P49  CODE 'ADD'    Add
+: -   ( n1 n2 -- n-diff)             /P49  CODE 'SUB'    Subtract (n1 - n2)
+: AND   ( n1 n2 -- n-and)            /P92  CODE 'AND'    Logical AND
+: OR   ( n1 n2 -- n-or)              /P92  CODE 'OR'     Logical OR
+: XOR   ( n1 n2 -- n-xor)            /P92  CODE 'XOR'    Logical XOR
+: *   ( n1 n2 -- n-prod)             /P49  CODE 'MULT'   Multiply
+: /   ( n1 n2 -- n-quot)             /P49  CODE 'DIV'    Divide (n1/n2)
+: MOD   ( n1 n2 -- n-rem)            /P49  CODE 'MOD'    Remainder from division (n1/n2)
+: FLAGS  ( -- a)                     /ADD  CODE 'ADRVAR' Address of var of flags from last saved ALU operation
+: FLAGS>   ( -- )                    /ADD  CODE 'FLAGS'  Save last ALU C,V,Z,P flags to FLAGS
+
+----- low level branching
+: BRANCH                             /ADD CODE 'BRANCH'  branch using relative offset following
+: 0BRANCH                            /ADD CODE 'BRANCH0' branch if TOS=0, using relative offset following
+
+-------- disk blocks
+: BB0   ( -- a)                      /ADD CODE 'RDCONST' Lowest address of start of 1K block buffers
+: BBN   ( -- #)                      /ADD CODE 'RDCONST' Number of 1K block buffers
+: RBLK  ( n a -- )                   /ADD CODE 'RBLK'    Load 1K disk block n into memory at addr (see MMSForth)
+: WBLK  ( n a -- )                   /ADD CODE 'WBLK'    Save 1K memory from addr to disk block n (see MMSForth)
+
+----- running words
+: DODOES                             /ADD CODE 'DODOES'
+: NEXT                               /ADD CODE 'NEXT'
+: ENTER                              /ADD CODE 'ENTER'
+: EXECUTE                            /ADD CODE 'EXECUTE'
+
+-- defining words
+(note some of these are listed in 'synthesisable region too, need to resolve)
+: CREATE                             /??? CODE 'CREATE'
+: :                                  /ADD CODE 'DOCOL'
+: CONSTANT                           /ADD CODE 'DOCON'
+: VARIABLE                           /ADD CODE 'DOVAR'
+: LIT                                /ADD CODE 'DOLIT'
+
+
+----- SYNTHESISABLE WORDS INTERFACE SPEC --------------------------------------
+
+The rest of the words will be defined in terms of other words (high level forth words
+that are synthesised). They may be replaced by native versions later to improve performance
+once an initial language port is completed)
+
+: HERE   ( -- a)                     /P213 DODOES  put value of H (next free dict addr) onto TOS
+: UV0   ( -- a)                      /ADD  RDCONST Address of start of user vars
+: FALSE   ( -- 0)                    /P190 RDCONST false (0)    : FALSE 0 ;
+: TRUE   ( -- -1)                    /P190 RDCONST true (-1)    : TRUE 0 1 - ;
+: 2   ( -- 2)                        /ADD  RDCONST const 2 (for simple shifts/multiplies) : 2 1 1 + ;
+: (EXECUTE)   ( a -- )               /ADD  DODOES  execute from address (IP !)
 
 / might be synthesisable with new FLAGS feature
-
-: */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 Multiply then divide, double length intermediate
-
-: UM*   ( u1 u2 -- ud)               /P161 multiply 16 bit, 32 bit result
-: UM/MOD   ( ud u1 -- u2 u3)         /P161 divide mod 16 bit, 32 bit result
-
-: M*   ( n1 n2 -- d-prod)            /P161 multiply 16 bit, 32 bit result
-: M+   ( d n -- d-sum)               /P161 32bit add to 16 bit 32 bit result
-: M/   ( d n -- n-quot)              /P161 32bit divide 16 bit, 32 bit result
-: M*/   ( d n u -- d)                /P161 mult 32 bit number by 16 bit, 32 bit result
-
-: >R   ( n -- )                      /P113 Move data stack to return stack          : >R RP @ 1 + DUP ROT ! RP ! ;
-: R>   ( -- n)                       /P113 Move return stack to data stack          : R> RP DUP @ @ SWAP 1 - RP ! ;
-: R@   ( -- n)                       /P113 Copies top of return stack to data stack : R@ RP @ @ ;
-
-
-/ Note, some might be required by the non-synthesisable group.
-/ E.G. A lot of the compiling/defining words, for example might be needed next.
-
-: C?   ( -- ?)                       /ADD query C flag in FLAGS var
-: V?   ( -- ?)                       /ADD query V flag in FLAGS var
-: Z?   ( -- ?)                       /ADD query Z flag in FLAGS var
-: P?   ( -- ?)                       /ADD query P flag in FLAGS var
-: / ( -- )                           /??? comment until next CR
-: SP@   ( -- a)                      /P221 VAR (sp-fetch) Address of top data stack item)
-: HERE   ( -- a)                     /P221 VAR Next available dictionary location (H @)
-: IP ( -- n )                         /P204 VAR interpreter pointer
-: I ( -- n)                          /P207 VAR loop counter
-: J ( -- n)                          /P207 VAR loop counter
-: 0.  ( -- 0 0)                      /P190 CONST double length const 0 (0 0)
-: D+   ( d1 d2 -- dsum)              /P161 adds 32 bit (synth if carry?)
-: D-   ( d1 d2 -- d-diff)            /P161 subtracts 32 bit (synth if carry?)
-: BINDEX ( -- a)                      /ADD VAR array of block buffer index info (0 not loaded)
-: BLK   ( -- a)                       /P254 VAR number of storage block being interpreted as input stream (0 means IN)
-: (LOADED) ( n b ? -- )               /ADD block buffer loaded or unloaded
-: EXIT   ( -- )                       /P221 removes return addr from RS, return to it (or terminate defn)
-: STATE   ( -- a)                    /P286 VAR true if compiling, false if interpreting
-: ?DUP   ( n -- n n) or ( 0 -- 0)     /P92 Duplicates only if n is nonzero
-: BLANK   ( a # -- )                 /P254 fills with ascii 0
-: MOVE   ( a1 a2 # -- )              /P254 copy region of memory
-: CMOVE   ( a1 a2 # -- )             /P254 copy char region of memory
-: CMOVE>   ( a1 a2 # -- )            /P254 copy char region of memory backwards
-: FILL   ( a u b -- )                /P190 fills u bytes of memory
-: ERASE   ( a u -- )                 /P190 zeros n bytes of memory
-: DUMP   ( a u -- )                  /P190 display u bytes of memory
-: HEX   ( -- )                       /P161 Base 16
-: OCTAL   ( -- )                     /P161 Base 8
-: DECIMAL   ( -- )                   /P161 Base 10
-: TRIAD   ( n -- )                    /P77 Displays 3 blocks
-: SHOW   ( lo hi -- )                 /P77 Lists in triad form
-: INDEX   ( lo hi -- )                /P77 Displays comment lines only
-: COUNT   ( a -- a+1 #)              /P254 convert counted string into TYPE expected format
-: CR   ( -- )                        /P26 Output a carriage return/line feed
-: SPACES   ( n -- )                  /P26 Blank spaces
-: SPACE   ( -- )                     /P26 One space
-: FORGET name   ( -- )                /P77 Removes all dict entries up to and including this one
-: 1+   ( n -- n+1)                    /P113 Add one
-: 1-   ( n -- n-1)                    /P113 Subtract one
-: 2+   ( n -- n+2)                    /P113 Add two
-: 2-   ( n -- n-2)                    /P113 Subtract two
-: 2*   ( n -- n*2)                    /P113 Multiply by two
-: 2/   ( n -- n/2)                    /P113 Divide by two
-: ABS   ( n -- |n|)                   /P113 Absolute value
-: NEGATE   ( n -- -n)                 /P113 Change the sign
-: MIN   ( n1 n2 -- min)               /P113 Minimum
-: MAX   ( n1 n2 -- max)               /P113 Maximum
-: <#                                 /P161 Begin number conversion
-: #                                  /P161 Convert one digit into output char string
-: #S                                 /P161 Convert until result is zero
-: c HOLD                             /P161 Insert char
-: n SIGN                             /P161 Insert minus sign
-: #>                                 /P161 End conversion
-: <# ... #>   ( d -- a u)            /P161 32 bit unsigned
-              ( u 0 -- a u)          /P161 16 bit signed
-: <# ... n SIGN #>   ( |d| -- a u)   /P161 32 bit signed
-                or   ( |d| 0 -- a u) /P161 16 bit signed
-: CONSTANT xxx   ( n -- )            /P190 create constant with a value
+: */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 DODOES Multiply then divide, double length intermediate
+: UM*   ( u1 u2 -- ud)               /P161 DODOES multiply 16 bit, 32 bit result
+: UM/MOD   ( ud u1 -- u2 u3)         /P161 DODOES divide mod 16 bit, 32 bit result
+: M*   ( n1 n2 -- d-prod)            /P161 DODOES multiply 16 bit, 32 bit result
+: M+   ( d n -- d-sum)               /P161 DODOES 32bit add to 16 bit 32 bit result
+: M/   ( d n -- n-quot)              /P161 DODOES 32bit divide 16 bit, 32 bit result
+: M*/   ( d n u -- d)                /P161 DODOES mult 32 bit number by 16 bit, 32 bit result
+: >R   ( n -- )                      /P113 DODOES Move data stack to return stack          : >R RP @ 1 + DUP ROT ! RP ! ;
+: R>   ( -- n)                       /P113 DODOES Move return stack to data stack          : R> RP DUP @ @ SWAP 1 - RP ! ;
+: R@   ( -- n)                       /P113 DODOES Copies top of return stack to data stack : R@ RP @ @ ;
+: C?   ( -- ?)                       /ADD  DODOES query C flag in FLAGS var
+: V?   ( -- ?)                       /ADD  DODOES query V flag in FLAGS var
+: Z?   ( -- ?)                       /ADD  DODOES query Z flag in FLAGS var
+: P?   ( -- ?)                       /ADD  DODOES query P flag in FLAGS var
+: / ( -- )                           /???  DODOES comment until next CR
+: SP@   ( -- a)                      /P221 ADRVAR (sp-fetch) Address of top data stack item)
+: HERE   ( -- a)                     /P221 ADRVAR Next available dictionary location (H @)
+: IP ( -- n )                        /P204 ADRVAR interpreter pointer
+: I ( -- n)                          /P207 ADRVAR loop counter
+: J ( -- n)                          /P207 ADRVAR loop counter
+: 0.  ( -- 0 0)                      /P190 RDCON  double length const 0 (0 0)
+: D+   ( d1 d2 -- dsum)              /P161 DODOES adds 32 bit (synth if carry?)
+: D-   ( d1 d2 -- d-diff)            /P161 DODOES subtracts 32 bit (synth if carry?)
+: BINDEX ( -- a)                     /ADD  ADRVAR array of block buffer index info (0 not loaded)
+: BLK   ( -- a)                      /P254 ADRVAR number of storage block being interpreted as input stream (0 means IN)
+: (LOADED) ( n b ? -- )              /ADD  DODOES block buffer loaded or unloaded
+: EXIT   ( -- )                      /P221 DODOES removes return addr from RS, return to it (or terminate defn)
+: STATE   ( -- a)                    /P286 ADRVAR true if compiling, false if interpreting
+: ?DUP   ( n -- n n) or ( 0 -- 0)    /P92  DODOES Duplicates only if n is nonzero
+: BLANK   ( a # -- )                 /P254 DODOES fills with ascii 0
+: MOVE   ( a1 a2 # -- )              /P254 DODOES copy region of memory
+: CMOVE   ( a1 a2 # -- )             /P254 DODOES copy char region of memory
+: CMOVE>   ( a1 a2 # -- )            /P254 DODOES copy char region of memory backwards
+: FILL   ( a u b -- )                /P190 DODOES fills u bytes of memory
+: ERASE   ( a u -- )                 /P190 DODOES zeros n bytes of memory
+: DUMP   ( a u -- )                  /P190 DODOES display u bytes of memory
+: HEX   ( -- )                       /P161 DODOES Base 16
+: OCTAL   ( -- )                     /P161 DODOES Base 8
+: DECIMAL   ( -- )                   /P161 DODOES Base 10
+: TRIAD   ( n -- )                   /P77  DODOES Displays 3 blocks
+: SHOW   ( lo hi -- )                /P77  DODOES Lists in triad form
+: INDEX   ( lo hi -- )               /P77  DODOES Displays comment lines only
+: COUNT   ( a -- a+1 #)              /P254 DODOES convert counted string into TYPE expected format
+: CR   ( -- )                        /P26  DODOES Output a carriage return/line feed
+: SPACES   ( n -- )                  /P26  DODOES Blank spaces
+: SPACE   ( -- )                     /P26  DODOES One space
+: FORGET name   ( -- )               /P77  DODOES Removes all dict entries up to and including this one
+: 1+   ( n -- n+1)                   /P113 DODOES Add one
+: 1-   ( n -- n-1)                   /P113 DODOES Subtract one
+: 2+   ( n -- n+2)                   /P113 DODOES Add two
+: 2-   ( n -- n-2)                   /P113 DODOES Subtract two
+: 2*   ( n -- n*2)                   /P113 DODOES Multiply by two
+: 2/   ( n -- n/2)                   /P113 DODOES Divide by two
+: ABS   ( n -- |n|)                  /P113 DODOES Absolute value
+: NEGATE   ( n -- -n)                /P113 DODOES Change the sign
+: MIN   ( n1 n2 -- min)              /P113 DODOES Minimum
+: MAX   ( n1 n2 -- max)              /P113 DODOES Maximum
+: <#                                 /P161 DODOES Begin number conversion
+: #                                  /P161 DODOES Convert one digit into output char string
+: #S                                 /P161 DODOES Convert until result is zero
+: c HOLD                             /P161 DODOES Insert char
+: n SIGN                             /P161 DODOES Insert minus sign
+: #>                                 /P161 DODOES End conversion
+: <# ... #>   ( d -- a u)            /P161 DODOES 32 bit unsigned
+              ( u 0 -- a u)          /P161 DODOES 16 bit signed
+: <# ... n SIGN #>   ( |d| -- a u)   /P161 DODOES 32 bit signed
+                or   ( |d| 0 -- a u) /P161 DODOES 16 bit signed
+: CONSTANT xxx   ( n -- )            /P190 DODOES create constant with a value
            xxx:  ( -- n)
-: VARIABLE xxx   ( -- )              /P190 create variable (returns addr when exec)
+: VARIABLE xxx   ( -- )              /P190 DODOES create variable (returns addr when exec)
            xxx: ( -- a)
-: 2VARIABLE xxx   ( -- )             /P190 create double length var, addr when exec
+: 2VARIABLE xxx   ( -- )             /P190 DODOES create double length var, addr when exec
             xxx:  ( -- a)
-: 2CONSTANT xxx   ( d -- )           /P190 create double length const with value
+: 2CONSTANT xxx   ( d -- )           /P190 DODOES create double length const with value
             xxx:  ( -- d)
-: PAGE   ( -- )                      /P131 Clears display and resets to left top
-: RECURSE ( -- )                     /P211 compile address of the word being defined, to allow recursion
-: CONTEXT   ( -- a)                  /P221 address of var that specifies dict search order
-: CURRENT   ( -- a)                  /P221 addr of var specifying the vocab for new defns
-: FORTH   ( -- )                     /P221 Make forth context vocab
-: EDITOR   ( -- )                    /P221 Make editor the context vocab
-: ASSEMBLER   ( -- )                 /P221 Make assembler the context vocab
-: DEFINITIONS   ( -- )               /P221 sets current vocab to context vocab
-: ." xxx"   ( -- )                   /P26 Displays the character string xxx. The " character terminates the string
-: .   ( n -- )                       /P26 Display number followed by a space
-: ( xxx)   ( -- )                    /P26 Comment, terminated by )
-: LIST   ( n -- )                     /P77 Lists a disk block
-: .( text)   ( -- )                   /P77 Display text
-: THRU   ( lo hi -- )                 /P77 Loads all blocks inclusive
-: ABORT" xxx"   ( ? -- )              /P92 If flag true, shows last word and text, clears user stacks, back to terminal.
-: BLOCK   ( u -- a)                  /P254 Address of first byte in block
-: BUFFER   ( u -- a)                 /P254 like block, not necc read from mass storage
-: TYPE   ( a # -- )                  /P254 transmits # chars starting at addr
-: -TRAILING   (a #1 -- a #2)         /P254 eliminates trailing blanks from string
-: PAD   ( -- a)                      /P221 VAR addr of scratch area start
-: >TYPE   ( a # -- )                 /P254 output string moved to PAD before output
-: -TEXT   ( a1 # a2 -- ?)            /P254 compare strings
-: -MATCH   ( d # s # -- a ?)         /P254 search for string
-: TIB   ( -- a)                      /P221 VAR Address of start of text input buffer
-: >IN   ( -- a)                      /P254 VAR present char offset in input stream
-: EXPECT   ( a # -- )                /P254 wait for chars or newline
-: SPAN   ( -- a)                     /P254 VAR number of chars read in expect
-: IMMEDIATE   ( -- )                 /P286 marks recently defined word by setting immediate bit
-: INTERPRET   ( -- )                 /P286 text interpret input stream until exhausted
-: >BODY   ( cfa -- pfa)              /P221 pfa address of cfa address
-: @EXECUTE   ( a -- )                /P221 executes dict entry pfa pointed to by contents of a, nothing if zero
-: STRING   ( c -- )                  /P254 compiles string literal into dict as counted string
-: NOT   (? -- -?)                     /P92 Reverse sense of flag
-: =   ( n1 n2 -- ?)                   /P92 True if n1 and n2 are equal
-: <>   ( n1 n2 -- ?)                  /P92 True if n1 and n2 are not equal
-: <   ( n1 n2 -- ?)                   /P92 True if ni less than n2
-: U<   ( u1 u2 -- ?)                 /P161 Unsigned compare (use sub)
-: >   ( n1 n2 -- ?)                   /P92 True if n1 greater than n2
-: 0=   ( n -- ?)                      /P92 True if n is zero
-: 0<   ( n -- ?)                      /P92 True if n is negative
-: 0>   ( n -- ?)                      /P92 True if n is positive
-: D0=   ( d -- ?)                    /P161 true if zero
-: D=   ( d1 d2 -- ?)                 /P161 equality check
-: D<   ( d1 d2 -- ?)                 /P161 true if less
-: DU<   (ud1 ud2 -- ?)               /P161 true if unsigned less
-: DNEGATE   ( d -- -d)               /P161 negates 32 bit
-: DABS   ( d -- |d|)                 /P161 absolute of 32 bit
-: DMAX   ( d1 d2 -- d-max)           /P161 max of 32 bit
-: DMIN   ( d1 d2 -- d-min)           /P161 min of 32 bit
-: ALLOT   ( n -- )                   /P190 adds n bytes to parameter field of most recently defined word
-: ,   ( n -- )                       /P190 compiles n into next available cell in dict
-: C,   ( b -- )                      /P190 compiles b into next available byte in dict
-: +!   ( n a -- )                    /P190 add single len number to contents of addr
-: 2!   ( d a -- )                    /P190 store double length number
-: 2@   ( a -- d)                     /P190 return double length contents
-: U.R   ( u width -- )               /P161 Print unsigned number right justified
-: .R   ( n width -- )                /P131 Prints number right justified to width
-: D.R   ( d width -- )               /P161 print 32 bit number right justified
-: /MOD   ( n1 n2 -- n-rem n-quot)     /P49 Divides, remainder and quotient
-: */   ( n1 n2 n3 -- result)          /P113 Multply then divide, 32bit intermediate
-: 2SWAP   ( d1 d2 -- d2 d1)           /P49 Reverses top two pairs of numbers
-: 2DUP   ( d -- d d)                  /P49 Duplicates top pair of numbers
-: 2OVER   ( d1 d2 -- d1 d2 d1)        /P49 Duplicates top pairs of numbers
-: 2DROP   ( d --)                     /P49 Discards top pair of numbers
-: WORD   ( c -- a)                   /P254 read 1 word from input stream
-: LIT" xxx"   run-time: ( -- a)      /P254 compiles literal (used in definitions)
-: QUIT   ( -- )                      /P221 clear RS, back to monitor
-: ABORT   ( -- )                     /P221 Clear DS and then quit
-: ASCII   ( -- c)                    /P161 Next input char into ascii equivalent
-: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 string to binary value
-: BASE   ( -- a)                     /P190 VAR number base
-: NUMBER   ( a -- d)                 /P254 using base, convert to binary value
-: LOAD   ( n -- )                     /P77 Loads a disk block (compiles or executes) assume (LOAD)
-: FLUSH   ( -- )                      /P77 Writes all updated disk buffers to disk, and unassigns
-: LOCATE xxx   ( -- )                 /P77 Lists block from which xxx has been loaded
-: VIEW xxx   ( -- )                   /P77 Lists block from which xxx has been loaded
-: UPDATE   ( -- )                    /P254 Most recently referenced block marked modified
-: SAVE-BUFFERS   ( -- )              /P254 Writes all updated buffers, un-updated, still assigned
-: FLUSH   ( -- )                     /P254 saves then unassigns all buffers
-: EMPTY-BUFFERS   ( -- )             /P254 marks all buffers empty without saving
-: [']   compile-time: ( -- )         /P221 compiles address of next word in defn as a literal
+: PAGE   ( -- )                      /P131 DODOES Clears display and resets to left top
+: RECURSE ( -- )                     /P211 DODOES compile address of the word being defined, to allow recursion
+: CONTEXT   ( -- a)                  /P221 DODOES address of var that specifies dict search order
+: CURRENT   ( -- a)                  /P221 DODOES addr of var specifying the vocab for new defns
+: FORTH   ( -- )                     /P221 DODOES Make forth context vocab
+: EDITOR   ( -- )                    /P221 DODOES Make editor the context vocab
+: ASSEMBLER   ( -- )                 /P221 DODOES Make assembler the context vocab
+: DEFINITIONS   ( -- )               /P221 DODOES sets current vocab to context vocab
+: ." xxx"   ( -- )                   /P26  DODOES Displays the character string xxx. The " character terminates the string
+: .   ( n -- )                       /P26  DODOES Display number followed by a space
+: ( xxx)   ( -- )                    /P26  DODOES Comment, terminated by )
+: LIST   ( n -- )                    /P77  DODOES Lists a disk block
+: .( text)   ( -- )                  /P77  DODOES Display text
+: THRU   ( lo hi -- )                /P77  DODOES Loads all blocks inclusive
+: ABORT" xxx"   ( ? -- )             /P92  DODOES If flag true, shows last word and text, clears user stacks, back to terminal.
+: BLOCK   ( u -- a)                  /P254 DODOES Address of first byte in block
+: BUFFER   ( u -- a)                 /P254 DODOES like block, not necc read from mass storage
+: TYPE   ( a # -- )                  /P254 DODOES transmits # chars starting at addr
+: -TRAILING   (a #1 -- a #2)         /P254 DODOES eliminates trailing blanks from string
+: PAD   ( -- a)                      /P221 ADRVAR addr of scratch area start
+: >TYPE   ( a # -- )                 /P254 DODOES output string moved to PAD before output
+: -TEXT   ( a1 # a2 -- ?)            /P254 DODOES compare strings
+: -MATCH   ( d # s # -- a ?)         /P254 DODOES search for string
+: TIB   ( -- a)                      /P221 ADRVAR Address of start of text input buffer
+: >IN   ( -- a)                      /P254 ADRVAR present char offset in input stream
+: EXPECT   ( a # -- )                /P254 DODOES wait for chars or newline
+: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
+: IMMEDIATE   ( -- )                 /P286 DODOES marks recently defined word by setting immediate bit
+: INTERPRET   ( -- )                 /P286 DODOES text interpret input stream until exhausted
+: >BODY   ( cfa -- pfa)              /P221 DODOES pfa address of cfa address
+: @EXECUTE   ( a -- )                /P221 DODOES executes dict entry pfa pointed to by contents of a, nothing if zero
+: STRING   ( c -- )                  /P254 DODOES compiles string literal into dict as counted string
+: NOT   (? -- -?)                    /P92  DODOES Reverse sense of flag
+: =   ( n1 n2 -- ?)                  /P92  DODOES True if n1 and n2 are equal
+: <>   ( n1 n2 -- ?)                 /P92  DODOES True if n1 and n2 are not equal
+: <   ( n1 n2 -- ?)                  /P92  DODOES True if ni less than n2
+: U<   ( u1 u2 -- ?)                 /P161 DODOES Unsigned compare (use sub)
+: >   ( n1 n2 -- ?)                  /P92  DODOES True if n1 greater than n2
+: 0=   ( n -- ?)                     /P92  DODOES True if n is zero
+: 0<   ( n -- ?)                     /P92  DODOES True if n is negative
+: 0>   ( n -- ?)                     /P92  DODOES True if n is positive
+: D0=   ( d -- ?)                    /P161 DODOES true if zero
+: D=   ( d1 d2 -- ?)                 /P161 DODOES equality check
+: D<   ( d1 d2 -- ?)                 /P161 DODOES true if less
+: DU<   (ud1 ud2 -- ?)               /P161 DODOES true if unsigned less
+: DNEGATE   ( d -- -d)               /P161 DODOES negates 32 bit
+: DABS   ( d -- |d|)                 /P161 DODOES absolute of 32 bit
+: DMAX   ( d1 d2 -- d-max)           /P161 DODOES max of 32 bit
+: DMIN   ( d1 d2 -- d-min)           /P161 DODOES min of 32 bit
+: ALLOT   ( n -- )                   /P190 DODOES adds n bytes to parameter field of most recently defined word
+: ,   ( n -- )                       /P190 DODOES compiles n into next available cell in dict
+: C,   ( b -- )                      /P190 DODOES compiles b into next available byte in dict
+: +!   ( n a -- )                    /P190 DODOES add single len number to contents of addr
+: 2!   ( d a -- )                    /P190 DODOES store double length number
+: 2@   ( a -- d)                     /P190 DODOES return double length contents
+: U.R   ( u width -- )               /P161 DODOES Print unsigned number right justified
+: .R   ( n width -- )                /P131 DODOES Prints number right justified to width
+: D.R   ( d width -- )               /P161 DODOES print 32 bit number right justified
+: /MOD   ( n1 n2 -- n-rem n-quot)    /P49  DODOES Divides, remainder and quotient
+: */   ( n1 n2 n3 -- result)         /P113 DODOES Multply then divide, 32bit intermediate
+: 2SWAP   ( d1 d2 -- d2 d1)          /P49  DODOES Reverses top two pairs of numbers
+: 2DUP   ( d -- d d)                 /P49  DODOES Duplicates top pair of numbers
+: 2OVER   ( d1 d2 -- d1 d2 d1)       /P49  DODOES Duplicates top pairs of numbers
+: 2DROP   ( d --)                    /P49  DODOES Discards top pair of numbers
+: WORD   ( c -- a)                   /P254 DODOES read 1 word from input stream
+: LIT" xxx"   run-time: ( -- a)      /P254 DODOES compiles literal (used in definitions)
+: QUIT   ( -- )                      /P221 DODOES clear RS, back to monitor
+: ABORT   ( -- )                     /P221 DODOES Clear DS and then quit
+: ASCII   ( -- c)                    /P161 DODOES Next input char into ascii equivalent
+: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 DODOES string to binary value
+: BASE   ( -- a)                     /P190 ADRVAR number base
+: NUMBER   ( a -- d)                 /P254 DODOES using base, convert to binary value
+: LOAD   ( n -- )                    /P77  DODOES Loads a disk block (compiles or executes) assume (LOAD)
+: FLUSH   ( -- )                     /P77  DODOES Writes all updated disk buffers to disk, and unassigns
+: LOCATE xxx   ( -- )                /P77  DODOES Lists block from which xxx has been loaded
+: VIEW xxx   ( -- )                  /P77  DODOES Lists block from which xxx has been loaded
+: UPDATE   ( -- )                    /P254 DODOES Most recently referenced block marked modified
+: SAVE-BUFFERS   ( -- )              /P254 DODOES Writes all updated buffers, un-updated, still assigned
+: FLUSH   ( -- )                     /P254 DODOES saves then unassigns all buffers
+: EMPTY-BUFFERS   ( -- )             /P254 DODOES marks all buffers empty without saving
+: [']   compile-time: ( -- )         /P221 DODOES compiles address of next word in defn as a literal
         run-time: ( -- a)
-: LITERAL   compile-time: ( n -- )   /P286 compiles a value
+: LITERAL   compile-time: ( n -- )   /P286 DODOES compiles a value
             run-time: ( -- n)
-: [   ( -- )                         /P286 leaves compile mode
-: ]   ( -- )                         /P286 enters compile mode
-: COMPILE xxx   ( -- )               /P286 compile a word
-: [COMPILE] xxx   ( -- )             /P286 immediate word gets compiled
-: EXECUTE   ( a -- )                 /P221 executes dict entry pfa on stack
-: CREATE xxx   ( -- )                /P190 create dictionary header, (xxx returns addr when exec)
+: [   ( -- )                         /P286 DODOES leaves compile mode
+: ]   ( -- )                         /P286 DODOES enters compile mode
+: COMPILE xxx   ( -- )               /P286 DODOES compile a word
+: [COMPILE] xxx   ( -- )             /P286 DODOES immediate word gets compiled
+: EXECUTE   ( a -- )                 /P221 DODOES executes dict entry pfa on stack
+: CREATE xxx   ( -- )                /P190 DODOES create dictionary header, (xxx returns addr when exec)
          xxx:  ( -- a)
-: DOES>   run-time: ( -- a)          /P286 creates defining word, end of compile-time begin of run-time
-: ; ( -- )                           /ADD end of definition (compile exit, so ' EXIT)
-: D.   ( d -- )                      /P161 print 32 bit number and 1 space
-: ?   ( a -- )                       /P190 prints contents of addr followed by 1 space
-: U.   ( u -- )                      /P161 Print unsigned number and space
-: ' xxx   ( -- a)                    /P221 find dict address of xxx
-
-
-Hmm, possibly synthesisable? Is the loop return point on return stack?
-Read brodie, think it is, because you can't have a net effect on return stack when in a loop
-
-: IF xxx   IF: ( ? -- )               /P92 If non zero, executes xxx, otherwise yyy, continues with zzz
+: DOES>   run-time: ( -- a)          /P286 DODOES creates defining word, end of compile-time begin of run-time
+: ; ( -- )                           /ADD  DODOES end of definition (compile exit, so ' EXIT)
+: D.   ( d -- )                      /P161 DODOES print 32 bit number and 1 space
+: ?   ( a -- )                       /P190 DODOES prints contents of addr followed by 1 space
+: U.   ( u -- )                      /P161 DODOES Print unsigned number and space
+: ' xxx   ( -- a)                    /P221 DODOES find dict address of xxx
+: IF xxx   IF: ( ? -- )              /P92  DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
   ELSE yyy
   THEN zzz
-: DO ... LOOP   DO:                   /P131 Finite loop
+: DO ... LOOP   DO:                  /P131 DODOES Finite loop
                   ( limit index -- )
                 LOOP:  ( -- )
-: DO ... +LOOP  DO:                   /P131 Finite stepped loop
+: DO ... +LOOP  DO:                  /P131 DODOES Finite stepped loop
                   ( limit index -- )
                 +LOOP:  ( n -- )
-: LEAVE   ( -- )                      /P131 Terminate at next LOOP
-: BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131 Indefinite loop exits when ? true
-: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 Indefinite loop always executes xxx
+: LEAVE   ( -- )                     /P131 DODOES Terminate at next LOOP
+: BEGIN ... UNTIL   UNTIL: ( ? -- )  /P131 DODOES Indefinite loop exits when ? true
+: BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 DODOES Indefinite loop always executes xxx
 
-===== SPECIFICATION OF BEHAVIOUR OF WORDS =====================================
 
------ NUCLEUS GROUP 1 SPEC ----------------------------------------------------
+===== IMPLEMENTATION SPEC =====================================================
 
+--------
 CONSTANT and 2CONSTANT
 
 A constant is compiled into the DICT as follows:
@@ -483,15 +519,16 @@ A 2constant is compiled into the DICT as follows:
   cfa: 2@PFA
   pfa: [VALUEA,VALUEB]
 
-: CFA   ( a -- a)   DUP C@ + 1 + ;
-: PFA   ( a -- a)   DUP C@ + 3 + ;
-: @PFA   ( a -- n)   PFA @ ;
-: 2@PFA   ( a -- d)   PFA DUP @ 1 + @ ;
+: CFA   ( a-name -- a-cfa)   DUP C@ + 1 + ;
+: PFA   ( a-name -- a-pfa)   DUP C@ + 3 + ;
+: @PFA   ( a-pfa -- n)   PFA @ ;
+: 2@PFA   ( a-pfa -- d)   PFA DUP @ 1 + @ ;
 
 : CONSTANT   ( n -- ) ( name) DOES> ; / TODO
 : 2CONSTANT   ( d -- ) ( name) DOES> ; / TODO
 
 
+---------
 VARIABLE and 2VARIABLE
 
 A variable is compiled into the DICT as follows:
@@ -509,42 +546,13 @@ A variable is compiled into the DICT as follows:
   pfa [SPACEA, SPACEB]
 
 
-: VARIABLE   ( -- ) ( name)     DOES> ; / TODO create variable entry in DICT
-: 2VARIABLE   ( -- ) ( name)    DOES> ; / TODO create 2variable entry in DICT
+: VARIABLE   ( -- ) ( name)     DOES> ;
+: 2VARIABLE   ( -- ) ( name)    DOES> ;
 
-
+--------
 CODE (non native, i.e. threaded addresses)
   DICT holds {name, link=prev, cfa=pfa, pfa=[code,code,exit]}
   space is ALLOTed inside the pfa of the dict entry for code and final exit (addrs) using COMPILE
-
-@addr
-  name: b NAME
-  link: prev
-  cfa: PFA
-  pfa: [CODE, CODE, ..., EXIT]
-
-
-note, interpret loop is:
-: INTERPRET ( -- ) BEGIN IP DUP @ SWAP 1 + >R IP ! FALSE UNTIL ;
-: EXIT   ( -- )   R> IP ! ;
-
-Literals are coded into the PFA as follows
-
-pfa: [(LITERAL), 65535]
-pfa: [(2LITERAL), 65535, 65535]
-
-: (LITERAL)   ( -- n)   R> DUP @ SWAP 1 + IP ! ;
-: (2LITERAL)   ( -- d)   R> DUP @ SWAP 1 + @ SWAP 1 + IP ! ;
-
-: LITERAL   ( n -- )   DOES> ; / TODO compile literal at HERE
-: 2LITERAL   ( d -- )  DOES> ; / TODO compile 2literal at HERE
-
-
-: BEGIN  ( -- )   IP >R ;
-: UNTIL   ( ? -- )   IF R> IP ! THEN ;
-
-
-######## HERE ########
 
 HOW CODE works... (BRODIE P205)
 
@@ -562,8 +570,34 @@ EXECUTE of a word will call the machine code pointed to by CFA.
     move address of PFA into IP
     call EXECUTE
 
+@addr
+  name: b NAME
+  link: prev
+  cfa: PFA
+  pfa: [CODE, CODE, ..., EXIT]
+
+note, interpret loop is:
+: INTERPRET ( -- ) BEGIN IP DUP @ SWAP 1 + >R IP ! FALSE UNTIL ;
+: EXIT   ( -- )   R> IP ! ;
+
+--------
+LITERALS
+
+pfa: [(LITERAL), 65535]
+pfa: [(2LITERAL), 65535, 65535]
+
+: (LITERAL)   ( -- n)   R> DUP @ SWAP 1 + IP ! ;
+: (2LITERAL)   ( -- d)   R> DUP @ SWAP 1 + @ SWAP 1 + IP ! ;
+
+: LITERAL   ( n -- )   DOES> ; / TODO
+: 2LITERAL   ( d -- )  DOES> ; / TODO
+
+/ do all the hard work at compile time
+: BEGIN  ( -- )    HERE >R DOES> ;
+: UNTIL   ( ? -- )   R> , DOES> (0BRANCH) ;
 
 
+--------
 USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
   DICT entry points to VARIABLE CODE
   PFA contains offset into USER TABLE
@@ -572,7 +606,9 @@ USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
   This means that the baseaddr of the USER TABLE can be changed
   between each USER (TASK), the dict is shared, but the user table
   is unique for each user/task. e.g. BASE is defined in the USER TABLE.
-  Not defined using VARIABLE (ordinary variable)
+  Not defined using VARIABLE (ordinary variable).
+  (This will be useful for multi-instanced pyforth objects that share the
+  same memory image and runtime for expediency)
 
   Q? So how are these defined?
 
@@ -580,16 +616,10 @@ USER VARIABLES - see BRODIE P 218 (to do with multi tasking)
 
 
 
-: SV0   ( -- a)                      /ADD   CONST Address of start of system vars
-: D0   ( -- a)                       /ADD   CONST Address of bottom of dictionary
-: HERE   ( -- a)                     /P213  SYSVAR Address of dictionary pointer var
-: S0   ( -- a)                       /P221  CONST Address of bottom of data stack
-: SP   ( -- a)                       /P215  SYSVAR Address of data stack pointer var
-: 0   ( -- 0)                        /P190  CONST const zero
-: 1   ( -- 1)                        /P190  CONST const 1
-: R0   ( -- a)                       /ADD   CONST Address of bottom of return stack
-: RP   ( -- a)                       /ADD   SYSVAR Address of return stack pointer var
-: IP   ( -- a)                       /ADD   SYSVAR Address of instruction pointer var
-: !   ( n a -- )                     /P190  CODE store single number into addr
-: @   ( a -- n)                      /P190  CODE (fetch) replace addr with contents
+
+
+
+
+
+
 

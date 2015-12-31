@@ -1,0 +1,92 @@
+
+----- NOTES AFTER READING 'introduction to forth' -----------------------------
+
+Introduction to Forth
+Ken Knecht
+ISBN 0-672-21842-9
+(Based on MMS forth for TRS-80)
+Note, lower case is an optional ROM upgrade for this machine.
+
+CH1 simple commands
+
+- displays last word and ? if not found in dict, then re-enters interpreter
+- 'S to note stack address at start, if stuff left on stack at end, will be different
+- PAD is always HERE+65 (i.e. moves dynamically)
+- WORD buffer between HERE and PAD
+- not sure what the LOAD STACK is??
+
+CH2 create a new word
+
+- use : TASK ; then FORGET TASK to clear out program
+
+CH3 the disk
+
+- single density 5.25 disk, 1024 bytes is 4 sectors
+  35 track disk has 87 blocks numbered 0 to 86
+- blocks 0..38 are forth source code (39 blocks = 39K)
+- blocks 65..68 are full screen editor, lowercase, customise (4 blocks=4K)
+
+: RBLK ( a n -- ) ; / read a block
+: WBLK ( a n -- ); / write a block
+: LIST ( n -- ); / list a disk block contets
+: CVARIABLE ( b -- )  name ; / create a character variable
+: INDEX ( n n -- ); / list 0-lines of given block number
+: PRINT ; / change output device to printer
+: CRT ; / change output device to screen
+: PLIST ( n -- ) ; / list block number to printer
+: PLISTS ( n n -- ) ; / list block numbers to printer
+: LOAD ( n -- ) ; / load and run block n
+: LOADS ( n n -- ) ; / load and run blocks
+: FLUSH ; / flushes unwritten buffers (there are 2)
+: BLOCK ( n -- a) ; / get address of block n, load into buffer if required
+: UPDATE ; / mark most recent block loaded as dirty
+: BK1 ( -- n ) ; / find out block number of block in buffer 1 (0 if none -ve if loaded)
+: BK2 ( -- n) ; / find out block number of block in buffer 2 (0 if none, -ve if loaded)
+: ERASE-CORE ; /
+: DIR ; / load and run block 10 (directory block), which loads all words into dict and shows menu
+: FORMAT ; program stored in a disk block as a utility, LOADS it first then run FORMAT
+: EDS ( n -- ) ; / screen editor for block n
+: CLEAR ( n -- ) ; / clear block n
+: BACKUP ; / backup a disk to another disk
+: PBLK ; / temporary write protect a range of blocks (PBLK ? to query)
+: 0BACKUP ; / stored in a disk block, works if only have single disk drive
+: CUSTOMISE ; / stored in a disk block, changes forth settings
+: DWTSECS (n-#sectors n-sector n-track n-drive a -- ) ; / write 256 byte sectors
+: DRDSECS (n-#sectors nsector n-track ndrive a -- ); / read 256 byte sectors
+: COPY ( n-from n-to -- ) ; / in editor vocab, block copy
+
+CH4 input output
+
+: #IN ( -- n) ; / reads a 16 bit number, including editing and REDO error
+: " xxx" ; / displays string up to closing quote
+: CR ; / outputs a CR
+: Y/N ( -- ?); / ask yes/no and return flag
+: ENTER ; / pause with message, waiting for user to CR
+: PCRT ; / direct output to screen and printer
+: JKL ; / loadable program to print a screen dump to printer, hold JKL simultaneously
+: CATALOG ; / generate a dict catalog, optional vocab on stack to print just that vocab
+: PAGE ; / form feed printer
+: TYPE ( a # -- ) ; / show contents of memory
+: HOLD ( n -- ) ; / convert n to ascii char for print format use
+: <# ( n -- a) ... #> ; / builds format string into word buffer, address on stack, use TYPE to display it
+: ECHO ; / same as EMIT, shows char of ascii on TOS
+: CLS ; / clear screen
+: PTC ( n-line n-col) ... ; / print string at pos on screen (put cursor)
+: ESET ( n n -- ) ; / set graphic point on screen (2x3 graphic chars)
+: ECLR ( n n -- ) ; / clear graphic point on screen
+: E? ( n n -- ?) ; / check graphic point on screen
+: DSET ( n n -- ) ; / double res graphic point set
+: DCLR ( n n -- ) ; / double res graphic point clear
+: D? ( n n -- ?) ; / double res graphic point check
+
+CH5 conditionals and loops
+
+CH6 strings
+
+CH7 more numbers
+
+CH8 some final words
+
+CH9 parting thoughts
+
+

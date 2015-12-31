@@ -7,23 +7,26 @@
 / and then optimise later when on a real platform and have an appropriate assembler
 / written, to replace synthesised versions with platform specific assembled versions.
 
------ MAGIC PFA FIELD VALUES ------------------------------------------------------------
+NOTE: tick ' attempts to find next word in input stream in the DICT and get it's address.
+I think in one or two places, I have seen this incorrectly in the text below???
 
-/ assumes that these lower field values never need to be used as addresses
-/ i.e what is stored in low addresses to ensure this? Could store 'FORTH' (5 locations)
-/ so that the image has a magic header to allow a full memory image to be validated
 
-/ 0000 (F) unused placeholder
-/ 0001 (O) native function call based on name
-/ 0002 (R) literal value follows
-/ 0003 (T) UNUSED
-/ 0004 (H) UNUSED
+PLAN:
+1. define everything in forth, ignoring dependencies
+2. make sure sorting is correct for good boot order
+3. spot bad dependencies
 
-/ address 0005..FFFF
-  / of cfa
-  / of constant
-  / of variable
-  / of arbitrary threaded execution via IP looping
+could write a tool to take definitions as list of words, and sort into best dependency order
+might want to 'seed' it with some immovable definitions so we can balance it in our favour
+as there will be infinite cycles, but we want to sort the rest into the best order.
+
+This is just like the dependency sorter in the excel2php converter we wrote.
+
+4. write native implementations to break bad dependencies
+5. write boot code in python to get nano kernel booted into memory
+
+
+===== SPECIFICATION OF INTERFACE OF WORDS =====================================
 
 ----- NANO KERNEL (35) ------------------------------------------------------------------
 
@@ -37,7 +40,8 @@ a native flag. This will then cause the python dispatcher to create a native_NAM
 call based on the name of that item in the dictionary. Adding a new native is then just
 a matter of defining the function of that name in the python, and entering an entry
 in the dictionary with the native indicator in the pfa field.
---------
+
+-------- GROUP 1
 : SV0   ( -- a)                      /ADD CONST Address of start of system vars
 : D0   ( -- a)                       /ADD CONST Address of bottom of dictionary
 : HERE   ( -- a)                     /P213 SYSVAR Address of dictionary pointer var
@@ -50,20 +54,23 @@ in the dictionary with the native indicator in the pfa field.
 : IP   ( -- a)                       /ADD SYSVAR Address of instruction pointer var
 : !   ( n a -- )                     /P190 store single number into addr
 : @   ( a -- n)                      /P190 (fetch) replace addr with contents
---------
+
+-------- GROUP 2
 : KEY   ( -- c)                      /P254 Get next char from input
 : EMIT   ( c -- )                    /P26 Send character to output
 : C!   ( b a -- )                    /P190 store 8 bit value
 : C@   ( a -- b)                     /P190 fetch 8 bit value
 : +   ( n1 n2 -- n-sum)              /P49 Add
 : -   ( n1 n2 -- n-diff)             /P49 Subtract (n1 - n2)
---------
+
+-------- GROUP 3
 : SWAP   ( n1 n2 -- n2 n1)           /P49 Reverse top two stack items
 : DUP   ( n -- n n)                  /P49 Duplicate top stack item
 : OVER   ( n1 n2 -- n1 n2 n1)        /P49 Make a copy of second item and puts on top
 : ROT   ( n1 n2 n3 -- n2 n3 n1)      /P49 Rotate 3rd item to top
 : DROP   ( n -- )                    /P49 Discard top item
---------
+
+-------- GROUP 4
 : AND   ( n1 n2 -- n-and)            /P92 Logical AND
 : OR   ( n1 n2 -- n-or)              /P92 Logical OR
 : XOR   ( n1 n2 -- n-xor)            /P92 Logical XOR
@@ -72,7 +79,8 @@ in the dictionary with the native indicator in the pfa field.
 : MOD   ( n1 n2 -- n-rem)            /P49 Remainder from division (n1/n2)
 : FLAGS  ( -- a)                     /ADD SYSVAR Address of var of flags from last saved ALU operation
 : FLAGS>   ( -- )                    /ADD Save last ALU C,V,Z,P flags to FLAGS
---------
+
+-------- GROUP 5
 : BB0   ( -- a)                      /ADD CONST Lowest address of start of 1K block buffers
 : BBN   ( -- #)                      /ADD CONST Number of 1K block buffers
 : (LOAD) ( n a -- )                  /ADD Load 1K disk block n into memory at addr
@@ -293,4 +301,113 @@ Read brodie, think it is, because you can't have a net effect on return stack wh
 : BEGIN ... UNTIL   UNTIL: ( ? -- )   /P131 Indefinite loop exits when ? true
 : BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 Indefinite loop always executes xxx
 
+===== SPECIFICATION OF BEHAVIOUR OF WORDS =====================================
+
+----- NUCLEUS GROUP 1 SPEC ----------------------------------------------------
+
+CONSTANT and 2CONSTANT
+
+A constant is compiled into the DICT as follows:
+
+@addr
+  name: b NAME
+  link: prev
+  cfa: @PFA
+  pfa: [VALUE]
+
+A 2constant is compiled into the DICT as follows:
+
+@addr
+  name: b NAME
+  link: prev
+  cfa: 2@PFA
+  pfa: [VALUEA,VALUEB]
+
+: CFA   ( a -- a)   DUP C@ + 1 + ;
+: PFA   ( a -- a)   DUP C@ + 3 + ;
+: @PFA   ( a -- n)   PFA @ ;
+: 2@PFA   ( a -- d)   PFA DUP @ 1 + @ ;
+
+: CONSTANT   ( n -- ) ( name) DOES> ; / TODO
+: 2CONSTANT   ( d -- ) ( name) DOES> ; / TODO
+
+
+VARIABLE and 2VARIABLE
+
+A variable is compiled into the DICT as follows:
+
+@addr
+  name: b NAME
+  link: prev
+  cfa:  PFA
+  pfa:  [SPACE]
+
+@addr
+  name: b NAME
+  link: prev
+  cfa: PFA
+  pfa [SPACEA, SPACEB]
+
+
+: VARIABLE   ( -- ) ( name)     DOES> ; / TODO create variable entry in DICT
+: 2VARIABLE   ( -- ) ( name)    DOES> ; / TODO create 2variable entry in DICT
+
+
+CODE (non native, i.e. threaded addresses)
+  DICT holds {name, link=prev, cfa=pfa, pfa=[code,code,exit]}
+  space is ALLOTed inside the pfa of the dict entry for code and final exit (addrs) using COMPILE
+
+@addr
+  name: b NAME
+  link: prev
+  cfa: PFA
+  pfa: [CODE, CODE, ..., EXIT]
+
+
+note, interpret loop is:
+: INTERPRET ( -- ) BEGIN IP DUP @ SWAP 1 + >R IP ! UNTIL FALSE ;
+: EXIT   ( -- )   R> IP ! ;
+
+Literals are coded into the PFA as follows
+
+pfa: [(LITERAL), 65535]
+pfa: [(2LITERAL), 65535, 65535]
+
+: (LITERAL)   ( -- n)   R> DUP @ SWAP 1 + IP ! ;
+: (2LITERAL)   ( -- d)   R> DUP @ SWAP 1 + @ SWAP 1 + IP ! ;
+
+: LITERAL   ( n -- )   DOES> ; / TODO compile literal at HERE
+: 2LITERAL   ( d -- )  DOES> ; / TODO compile 2literal at HERE
+
+
+
+######## HERE ########
+
+Q? how differentiate between list of addresses and real machine code?? #### CHECK BRODIE!
+- look at the assembler, and see how it jumps to real machine code
+
+CODE (native)
+  ? space is allocated in NUCLEUS for a native redirect (why not in dict?)
+  ? cell in nucleus stores some native identifier (real platform it could be a trap/call) (why not in dict?)
+  ?DICT holds {name, link=prev, cfa=?, pfa=[?]}
+  ?how does this vary between python hosted and processor hosted?
+  processor hosted would just be machine code
+  python hosted the machine code means access a certain internal structure
+  but how differentiate reads and writes and different access sizes?
+
+
+
+
+: SV0   ( -- a)                      /ADD   CONST Address of start of system vars
+: D0   ( -- a)                       /ADD   CONST Address of bottom of dictionary
+: HERE   ( -- a)                     /P213  SYSVAR Address of dictionary pointer var
+: S0   ( -- a)                       /P221  CONST Address of bottom of data stack
+: SP   ( -- a)                       /P215  SYSVAR Address of data stack pointer var
+: 0   ( -- 0)                        /P190  CONST const zero
+: 1   ( -- 1)                        /P190  CONST const 1
+: R0   ( -- a)                       /ADD   CONST Address of bottom of return stack
+: RP   ( -- a)                       /ADD   SYSVAR Address of return stack pointer var
+: IP   ( -- a)                       /ADD   SYSVAR Address of instruction pointer var
+: !   ( n a -- )                     /P190  CODE store single number into addr
+: @   ( a -- n)                      /P190  CODE (fetch) replace addr with contents
 

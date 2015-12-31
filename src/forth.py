@@ -17,7 +17,7 @@
 # Access to a block of memory, basically a Python list.
 
 class Memory():
-    def __init__(self, size=65535):
+    def __init__(self, size):
         self.size = size
         self.mem = [0 for i in range(size)]
         self.map = []
@@ -111,11 +111,11 @@ class Memory():
 # the implementation code for a word in Python to get better execution speed.
 
 class Vars():
-    def __init__(self, mem, start, size):
-        self.mem = mem
-        self.base = start
-        self.ptr = start
-        self.limit = start + size-1
+    def __init__(self, mem, base, ptr, size):
+        self.mem  = mem
+        self.base = base
+        self.ptr  = ptr
+        self.size = size
 
     def create(self, size=2):
         """Create a new constant or variable of the given size in bytes"""
@@ -160,25 +160,40 @@ class UserVars(Vars):
 
 
 class Dictionary():
-    def __init__(self, mem, base, ptr, limit):
+    def __init__(self, mem, base, ptr, size):
+        self.mem = mem
+        self.base = base
+        self.ptr = ptr
+        self.size = size
+
+    def create(self, name):
         pass
 
-    # probably just write native versions of all the usual FORTH words here
-    # CREATE
-    # ALLOT
-    # CFA
-    # PFA
-    # TICK
-    # FORGET
-    # HERE
+    def tick(self, name):
+        pass
+
+    def cfa(self, addr):
+        pass
+
+    def pfa(self, addr):
+        pass
+
+    def allot(self):
+        pass
+
+    def here(self):
+        pass
+
+    def forget(self, addr):
+        pass
 
 
 class Stack():
-    def __init__(self, mem, base, size):
+    def __init__(self, mem, base, ptr, size):
         self.mem  = mem
-        self.S0   = base
+        self.base = base
         self.size = size
-        self.SP   = base
+        self.ptr  = ptr
 
     def pushn(self, value):
         pass
@@ -219,7 +234,21 @@ class Stack():
     def clear(self):
         pass
 
-    #TODO: drop, dup, swap, rot, over
+    def dup(self):
+        pass
+
+    def swap(self):
+        pass
+
+    def rot(self):
+        pass
+
+    def over(self):
+        pass
+
+    def drop(self):
+        pass
+
 
 class DataStack(Stack):
     def __init__(self, mem, base, limit):
@@ -254,27 +283,27 @@ class ReturnStack(Stack):
 #
 # Interface to keyboard input
 
-class Input():
-    def __init__(self):
-        pass
-
-    def check(self):
-        return True
-
-    def read(self):
-        return '*'
+#class Input():
+#    def __init__(self):
+#        pass
+#
+#    def check(self):
+#        return True
+#
+#    def read(self):
+#        return '*'
 
 
 #----- OUTPUT -----------------------------------------------------------------
 #
 # Interface to screen output
 
-class Output():
-    def __init__(self):
-        pass
-
-    def write(self, ch):
-        print("out:%s" % ch)
+#class Output():
+#    def __init__(self):
+#        pass
+#
+#    def write(self, ch):
+#        print(ch)
 
 
 #----- DISK -------------------------------------------------------------------
@@ -282,11 +311,9 @@ class Output():
 # TODO: Probably an interface to reading and writing blocks in a nominated
 # disk file image.
 
-class Disk():
-    def __init__(self):
-        pass
-
-
+#class Disk():
+#    def __init__(self):
+#        pass
 
 
 #----- FORTH CONTEXT ----------------------------------------------------------
@@ -294,36 +321,25 @@ class Disk():
 # The Forth language - knits everything together into one helpful object.
 
 class Forth:
-    mem    = Memory()
-    input  = Input()
-    output = Output()
-
     def boot(self):
-        self.make_ds()
+        self.build_ds()
         self.build_nucleus()
-
-
-        #self.boot_sys_vars() (including init of base/ptr vars of various regions)
-        #self.boot_user_vars()
-        #self.boot_native_words()
-        #self.boot_forth_words()
-        #self.boot_min_interpreter()
-        #self.boot_min_compiler()
-        #self.boot_min_editor()
         return self
 
-    def make_ds(self):
+    def build_ds(self):
         # BOOT DATASTRUCTURES (base, ptr, limit for each)
-
+        MEM_SIZE  = 65536
         SV_MEM   = (0,               +1024      )
-        EL_MEM   = (1024,            +0         )
+        #EL_MEM   = (1024,            +0         )
         DICT_MEM = (1024,            +1024      )
-        PAD_MEM  = (2048,            +80        )
+        #PAD_MEM  = (2048,            +80        )
         DS_MEM   = (8192,            -1024      ) # grows downwards
-        TIB_MEM  = (8192,            +80        )
+        #TIB_MEM  = (8192,            +80        )
         RS_MEM   = (16384,           -1024      ) # grows downwards
-        UV_MEM   = (16384,           +1024      )
-        BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+        #UV_MEM   = (16384,           +1024      )
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+
+        self.mem = Memory(MEM_SIZE)
 
         #   init sysvars
         svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
@@ -337,33 +353,92 @@ class Forth:
         self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
 
         #   init pad
-        padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
-        self.pad = Pad(self.mem, padbase, padptr, padlimit)
+        #padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
+        #self.pad = Pad(self.mem, padbase, padptr, padlimit)
 
         #   init data stack
         dsbase, dsptr, dslimit = self.mem.region("DS", DS_MEM)
         self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
 
         #   init text input buffer
-        tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
-        self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
+        #tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
+        #self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
 
         #   init return stack
         rsbase, rsptr, rslimit = self.mem.region("RS", RS_MEM)
         self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
 
         #   init user variables (BASE, S0,...)
-        uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
-        self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
+        #uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
+        #self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
 
         #   init block buffers
-        bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
-        self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
+        #bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
+        #self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
 
         self.mem.show_map()
 
     def build_nucelus(self):
-        pass
+        class Native():
+            def __init__(self, parent):
+                self.parent = parent
+                #sv   = parent.sv
+                #dict = parent.dict
+                #mem  = parent.mem
+
+                # for CONST/VAR, allocate address in SV
+                # 'memory-map' this address to a python function that returns that value when accessed
+                # perhaps by just storing a python function at that address
+                # note, will need to know data width of read/write to allow correct access
+
+                # for CODE, memory map native function into a NUCLEUS region address in low memory
+                # perhaps a 16 bit cell with a unique native number index in it
+                # store python function in that mem[] cell that is called on read/write
+                # note, will need to know data width of read/write to allow correct access
+
+                # GROUP 1
+                #   CONSTANT SV0   - address of start of system vars
+                #     dict.create("SV0", link=dict.prev, cfa=@PFA, pfa=svbase)
+
+                #   CONSTANT D0    - address of bottom of dict
+                #     dict.create("D0", link=dict.prev, cfa=@PFA, pfa=dictbase)
+
+                #   VARIABLE HERE  - address of dictionary pointer
+                #     TODO
+
+                #   CONSTANT S0    - address of bottom of data stack
+                #     dict.create("S0", link=dict.prev, cfa=@PFA, pfa=dsbase)
+
+                #   VARIABLE SP    - address of data stack pointer
+                #     TODO
+
+                #   CONSTANT 0     - value 0
+                #     dict.create("0", link=dict.prev, cfa=@PFA, pfa=0)
+
+                #   CONSTANT 1     - value 1
+                #     dict.create("1", link=dict.prev, cfa=@PFA, pfa=1)
+
+                #   CONSTANT R0    - address of bottom of return stack
+                #     dict.create("R0", link=dict.prev, cfa=@PFA, pfa=rsbase)
+
+                #   VARIABLE RP    - address of return stack pointer
+                #     TODO
+
+                #   VARIABLE IP    - address of next instruction to interpret
+                #     TODO
+
+                #   CODE !         - address of "store single number into addr'
+                #     TODO
+
+                #   CODE @         - address of "fetch from address"
+                #     TODO
+
+        self.native = Native(self)
+        # any value stored in mem[] that is a python function, is called, to read/write said value
+        # implies need to know if read/write and if width is 8/16/32
+        # 4 individual byte accesses vs 1 32 bit word access need to set/get same data
+        # in a 'safe' way?
+
 
 
     def run(self):

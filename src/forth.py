@@ -11,6 +11,17 @@
 # context is like a mini self-contained sandbox with it's own
 # memory space and execution thread).
 
+def error(msg):
+    print(msg)
+    import sys
+    sys.exit()
+
+def warning(msg):
+    print("warning:%s" % str(msg))
+
+def trace(msg):
+    print(str(msg))
+
 
 #----- MEMORY -----------------------------------------------------------------
 #
@@ -166,26 +177,28 @@ class Dictionary():
         self.ptr = ptr
         self.size = size
 
-    def create(self, name):
-        pass
+    def create(self, nf, cf=0, pf=[]):
+        trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
+        #TODO create new dict entry and link LF to PREV
+        #adjust HERE pointer
 
     def tick(self, name):
-        pass
+        pass # TODO
 
     def cfa(self, addr):
-        pass
+        pass # TODO
 
     def pfa(self, addr):
-        pass
+        pass # TODO
 
     def allot(self):
-        pass
+        pass # TODO
 
     def here(self):
-        pass
+        pass # TODO
 
     def forget(self, addr):
-        pass
+        pass # TODO
 
 
 class Stack():
@@ -316,14 +329,289 @@ class ReturnStack(Stack):
 #        pass
 
 
+
+#----- MACHINE ----------------------------------------------------------------
+#
+# The native machine simulation
+# This is a minimal simulation, it could though simulate a complete CPU.
+
+class Machine():
+    def __init__(self, parent):
+        self.parent = parent
+        self.sv   = parent.sv
+        self.dict = parent.dict
+        self.mem  = parent.mem
+        self.ds   = parent.ds
+        self.rs   = parent.rs
+        # need to expose these through mem[] holes for read/write access
+        self.ip = 0
+        self.dp = 0 # how does parent.ds get access to dp?
+        self.rp = 0 # how does parent.rs get access to rp?
+
+        # dispatch table for jsr(n)
+        self.index = [
+            ("NOP",    self.n_nop),
+            ("STORE",  self.n_store),  # self.mem.store
+            ("FETCH",  self.n_fetch),  # self.mem.fetch
+            ("STORE8", self.n_store8), # self.mem.store8
+            ("FETCH8", self.n_fetch8), # self.mem.fetch8
+            ("ADD",    self.n_add),
+            ("SUB",    self.n_sub),
+            ("AND",    self.n_and),
+            ("OR",     self.n_or),
+            ("XOR",    self.n_xor),
+            ("MULT",   self.n_mult),
+            ("DIV",    self.n_div),
+            ("MOD",    self.n_mod),
+            ("FLAGS",  self.n_flags),
+            ("SWAP",   self.ds.swap),
+            ("DUP",    self.ds.dup),
+            ("OVER",   self.ds.over),
+            ("ROT",    self.ds.rot),
+            ("DROP",   self.ds.drop),
+            ("KEY",    self.n_key),    # self.in.key
+            ("KEYQ",   self.n_keyq),   # self.in.keyq
+            ("EMIT",   self.n_emit),   # self.out.emit
+            ("RDPFA",  self.n_rdpfa),
+            ("ADRUV",  self.n_adruv),  # self.uv.adruv
+            ("BRANCH", self.n_branch),
+            ("0BRANCH",self.n_0branch),
+            ("NEXT",   self.n_next),
+            ("EXIT",   self.n_exit),
+            ("DODOES", self.n_dodoes),
+            ("RBLK",   self.n_rblk),   # self.disk.rblk
+            ("WBLK",   self.n_wblk)    # self.disk.wblk
+        ]
+
+    def n_nop(self):
+        pass
+
+    def n_store(self):
+        #: n_STORE   ( n a -- )
+        # { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;
+        a = self.ds.popn()
+        n0 = self.ds.popb()
+        n1 = self.ds.popb()
+        self.mem[a] = n0
+        self.mem[a+1] = n1
+
+    def n_fetch(self):
+        #: n_FETCH  ( a -- n)
+        # { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;
+        a = self.ds.popn()
+        n0 = self.mem[a]
+        n1 = self.mem[a+1]
+        self.ds.pushb(n0)
+        self.ds.pushb(n1)
+
+    def n_store8(self):
+        #: n_STORE8  ( b a -- )
+        # { a=ds_pop; b=ds_pop8; mem[a]=b } ;
+        a = self.ds.popn()
+        b = self.ds.popb()
+        self.mem[a] = b
+
+    def n_fetch8(self):
+        #: n_FETCH8   ( a -- b)
+        # { a=ds_pop; b=mem[a]; ds_push8(b) } ;
+        a = self.ds.popn()
+        b = self.mem[a]
+        self.ds.pushb(b)
+        pass
+
+    def n_add(self):
+        #: n_ADD   ( n1 n2 -- n-sum)
+        # { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 + n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_sub(self):
+        #: n_SUB   ( n1 n2 -- n-diff)
+        # { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 - n2
+        flags = 0; # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_and(self):
+        #: n_AND   ( n1 n2 -- n-and)
+        # { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 & n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_or(self):
+        #: n_OR   ( n1 n2 -- n-or)
+        # { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 | n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_xor(self):
+        #: n_XOR   ( n1 n2 -- n-xor)
+        # { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 ^ n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_mult(self):
+        #: n_MULT   ( n1 n2 -- n-prod)
+        # { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 * n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_div(self):
+        #: n_DIV   ( n1 n2 -- n-quot)
+        # { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 / n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_mod(self):
+        #: n_MOD   ( n1 n2 -- n-rem)
+        # { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;
+        n2 = self.ds.popn()
+        n1 = self.ds.popn()
+        r = n1 % n2
+        flags = 0 # TODO ZNCV
+        self.ds.pushn(r)
+
+    def n_flags(self):
+        #: n_FLAGS   ( -- )
+        # { mem[FLAGS]=flags } ;
+        pass
+
+    def n_keyq(self): # TODO Input()
+        #: n_KEYQ   ( -- ?)
+        # { ds_push8(kbhit) } ;
+        pass # knit to Input()
+
+    def n_key(self): # TODO Input()
+        #: n_KEY   ( -- c)
+        # { ds_push8(getch) } ;
+        pass # knit to Input()
+
+    def n_emit(self): # TODO Output()
+        #: n_EMIT   ( c -- )
+        # { putch(ds_pop8) } ;
+        pass # knit to Output()
+
+    def n_rdpfa(self):
+        #: n_RDPFA   ( a-pfa -- n)
+        # { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;
+        pfa = self.ds.popn()
+        r = self.mem[pfa]
+        self.ds.pushn(r)
+
+    def n_adruv(self):
+        #: n_ADRUV   ( a-pfa -- a)
+        # { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;
+        pfa = self.ds.popn()
+        rel = self.mem[pfa]
+        uservars = 0 # TODO per-task offset to uservars
+        a = uservars + rel
+        self.ds.pushn(a)
+
+    def n_branch(self):
+        #: n_BRANCH   ( -- )
+        # { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;
+        ip = self.ip
+        rel = self.mem[ip]
+        ip += 2
+        abs = ip - rel
+        self.ip = abs
+
+    def n_0branch(self):
+        #: n_0BRANCH   ( ? -- )
+        # { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;
+        f = self.ds.popn()
+        ip = self.ip
+        rel = self.mem[ip]
+        if f==0:
+            self.ip = ip-rel
+        else:
+            self.ip += 2
+
+    def n_next(self):
+        #: n_NEXT   ( -- )
+        # { cfa=mem[ip]; ip+=2; jsr(cfa) } ;
+        cfa = self.mem[self.ip]
+        self.ip += 2
+        self.jsr(cfa)
+
+    def n_exit(self):
+        #: n_EXIT   ( -- )
+        # { ip=rs_pop() } ;
+        self.ip = self.rs.popn()
+
+    def n_dodoes(self):
+        #: n_DODOES   ( -- )
+        # { while True: n_NEXT} ; / beware of python stack on return?
+        while True:
+            self.n_next()
+
+    def n_rblk(self): # TODO Disk()
+        #: n_RBLK  ( n a -- )
+        # { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
+        a = self.ds.popn()
+        n = self.ds.popn()
+        b = self.disk_rd(1024*n, self.mem, a, 1024)
+
+    def n_wblk(self): # TODO Disk()
+        #: n_WBLK  ( n a -- )
+        # { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
+        a = self.ds.popn()
+        n = self.ds.popn()
+        self.disk_wr(1024*n, self.mem, a, 1024)
+
+    def disk_rd(self, diskaddr, mem, memaddr, size): # TODO Disk()
+        warning("disk_rd not implemented")
+
+    def disk_wr(self, diskaddr, mem, memaddr, size): # TODO Disk()
+        warning("disk_wr not implemented")
+
+    def jsr(self, addr):
+        # if address is in self.native.index, invoke function, else NOP
+        if addr < len(self.index):
+            name, fn = self.index[addr]
+            trace("calling native fn:%s" % name)
+            fn()
+        else:
+            error("call to unknown native address: %d" % addr)
+
+
+#TODO memory mapped variables need to be wired up too
+# any value stored in mem[] that is a python function, is called, to read/write said value
+# implies need to know if read/write and if width is 8/16/32
+# 4 individual byte accesses vs 1 32 bit word access need to set/get same data
+# in a 'safe' way?
+
+
 #----- FORTH CONTEXT ----------------------------------------------------------
 #
 # The Forth language - knits everything together into one helpful object.
 
+
+
 class Forth:
     def boot(self):
         self.build_ds()
-        self.build_nucleus()
+        self.build_native()
         return self
 
     def build_ds(self):
@@ -378,67 +666,15 @@ class Forth:
 
         self.mem.show_map()
 
-    def build_nucelus(self):
-        class Native():
-            def __init__(self, parent):
-                self.parent = parent
-                #sv   = parent.sv
-                #dict = parent.dict
-                #mem  = parent.mem
 
-                # for CONST/VAR, allocate address in SV
-                # 'memory-map' this address to a python function that returns that value when accessed
-                # perhaps by just storing a python function at that address
-                # note, will need to know data width of read/write to allow correct access
+    def build_native(self):
+        self.machine = Machine(self)
 
-                # for CODE, memory map native function into a NUCLEUS region address in low memory
-                # perhaps a 16 bit cell with a unique native number index in it
-                # store python function in that mem[] cell that is called on read/write
-                # note, will need to know data width of read/write to allow correct access
-
-                # GROUP 1
-                #   CONSTANT SV0   - address of start of system vars
-                #     dict.create("SV0", link=dict.prev, cfa=@PFA, pfa=svbase)
-
-                #   CONSTANT D0    - address of bottom of dict
-                #     dict.create("D0", link=dict.prev, cfa=@PFA, pfa=dictbase)
-
-                #   VARIABLE HERE  - address of dictionary pointer
-                #     TODO
-
-                #   CONSTANT S0    - address of bottom of data stack
-                #     dict.create("S0", link=dict.prev, cfa=@PFA, pfa=dsbase)
-
-                #   VARIABLE SP    - address of data stack pointer
-                #     TODO
-
-                #   CONSTANT 0     - value 0
-                #     dict.create("0", link=dict.prev, cfa=@PFA, pfa=0)
-
-                #   CONSTANT 1     - value 1
-                #     dict.create("1", link=dict.prev, cfa=@PFA, pfa=1)
-
-                #   CONSTANT R0    - address of bottom of return stack
-                #     dict.create("R0", link=dict.prev, cfa=@PFA, pfa=rsbase)
-
-                #   VARIABLE RP    - address of return stack pointer
-                #     TODO
-
-                #   VARIABLE IP    - address of next instruction to interpret
-                #     TODO
-
-                #   CODE !         - address of "store single number into addr'
-                #     TODO
-
-                #   CODE @         - address of "fetch from address"
-                #     TODO
-
-        self.native = Native(self)
-        # any value stored in mem[] that is a python function, is called, to read/write said value
-        # implies need to know if read/write and if width is 8/16/32
-        # 4 individual byte accesses vs 1 32 bit word access need to set/get same data
-        # in a 'safe' way?
-
+        #iterate through native.index and register all DICT entries for them
+        for i in range(len(self.machine.index)):
+            n = self.machine.index[i]
+            name, fn = n
+            self.dict.create(nf=name, cf=i, pf=[])
 
 
     def run(self):
@@ -447,6 +683,7 @@ class Forth:
         # run main interpreter loop (optionally in a thread?)
         # only gets here when see a 'BYE' command.
         print("warning: No interpreter yet")
+
 
 #----- RUNNER -----------------------------------------------------------------
 

@@ -105,6 +105,7 @@ class Memory():
 
     def writed(self, addr, value):
         """Write a double length variable (4 byte, 32 bits)"""
+        #TODO reuse global byte access fns
         byte0 = (value & 0xFF000000)>>24
         byte1 = (value & 0x00FF0000)>>16
         byte2 = (value & 0x0000FF00)>>8
@@ -122,10 +123,10 @@ class Memory():
 # the implementation code for a word in Python to get better execution speed.
 
 class Vars():
-    def __init__(self, mem, base, ptr, size):
+    def __init__(self, mem, base, size):
         self.mem  = mem
         self.base = base
-        self.ptr  = ptr
+        self.ptr  = base
         self.size = size
 
     def create(self, size=2):
@@ -160,21 +161,21 @@ class Vars():
         self.mem.writed(addr, value)
 
 
-class SysVars(Vars):
+class SysVars(Vars): #TODO memory map the ptr
     def __init__(self, mem, start, size):
         Vars.__init__(self, mem, start, size)
 
 
-class UserVars(Vars):
+class UserVars(Vars): #TODO memory map the ptr
     def __init__(self, mem, start, size):
         Vars.__init__(self, mem, start, size)
 
 
 class Dictionary():
-    def __init__(self, mem, base, ptr, size):
+    def __init__(self, mem, base, size):
         self.mem = mem
         self.base = base
-        self.ptr = ptr
+        self.ptr = base # TODO memory map the ptr (it is H/HERE)
         self.size = size
 
     def create(self, nf, cf=0, pf=[]):
@@ -201,74 +202,127 @@ class Dictionary():
         pass # TODO
 
 
+#----- NUMBER and DOUBLE accessors --------------------------------------------
+
+def nhigh(v):
+    return (v & 0xFF00)>>8
+
+def nlow(v):
+    return v & 0xFF
+
+#TODO: Need a dlow0, dlow1, dhigh2, dhigh3
+
+#TODO: need to know which way stack grows
+#TODO is ptr to next free location, or last used?
+# assume first free loc
+#TODO: need to make these configurable?
+
 class Stack():
-    def __init__(self, mem, base, ptr, size):
+    def __init__(self, mem, base, ptr, size): #TODO: better to pass in which way it grows, and ptr strategy?
         self.mem  = mem
         self.base = base
         self.size = size
         self.ptr  = ptr
 
     def pushn(self, value):
-        pass
+        #TODO: endianness?
+        #TODO: which way does stack grow?
+        self.mem[self.ptr]   = nhigh(value)
+        self.mem[self.ptr+1] = nlow(value)
+        self.ptr += 2
 
     def pushb(self, value):
-        pass
+        #TODO: endianness?
+        #TODO: which way does stack grow?
+        self.mem[self.ptr] = nlow(value)
+        self.ptr += 1
 
     def pushd(self, value):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def popn(self):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def popb(self):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def popd(self):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def getn(self, relindex):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def getb(self, relindex):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def getd(self, relindex):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def setn(self, relindex, value):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def setb(self, relindex, value):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def setd(self, relindex, value):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def clear(self):
+        #TODO: endianness?
+        #TODO: which way does stack grow?
         pass
 
     def dup(self):
-        pass
+        n = self.getn(0)
+        self.pushn(n)
 
     def swap(self):
-        pass
+        n0 = self.getn(0)
+        n1 = self.getn(1)
+        self.setn(0, n1)
+        self.setn(1, n0)
 
     def rot(self):
-        pass
+        pass #TODO
 
     def over(self):
-        pass
+        n = self.getn(1)
+        self.pushn(n)
 
     def drop(self):
-        pass
+        self.popn()
 
 
-class DataStack(Stack):
+class DataStack(Stack): #TODO memory map the S0 and SP
+    #TODO: which way does it grow?
+    #TODO: first free, or last used?
     def __init__(self, mem, base, limit):
         Stack.__init__(self, base, limit)
 
 
-class ReturnStack(Stack):
+class ReturnStack(Stack): #TODO memory map the S0 and SP
+    #TODO: which way does it grow?
+    #TODO: first free, or last used?
     def __init__(self, mem, base, limit):
         Stack.__init__(self, base, limit)
 
@@ -321,7 +375,7 @@ class ReturnStack(Stack):
 
 #----- DISK -------------------------------------------------------------------
 #
-# TODO: Probably an interface to reading and writing blocks in a nominated
+# Probably an interface to reading and writing blocks in a nominated
 # disk file image.
 
 #class Disk():
@@ -343,13 +397,19 @@ class Machine():
         self.mem  = parent.mem
         self.ds   = parent.ds
         self.rs   = parent.rs
-        # need to expose these through mem[] holes for read/write access
+        #TODO: need to expose these through mem[] holes for read/write access
         self.ip = 0
-        self.dp = 0 # how does parent.ds get access to dp?
-        self.rp = 0 # how does parent.rs get access to rp?
+        #TODO: These two need to be owned by the stack objects, and memory mapped too.
+        self.dp = 0 # how does parent.ds get access to dp? dp is inside DataStack?
+        self.rp = 0 # how does parent.rs get access to rp? rp is inside ReturnStack?
 
         # dispatch table for jsr(n)
         self.index = [
+            #TODO
+            #readfn(size)->value
+            #writefn(size, value)
+            #execfn()
+            #name      readfn,      writefn,      execfunction
             ("NOP",    self.n_nop),
             ("STORE",  self.n_store),  # self.mem.store
             ("FETCH",  self.n_fetch),  # self.mem.fetch
@@ -382,6 +442,9 @@ class Machine():
             ("RBLK",   self.n_rblk),   # self.disk.rblk
             ("WBLK",   self.n_wblk)    # self.disk.wblk
         ]
+
+        # TODO need an index for memory mapped variables, along with r/w access rights
+        # perhaps index could have rwx bits and functions (null function means no access of that type?)
 
     def n_nop(self):
         pass
@@ -565,24 +628,24 @@ class Machine():
         while True:
             self.n_next()
 
-    def n_rblk(self): # TODO Disk()
+    def n_rblk(self): # TODO put in Disk()?
         #: n_RBLK  ( n a -- )
         # { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
         a = self.ds.popn()
         n = self.ds.popn()
         b = self.disk_rd(1024*n, self.mem, a, 1024)
 
-    def n_wblk(self): # TODO Disk()
+    def n_wblk(self): # TODO put in Disk()?
         #: n_WBLK  ( n a -- )
         # { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
         a = self.ds.popn()
         n = self.ds.popn()
         self.disk_wr(1024*n, self.mem, a, 1024)
 
-    def disk_rd(self, diskaddr, mem, memaddr, size): # TODO Disk()
+    def disk_rd(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
         warning("disk_rd not implemented")
 
-    def disk_wr(self, diskaddr, mem, memaddr, size): # TODO Disk()
+    def disk_wr(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
         warning("disk_wr not implemented")
 
     def jsr(self, addr):
@@ -605,8 +668,6 @@ class Machine():
 #----- FORTH CONTEXT ----------------------------------------------------------
 #
 # The Forth language - knits everything together into one helpful object.
-
-
 
 class Forth:
     def boot(self):
@@ -673,23 +734,29 @@ class Forth:
         #iterate through native.index and register all DICT entries for them
         for i in range(len(self.machine.index)):
             n = self.machine.index[i]
+            #TODO: Only define in dict if name is not None
             name, fn = n
             self.dict.create(nf=name, cf=i, pf=[])
 
-
-    def run(self):
-        #NOTE: can boot() then clone(), and then customise and run() multiple clones
-        # optionally load app?
-        # run main interpreter loop (optionally in a thread?)
-        # only gets here when see a 'BYE' command.
-        print("warning: No interpreter yet")
+    #def run(self):
+    #    #NOTE: can boot() then clone(), and then customise and run() multiple clones
+    #    # optionally load app?
+    #    # run main interpreter loop (optionally in a thread?)
+    #    # only gets here when see a 'BYE' command.
+    #    print("warning: No interpreter yet")
 
 
 #----- RUNNER -----------------------------------------------------------------
 
 def test():
     f = Forth().boot()
-    f.run()
+    #TODO write a 1st unit test, perhaps a series of words to interpret?
+    #i.e. could hand define a word in the dict and then execute it to
+    #see if it has the correct side effect?
+
+    # unittest would be easier if various data structures had test interfaces
+    # for mocking etc?
+    #f.run()
 
 if __name__ == "__main__":
     test()

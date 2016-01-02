@@ -11,26 +11,85 @@
 # context is like a mini self-contained sandbox with it's own
 # memory space and execution thread).
 
-def error(msg):
-    print(msg)
-    import sys
-    sys.exit()
 
-def warning(msg):
-    print("warning:%s" % str(msg))
+#----- DEBUG ------------------------------------------------------------------
 
-def trace(msg):
-    print(str(msg))
+class Debug():
+    @staticmethod
+    def out(ty, msg):
+        print("%s:%s" % (str(ty), str(msg)))
+
+    @staticmethod
+    def trace(msg):
+        Debug.out("debug", msg)
+
+    @staticmethod
+    def info(msg):
+        Debug.out("info", msg)
+
+    @staticmethod
+    def warning(msg):
+        Debug.out("warning", msg)
+
+    @staticmethod
+    def fail(msg):
+        Debug.out("fail", msg)
+        import sys
+        sys.exit()
+
+
+#----- NUMBER and DOUBLE accessors --------------------------------------------
+
+class NumberBigEndian():
+    @staticmethod
+    def from_bytes(b):
+        b0 = (b[0] & 0xFF)
+        b1 = (b[1] & 0xFF)
+        return (b0<<8)+b1
+
+    @staticmethod
+    def to_bytes(n):
+        b0 = (n & 0xFF00)>>8
+        b1 = (n & 0xFF)
+        return (b0, b1)
+
+class Number(NumberBigEndian):pass
+
+
+class DoubleBigEndian():
+    @staticmethod
+    def from_bytes(b):
+        b0 = (b[0] & 0xFF)
+        b1 = (b[1] & 0xFF)
+        b2 = (b[2] & 0xFF)
+        b3 = (b[3] & 0xFF)
+        return (b0<<24)+(b1<<16)+(b2<<8)+b3
+
+    @staticmethod
+    def to_bytes(n):
+        b0 = (n & 0xFF000000)>>24
+        b1 = (n & 0x00FF0000)>>16
+        b2 = (n & 0x0000FF00)>>8
+        b3 = (n & 0x000000FF)
+        return (b0, b1, b2, b3)
+
+class Double(DoubleBigEndian):pass
 
 
 #----- MEMORY -----------------------------------------------------------------
 #
 # Access to a block of memory, basically a Python list.
 
+MEMSIZE = 65536
+mem = [0 for i in range(MEMSIZE)]
+
 class Memory():
-    def __init__(self, size):
+    def __init__(self, storage, size=None, offset=0):
+        if size == None:
+            size = len(storage)
         self.size = size
-        self.mem = [0 for i in range(size)]
+        #self.offset = offset #TODO: Apply offset throughout
+        self.mem = storage
         self.map = []
 
     def region(self, name, spec):
@@ -75,8 +134,7 @@ class Memory():
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
-        #TODO endianness BIG?
-        value = self.mem[addr]<<8 + self.mem[addr+1]
+        value = Number.from_bytes((self.mem[addr], self.mem[addr+1]))
         return value
 
     def readb(self, addr):
@@ -86,17 +144,14 @@ class Memory():
 
     def readd(self, addr):
         """Read a double length variable (4 byte, 32 bits)"""
-        #TODO endianness BIG?
-        value = self.mem[addr]<<24 + self.mem[addr+1]<<16 + self.mem[addr+2]<<8 + self.mem[addr+3]
+        value = Number.from_bytes((self.mem[addr], self.mem[addr+1], self.mem[addr+2], self.mem[addr+3]))
         return value
 
     def writen(self, addr, value):
         """Write a cell sized 2 byte variable"""
-        #TODO endianness BIG??
-        high = (value & 0xFF00)>>8
-        low = (value & 0xFF)
-        self.mem[addr] = high
-        self.mem[addr+1] = low
+        b0, b1 = Number.to_bytes(value)
+        self.mem[addr]   = b0
+        self.mem[addr+1] = b1
 
     def writeb(self, addr, value):
         """Write a 1 byte variable"""
@@ -105,15 +160,11 @@ class Memory():
 
     def writed(self, addr, value):
         """Write a double length variable (4 byte, 32 bits)"""
-        #TODO reuse global byte access fns
-        byte0 = (value & 0xFF000000)>>24
-        byte1 = (value & 0x00FF0000)>>16
-        byte2 = (value & 0x0000FF00)>>8
-        byte3 = (value & 0x000000FF)
-        self.mem[addr]   = byte0
-        self.mem[addr+1] = byte1
-        self.mem[addr+2] = byte2
-        self.mem[addr+3] = byte3
+        b0, b1, b2, b3 = Double.to_bytes(value)
+        self.mem[addr]   = b0
+        self.mem[addr+1] = b1
+        self.mem[addr+2] = b2
+        self.mem[addr+3] = b3
 
 
 #----- PYTHON WRAPPERS FOR FORTH DATA STRUCTURES -----------------------------------
@@ -122,11 +173,13 @@ class Memory():
 # data structure regions in memory. This is useful when you want to rewrite
 # the implementation code for a word in Python to get better execution speed.
 
+#----- VARS -------------------------------------------------------------------
+
 class Vars():
-    def __init__(self, mem, base, size):
-        self.mem  = mem
-        self.base = base
-        self.ptr  = base
+    def __init__(self, storage, offset, size):
+        self.mem  = storage
+        self.base = offset
+        self.ptr  = offset
         self.size = size
 
     def create(self, size=2):
@@ -161,171 +214,296 @@ class Vars():
         self.mem.writed(addr, value)
 
 
-class SysVars(Vars): #TODO memory map the ptr
-    def __init__(self, mem, start, size):
-        Vars.__init__(self, mem, start, size)
+class SysVars(Vars):
+    def __init__(self, storage, offset, size):
+        Vars.__init__(self, storage, offset, size)
+
+    # functions used to implement memory mapped registers
+    def rd_sv0(self):
+        return self.offset
+
+    def rd_svz(self):
+        return self.size
+
+    def rd_svp(self):
+        return self.ptr
+
+    def wr_svp(self, number):
+        self.ptr = number
 
 
-class UserVars(Vars): #TODO memory map the ptr
-    def __init__(self, mem, start, size):
-        Vars.__init__(self, mem, start, size)
+#TODO: There should be one copy of these for each user task in a multiprogrammed setup.
+#e.g. BASE
 
+class UserVars(Vars):
+    def __init__(self, storage, offset, size):
+        Vars.__init__(self, storage, offset, size)
+
+    # functions used to implement memory mapped registers
+    def rd_uv0(self):
+        return self.offset
+
+    def rd_uvz(self):
+        return self.size
+
+    def rd_uvp(self):
+        return self.ptr
+
+    def wr_uvp(self, number):
+        self.ptr = number
+
+
+#----- DICTIONARY -------------------------------------------------------------
+#
+# Structure:
+#   HEADER
+#     NFA->NF (name field) {count byte, chars} (16 bit aligned) bit7 of count byte set = 'immediate'
+#     LFA->LF (link field) {16bit addr of prev entry} TODO: which field?
+#   BODY
+#     CFA->CF (code field) {16bit addr of machine code routine}  TODO: If zero, not used?
+#     PFA->PF (parameter field) list of {16 bit parameters specific to CFA type}
+
+# Note, how do H and HERE interrelate?
+# is one the NFA of the last entry, the other the latest byte being written?
+
+# Also, when building an entry, I think it is marked as unusable until it is completed,
+# where is the flag for this stored?
 
 class Dictionary():
-    def __init__(self, mem, base, size):
-        self.mem = mem
-        self.base = base
-        self.ptr = base # TODO memory map the ptr (it is H/HERE)
+    def __init__(self, storage, offset, size):
+        self.mem  = storage
+        self.base = offset
+        self.ptr  = offset
         self.size = size
+        #TODO: First entry must be a cell with 0 in it (marks end of chain)
+        #is this zero in the count byte of the NFA, or a zero in the LFA?
 
-    def create(self, nf, cf=0, pf=[]):
-        trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
-        #TODO create new dict entry and link LF to PREV
-        #adjust HERE pointer
-
-    def tick(self, name):
-        pass # TODO
-
-    def cfa(self, addr):
-        pass # TODO
-
-    def pfa(self, addr):
-        pass # TODO
+    def create(self, nf, cf=None, pf=None, immediate=False, finished=False):
+        Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
+        #TODO create new dict entry and link LF to PREV (NFA?)
+        #adjust HERE pointer and H
+        #mark it as 'in progress'?
+        #mark as immediate?
 
     def allot(self):
-        pass # TODO
+        self.ptr += 2
 
-    def here(self):
-        pass # TODO
+    def write(self, number):
+        b0, b1 = Number.to_bytes(number)
+        self.mem[self.ptr]   = b0
+        self.mem[self.ptr+1] = b1
 
-    def forget(self, addr):
-        pass # TODO
+    def prev(self, addr=None):
+        #TODO: get addr of previous word (if no addr, get last-1)
+        pass
+
+    def cfa(self, addr):
+        pass # TODO get CFA of (?FA)
+
+    def pfa(self, addr):
+        pass # TODO get PFA of (?FA)
+
+    def find(self, name):
+        pass # TODO search chain for name and get it's address (NFA?)
+
+    # how do H and HERE interrelate?
+    #def here(self):
+    #    pass # TODO get the ptr
+
+    def forget(self, name):
+        pass # TODO walk to name, set ptr back to NFA? LFA?
+        # find name, get addr
+        # set HERE/H back to addr if non zero
+
+    # functions for memory mapped registers
+
+    def rd_d0(self):
+        return self.base
+
+    def rd_h(self):
+        return self.ptr
+
+    def wr_h(self, number):
+        self.ptr = number
+
+    # difference between HERE and H??
+    # addr of NFA of latest entry, vs addr of next byte to write?
 
 
-#----- NUMBER and DOUBLE accessors --------------------------------------------
-
-def nhigh(v):
-    return (v & 0xFF00)>>8
-
-def nlow(v):
-    return v & 0xFF
-
-#TODO: Need a dlow0, dlow1, dhigh2, dhigh3
-
-#TODO: need to know which way stack grows
-#TODO is ptr to next free location, or last used?
-# assume first free loc
-#TODO: need to make these configurable?
+#----- STACK ------------------------------------------------------------------
 
 class Stack():
-    def __init__(self, mem, base, ptr, size): #TODO: better to pass in which way it grows, and ptr strategy?
+    def __init__(self, mem, base, size, grows=1, incwrite=True):
         self.mem  = mem
         self.base = base
         self.size = size
-        self.ptr  = ptr
-
-    def pushn(self, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        self.mem[self.ptr]   = nhigh(value)
-        self.mem[self.ptr+1] = nlow(value)
-        self.ptr += 2
-
-    def pushb(self, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        self.mem[self.ptr] = nlow(value)
-        self.ptr += 1
-
-    def pushd(self, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def popn(self):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def popb(self):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def popd(self):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def getn(self, relindex):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def getb(self, relindex):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def getd(self, relindex):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def setn(self, relindex, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def setb(self, relindex, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
-
-    def setd(self, relindex, value):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
+        if grows > 0:
+            self.grows = 1
+            self.ptr = base
+        else:
+            self.grows = -1
+            self.ptr = base+size
+        self.incwrite = incwrite
 
     def clear(self):
-        #TODO: endianness?
-        #TODO: which way does stack grow?
-        pass
+        if self.grows > 0:
+            self.ptr = self.base
+        else:
+            self.ptr = self.base + self.size
 
-    def dup(self):
+    def grow(self, bytes):
+        self.ptr += bytes * self.grows
+
+    def shrink(self, bytes):
+        self.ptr -= bytes * self.grows
+
+    def pushn(self, number):
+        b0, b1 = Number.to_bytes(number)
+        if self.incwrite: self.grow(2)
+        self.mem[self.ptr]   = b0
+        self.mem[self.ptr+1] = b1
+        if not self.incwrite: self.grow(2)
+
+    def pushb(self, byte):
+        if self.incwrite: self.grow(1)
+        self.mem[self.ptr] = byte & 0xFF
+        if not self.incwrite: self.grow(1)
+
+    def pushd(self, double):
+        b0, b1, b2, b3 = Double.to_bytes(double)
+        if self.incwrite: self.grow(4)
+        self.mem[self.ptr]   = b0
+        self.mem[self.ptr+1] = b1
+        self.mem[self.ptr+2] = b2
+        self.mem[self.ptr+3] = b3
+        if not self.incwrite: self.grow(4)
+
+    def popn(self):
+        if self.incwrite: self.grow(2)
+        b0 = self.mem[self.ptr]
+        b1 = self.mem[self.ptr+1]
+        number = Number.from_bytes((b0, b1))
+        if not self.incwrite: self.grow(2)
+        return number
+
+    def popb(self):
+        if not self.incwrite: self.shrink(1)
+        byte = self.mem[self.ptr]
+        if self.incwrite: self.shrink(1)
+        return byte
+
+    def popd(self):
+        if not self.incwrite: self.shrink(4)
+        b0 = self.mem[self.ptr]
+        b1 = self.mem[self.ptr+1]
+        b2 = self.mem[self.ptr+2]
+        b3 = self.mem[self.ptr+3]
+        double = Double.from_bytes((b0, b1, b2, b3))
+        if self.incwrite: self.shrink(4)
+        return double
+
+    def getn(self, relindex):
+        ofs = (relindex*2)*self.grow
+        b0 = self.mem[self.ptr+ofs]
+        b1 = self.mem[self.ptr+ofs+1]
+        number = Number.from_bytes((b0, b1))
+        return number
+
+    def getb(self, relindex):
+        ofs = relindex * self.grow
+        byte = self.mem[self.ptr+ofs]
+        return byte
+
+    def getd(self, relindex):
+        ofs = (relindex*4)*self.grow
+        b0 = self.mem[self.ptr+ofs]
+        b1 = self.mem[self.ptr+ofs+1]
+        b2 = self.mem[self.ptr+ofs+2]
+        b3 = self.mem[self.ptr+ofs+3]
+        double = Double.from_bytes((b0, b1, b2, b3))
+        return double
+
+    def setn(self, relindex, number):
+        ofs = (relindex*2)*self.grow
+        b0, b1 = Number.to_bytes(number)
+        self.mem[self.ptr+ofs]   = b0
+        self.mem[self.ptr+ofs+1] = b1
+
+    def setb(self, relindex, byte):
+        ofs = relindex*self.grow
+        self.mem[self.ptr+ofs] = byte
+
+    def setd(self, relindex, double):
+        ofs = (relindex*4)*self.grow
+        b0, b1, b2, b3 = Double.to_bytes(double)
+        self.mem[self.ptr+ofs]   = b0
+        self.mem[self.ptr+ofs+1] = b1
+        self.mem[self.ptr+ofs+2] = b2
+        self.mem[self.ptr+ofs+3] = b3
+
+    def dup(self): # ( n -- n n)
         n = self.getn(0)
         self.pushn(n)
 
-    def swap(self):
+    def swap(self): # ( n1 n2 -- n2 n1)
         n0 = self.getn(0)
         n1 = self.getn(1)
         self.setn(0, n1)
         self.setn(1, n0)
 
-    def rot(self):
-        pass #TODO
+    def rot(self): # ( n1 n2 n3 -- n2 n3 n1)
+        n3 = self.getn(0)
+        n2 = self.getn(1)
+        n1 = self.getn(2)
+        self.setn(0, n1)
+        self.setn(1, n3)
+        self.setn(2, n2)
 
-    def over(self):
+    def over(self): # ( n1 n2 -- n1 n2 n1)
         n = self.getn(1)
         self.pushn(n)
 
-    def drop(self):
+    def drop(self): # ( n -- )
         self.popn()
 
 
-class DataStack(Stack): #TODO memory map the S0 and SP
-    #TODO: which way does it grow?
-    #TODO: first free, or last used?
-    def __init__(self, mem, base, limit):
-        Stack.__init__(self, base, limit)
+class DataStack(Stack):
+    def __init__(self, mem, base, size):
+        Stack.__init__(self, mem, base, size, grows=1, incwrite=False)
+
+    # functions to allow memory mapped registers
+    def rd_s0(self):
+        return self.base
+
+    def rd_sz(self):
+        return self.size
+
+    def rd_sp(self):
+        return self.ptr
+
+    def wr_sp(self, number):
+        self.ptr = number
 
 
-class ReturnStack(Stack): #TODO memory map the S0 and SP
-    #TODO: which way does it grow?
-    #TODO: first free, or last used?
-    def __init__(self, mem, base, limit):
-        Stack.__init__(self, base, limit)
+class ReturnStack(Stack):
+    def __init__(self, mem, base, size):
+        Stack.__init__(self, mem, base, size, grows=-1, incwrite=False)
 
+    # functions to allow memory mapped registers
+    def rd_r0(self):
+        return self.base
+
+    def rd_rz(self):
+        return self.size
+
+    def rd_rp(self):
+        return self.ptr
+
+    def wr_rp(self, number):
+        self.ptr = number
+
+
+#----- BUFFERS ----------------------------------------------------------------
 
 #class TextInputBuffer():
 #    def __init__(self, mem, base, ptr, limit):
@@ -346,7 +524,7 @@ class ReturnStack(Stack): #TODO memory map the S0 and SP
 #    # cache index
 
 
-#---- INPUT -------------------------------------------------------------------
+#---- I/O ---------------------------------------------------------------------
 #
 # Interface to keyboard input
 
@@ -359,11 +537,8 @@ class ReturnStack(Stack): #TODO memory map the S0 and SP
 #
 #    def read(self):
 #        return '*'
-
-
-#----- OUTPUT -----------------------------------------------------------------
-#
 # Interface to screen output
+
 
 #class Output():
 #    def __init__(self):
@@ -373,8 +548,6 @@ class ReturnStack(Stack): #TODO memory map the S0 and SP
 #        print(ch)
 
 
-#----- DISK -------------------------------------------------------------------
-#
 # Probably an interface to reading and writing blocks in a nominated
 # disk file image.
 
@@ -391,60 +564,61 @@ class ReturnStack(Stack): #TODO memory map the S0 and SP
 
 class Machine():
     def __init__(self, parent):
+        self.ip     = 0
         self.parent = parent
-        self.sv   = parent.sv
-        self.dict = parent.dict
-        self.mem  = parent.mem
-        self.ds   = parent.ds
-        self.rs   = parent.rs
-        #TODO: need to expose these through mem[] holes for read/write access
-        self.ip = 0
-        #TODO: These two need to be owned by the stack objects, and memory mapped too.
-        self.dp = 0 # how does parent.ds get access to dp? dp is inside DataStack?
-        self.rp = 0 # how does parent.rs get access to rp? rp is inside ReturnStack?
+        self.mem    = parent.mem
+        self.sv     = parent.sv
+        self.dict   = parent.dict
+        self.ds     = parent.ds
+        self.rs     = parent.rs
 
-        # dispatch table for jsr(n)
-        self.index = [
-            #TODO
-            #readfn(size)->value
-            #writefn(size, value)
-            #execfn()
+        # dispatch table for rdbyte(addr), wrbyte(addr, byte), call(addr)
+        #TODO map in system constants and variables into this table
+        #as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
+        self.dispatch = [
             #name      readfn,      writefn,      execfunction
-            ("NOP",    self.n_nop),
-            ("STORE",  self.n_store),  # self.mem.store
-            ("FETCH",  self.n_fetch),  # self.mem.fetch
-            ("STORE8", self.n_store8), # self.mem.store8
-            ("FETCH8", self.n_fetch8), # self.mem.fetch8
-            ("ADD",    self.n_add),
-            ("SUB",    self.n_sub),
-            ("AND",    self.n_and),
-            ("OR",     self.n_or),
-            ("XOR",    self.n_xor),
-            ("MULT",   self.n_mult),
-            ("DIV",    self.n_div),
-            ("MOD",    self.n_mod),
-            ("FLAGS",  self.n_flags),
-            ("SWAP",   self.ds.swap),
-            ("DUP",    self.ds.dup),
-            ("OVER",   self.ds.over),
-            ("ROT",    self.ds.rot),
-            ("DROP",   self.ds.drop),
-            ("KEY",    self.n_key),    # self.in.key
-            ("KEYQ",   self.n_keyq),   # self.in.keyq
-            ("EMIT",   self.n_emit),   # self.out.emit
-            ("RDPFA",  self.n_rdpfa),
-            ("ADRUV",  self.n_adruv),  # self.uv.adruv
-            ("BRANCH", self.n_branch),
-            ("0BRANCH",self.n_0branch),
-            ("NEXT",   self.n_next),
-            ("EXIT",   self.n_exit),
-            ("DODOES", self.n_dodoes),
-            ("RBLK",   self.n_rblk),   # self.disk.rblk
-            ("WBLK",   self.n_wblk)    # self.disk.wblk
+            ("NOP",    None,        None,         self.n_nop),
+            ("STORE",  None,        None,         self.n_store),
+            ("FETCH",  None,        None,         self.n_fetch),
+            ("STORE8", None,        None,         self.n_store8),
+            ("FETCH8", None,        None,         self.n_fetch8),
+            ("ADD",    None,        None,         self.n_add),
+            ("SUB",    None,        None,         self.n_sub),
+            ("AND",    None,        None,         self.n_and),
+            ("OR",     None,        None,         self.n_or),
+            ("XOR",    None,        None,         self.n_xor),
+            ("MULT",   None,        None,         self.n_mult),
+            ("DIV",    None,        None,         self.n_div),
+            ("MOD",    None,        None,         self.n_mod),
+            ("FLAGS",  None,        None,         self.n_flags),
+            ("SWAP",   None,        None,         self.ds.swap),
+            ("DUP",    None,        None,         self.ds.dup),
+            ("OVER",   None,        None,         self.ds.over),
+            ("ROT",    None,        None,         self.ds.rot),
+            ("DROP",   None,        None,         self.ds.drop),
+            ("KEY",    None,        None,         self.n_key),
+            ("KEYQ",   None,        None,         self.n_keyq),
+            ("EMIT",   None,        None,         self.n_emit),
+            ("RDPFA",  None,        None,         self.n_rdpfa),
+            ("ADRUV",  None,        None,         self.n_adruv),
+            ("BRANCH", None,        None,         self.n_branch),
+            ("0BRANCH",None,        None,         self.n_0branch),
+            ("NEXT",   None,        None,         self.n_next),
+            ("EXIT",   None,        None,         self.n_exit),
+            ("DODOES", None,        None,         self.n_dodoes),
+            ("RBLK",   None,        None,         self.n_rblk),
+            ("WBLK",   None,        None,         self.n_wblk)
         ]
 
-        # TODO need an index for memory mapped variables, along with r/w access rights
-        # perhaps index could have rwx bits and functions (null function means no access of that type?)
+    # functions for memory mapped registers
+
+    def rd_ip(self):
+        return self.ip
+
+    def wr_ip(self, number):
+        self.ip = number
+
+    # functions for native code
 
     def n_nop(self):
         pass
@@ -612,10 +786,10 @@ class Machine():
 
     def n_next(self):
         #: n_NEXT   ( -- )
-        # { cfa=mem[ip]; ip+=2; jsr(cfa) } ;
+        # { cfa=mem[ip]; ip+=2; call(cfa) } ;
         cfa = self.mem[self.ip]
         self.ip += 2
-        self.jsr(cfa)
+        self.call(cfa)
 
     def n_exit(self):
         #: n_EXIT   ( -- )
@@ -643,26 +817,39 @@ class Machine():
         self.disk_wr(1024*n, self.mem, a, 1024)
 
     def disk_rd(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
-        warning("disk_rd not implemented")
+        Debug.warning("disk_rd not implemented")
 
     def disk_wr(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
-        warning("disk_wr not implemented")
-
-    def jsr(self, addr):
-        # if address is in self.native.index, invoke function, else NOP
-        if addr < len(self.index):
-            name, fn = self.index[addr]
-            trace("calling native fn:%s" % name)
-            fn()
-        else:
-            error("call to unknown native address: %d" % addr)
+        Debug.warning("disk_wr not implemented")
 
 
-#TODO memory mapped variables need to be wired up too
-# any value stored in mem[] that is a python function, is called, to read/write said value
-# implies need to know if read/write and if width is 8/16/32
-# 4 individual byte accesses vs 1 32 bit word access need to set/get same data
-# in a 'safe' way?
+    # functions for memory mapped access to registers and routines
+
+    def call(self, addr):
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("calling native fn:%d %s" % (addr, name))
+            if execfn != None:
+                execfn()
+                return
+        Debug.fail("call to unknown native address: %d" % addr)
+
+    def rdbyte(self, addr):
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("reading native byte:%d %s" % (addr, name))
+            if rdfn != None:
+                return rdfn()
+        Debug.fail("read from unknown native address: %d" % addr)
+
+    def wrbyte(self, addr, byte):
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("writing native byte:%d %s" % (addr, name))
+            if wrfn != None:
+                wrfn(byte)
+                return
+        Debug.fail("write to unknown native address: %d" % addr)
 
 
 #----- FORTH CONTEXT ----------------------------------------------------------
@@ -688,7 +875,7 @@ class Forth:
         #UV_MEM   = (16384,           +1024      )
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
-        self.mem = Memory(MEM_SIZE)
+        self.mem = Memory(mem)
 
         #   init sysvars
         svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
@@ -734,16 +921,19 @@ class Forth:
         #iterate through native.index and register all DICT entries for them
         for i in range(len(self.machine.index)):
             n = self.machine.index[i]
-            #TODO: Only define in dict if name is not None
-            name, fn = n
-            self.dict.create(nf=name, cf=i, pf=[])
+            name, fn = n #TODO: name, rdfn, wrfn, execfn
+            #TODO: rdfn and wrfn can be used to memory map consts and variables
+            #including to things like: ds.base, ds.ptr, rs.base, rs.ptr, dict.base, dict.ptr
+            if name != None:
+                # only named items get appended to the DICT
+                self.dict.create(nf=name, cf=i, pf=[])
 
     #def run(self):
     #    #NOTE: can boot() then clone(), and then customise and run() multiple clones
     #    # optionally load app?
     #    # run main interpreter loop (optionally in a thread?)
     #    # only gets here when see a 'BYE' command.
-    #    print("warning: No interpreter yet")
+    #    Debug.warning("No interpreter yet")
 
 
 #----- RUNNER -----------------------------------------------------------------

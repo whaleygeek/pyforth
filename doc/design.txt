@@ -1,49 +1,29 @@
 / design.txt  30/12/2015  D.J.Whale
 
-PLAN 1 - nucleus native word implementation
 
+NOTE:
+While this is a forth engine, it could be paired back to the basic building blocks,
+and used to implement and port any forth-like system, with a completely different
+set of vocabularies. Once the native nucleus is written and working, it could be
+a generic platform for anything.
 
-Here is the behavioural spec of the nucleus of native routines:
+PLAN
 
-: n_STORE   ( n a -- )              { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;
-: n_FETCH  ( a -- n)                { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;
-: n_STORE8  ( b a -- )              { a=ds_pop; b=ds_pop8; mem[a]=b } ;
-: n_FETCH8   ( a -- b)              { a=ds_pop; b=mem[a]; ds_push8(b) } ;
-: n_ADD   ( n1 n2 -- n-sum)         { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;
-: n_SUB   ( n1 n2 -- n-diff)        { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;
-: n_AND   ( n1 n2 -- n-and)         { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;
-: n_OR   ( n1 n2 -- n-or)           { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;
-: n_XOR   ( n1 n2 -- n-xor)         { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;
-: n_MULT   ( n1 n2 -- n-prod)       { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;
-: n_DIV   ( n1 n2 -- n-quot)        { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;
-: n_MOD   ( n1 n2 -- n-rem)         { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;
-: n_FLAGS   ( -- )                  { mem[FLAGS]=flags } ;
-: n_SWAP   ( n1 n2 -- n2 n1)        { n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n1) } ;
-: n_DUP   ( n -- n n)               { n=ds[dp]; ds_push(n) } ;
-: n_OVER   ( n1 n2 -- n1 n2 n1)     { n1=ds[dp-2]; ds_push(n1) } ;
-: n_ROT   ( n1 n2 n3 -- n2 n3 n1)   { n3=ds_pop; n2=ds_pop; n1=ds_pop; ds_push(n2); ds_push(n3); ds_push(n1) } ;
-: n_DROP   ( n -- )                 { ds_pop } ;
-: n_KEYQ   ( -- ?)                  { ds_push8(kbhit) } ;
-: n_KEY   ( -- c)                   { ds_push8(getch) } ;
-: n_EMIT   ( c -- )                 { putch(ds_pop8) } ;
-: n_RDPFA   ( a-pfa -- n)           { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;
-: n_ADRUV   ( a-pfa -- a)           { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;
-: n_BRANCH   ( -- )                 { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;
-: n_0BRANCH   ( ? -- )              { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;
-: n_NEXT   ( -- )                   { cfa=mem[ip]; ip+=2; jsr(cfa) } ;
-: n_EXIT   ( -- )                   { ip=rs_pop() } ;
-: n_DODOES   ( -- )                 { while True: n_NEXT} ; / beware of python stack on return?
-: n_RBLK  ( n a -- )                { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
-: n_WBLK  ( n a -- )                { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
+- decide on endianness
+- implement classes for number and double read/write (with chosen endianness)
+- decide on stack growth directions
+- decide on stack pointer semantics
+- design memory mapped registers idea
+- move Machine dispatch table to a rwx (read/write/execute) structure
+- map all stack pointers and other useful constants into memory
+- finish the dictionary accessor abstraction
+- seed the dictionary with words for all the const/var/natives we need.
 
-- write a unit test for them in python
-  - they will be functions of Forth() class?
+- write a unit test suite in Python
 
 - implement and test python native dispatch mechanism
   - jsr to a CFA just looks up the CFA value in a dispatch table
   - this table dispatches to the function
-
-- write python version of all native routines
 
 - investigate and write/test creational words, so we can seed the dictionary
 
@@ -101,17 +81,6 @@ Here is the behavioural spec of the nucleus of native routines:
 : RBLK  ( n a -- )                   /ADD CODE 'n_RBLK'    Load 1K disk block n into memory at addr (see MMSForth)
 : WBLK  ( n a -- )                   /ADD CODE 'n_WBLK'    Save 1K memory from addr to disk block n (see MMSForth)
 
-
-TODO need to decide if
-a)  SP, RP, IP are really in forth memory,
-or
-b) they are registers in the native language that poke through memory holes
-
-so that if we want to access them in high level forth we do get the correct values.
-Prefer (b) - more like how you would implement on a real CPU.
-This will allow us to expose these to use by the high level words as variables,
-as they will really exist in memory, but accessing them will access the
-python variables behind them, like mapped memory regions.
 
 
 --------------------------------------------------------------------------------

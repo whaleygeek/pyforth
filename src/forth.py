@@ -3,36 +3,33 @@
 # An experiment to write a minimal FORTH language on top of Python.
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
-#
-# The idea is to allow multiple simultaneous Forth context objects,
-# perhaps with some shared data with copy-on-write semantics,
-# so that core objects could be written in little Forth package
-# objects, and integrated into a bigger system (so each Forth
-# context is like a mini self-contained sandbox with it's own
-# memory space and execution thread).
-
 
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
     @staticmethod
     def out(ty, msg):
+        """Display a formatted message on stdout"""
         print("%s:%s" % (str(ty), str(msg)))
 
     @staticmethod
     def trace(msg):
+        """Display an optional trace message on stdout"""
         Debug.out("debug", msg)
 
     @staticmethod
     def info(msg):
+        """Display an informational message on stdout"""
         Debug.out("info", msg)
 
     @staticmethod
     def warning(msg):
+        """Display a warning message on stdout"""
         Debug.out("warning", msg)
 
     @staticmethod
     def fail(msg):
+        """Display a failure message on stdout and stop the progra"""
         Debug.out("fail", msg)
         import sys
         sys.exit()
@@ -41,6 +38,7 @@ class Debug():
 #----- NUMBER and DOUBLE accessors --------------------------------------------
 
 class NumberBigEndian():
+    """A big-endian 16-bit number helper"""
     @staticmethod
     def from_bytes(b):
         b0 = (b[0] & 0xFF)
@@ -53,10 +51,9 @@ class NumberBigEndian():
         b1 = (n & 0xFF)
         return (b0, b1)
 
-class Number(NumberBigEndian):pass
-
 
 class DoubleBigEndian():
+    """A big-endian 32-bit number helper"""
     @staticmethod
     def from_bytes(b):
         b0 = (b[0] & 0xFF)
@@ -73,6 +70,9 @@ class DoubleBigEndian():
         b3 = (n & 0x000000FF)
         return (b0, b1, b2, b3)
 
+# The standard says that byte order is not defined. We will use big-endian.
+
+class Number(NumberBigEndian):pass
 class Double(DoubleBigEndian):pass
 
 
@@ -93,6 +93,7 @@ class Memory():
         self.map = []
 
     def region(self, name, spec):
+        """Define a new memory region in the memory map"""
         size  = spec[1]
         if size < 0:
             # grows down towards low memory
@@ -114,6 +115,7 @@ class Memory():
         return start, ptr, end
 
     def show_map(self):
+        """Display the memory map on stdout"""
         last_end = 0
         for i in self.map:
             name, start, size = i
@@ -125,12 +127,6 @@ class Memory():
                 print("%10s %5d %5d %5d" %(uname, ustart, uend, usize))
             print("%10s %5d %5d %5d" % (name, start, start+size-1, size))
             last_end = start + size
-
-    def write(self, addr, value):
-        self.mem[addr] = value
-
-    def read(self, addr):
-        return self.mem[addr]
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
@@ -167,60 +163,188 @@ class Memory():
         self.mem[addr+3] = b3
 
 
-#----- PYTHON WRAPPERS FOR FORTH DATA STRUCTURES -----------------------------------
-#
-# A useful abstraction to allow Python to meddle directly with Forth's
-# data structure regions in memory. This is useful when you want to rewrite
-# the implementation code for a word in Python to get better execution speed.
+#----- STACK ------------------------------------------------------------------
+
+class Stack():
+    """A general purpose stack abstraction to wrap around memory storage"""
+    def __init__(self, mem, base, size, grows=1, incwrite=True):
+        self.mem  = mem
+        self.base = base
+        self.size = size
+        if grows > 0:
+            self.grows = 1
+            self.ptr = base
+        else:
+            self.grows = -1
+            self.ptr = base+size
+        self.incwrite = incwrite
+
+    def clear(self):
+        """Reset the stack to empty"""
+        if self.grows > 0:
+            self.ptr = self.base
+        else:
+            self.ptr = self.base + self.size
+
+    def grow(self, bytes):
+        """Expand the stack by a number of bytes"""
+        self.ptr += bytes * self.grows
+
+    def shrink(self, bytes):
+        """Shrink the stack by a number of bytes"""
+        self.ptr -= bytes * self.grows
+
+    def pushn(self, number):
+        """Push a 16 bit number onto the stack"""
+        b0, b1 = Number.to_bytes(number)
+        if self.incwrite: self.grow(2)
+        self.mem[self.ptr]   = b0
+        self.mem[self.ptr+1] = b1
+        if not self.incwrite: self.grow(2)
+
+    def pushb(self, byte):
+        """Push an 8 bit byte onto the stack"""
+        if self.incwrite: self.grow(1)
+        self.mem[self.ptr] = byte & 0xFF
+        if not self.incwrite: self.grow(1)
+
+    def pushd(self, double):
+        """Push a 32 bit double onto the stack"""
+        b0, b1, b2, b3 = Double.to_bytes(double)
+        if self.incwrite: self.grow(4)
+        self.mem[self.ptr]   = b0
+        self.mem[self.ptr+1] = b1
+        self.mem[self.ptr+2] = b2
+        self.mem[self.ptr+3] = b3
+        if not self.incwrite: self.grow(4)
+
+    def popn(self):
+        """Pop a 16 bit number from the stack"""
+        if self.incwrite: self.grow(2)
+        b0 = self.mem[self.ptr]
+        b1 = self.mem[self.ptr+1]
+        number = Number.from_bytes((b0, b1))
+        if not self.incwrite: self.grow(2)
+        return number
+
+    def popb(self):
+        """Pop an 8 bit byte from the stack"""
+        if not self.incwrite: self.shrink(1)
+        byte = self.mem[self.ptr]
+        if self.incwrite: self.shrink(1)
+        return byte
+
+    def popd(self):
+        """Pop a 32 bit double from the stack"""
+        if not self.incwrite: self.shrink(4)
+        b0 = self.mem[self.ptr]
+        b1 = self.mem[self.ptr+1]
+        b2 = self.mem[self.ptr+2]
+        b3 = self.mem[self.ptr+3]
+        double = Double.from_bytes((b0, b1, b2, b3))
+        if self.incwrite: self.shrink(4)
+        return double
+
+    def getn(self, relindex):
+        """Get a 16 bit number at a 16-bit position relative to top of stack"""
+        ofs = (relindex*2)*self.grow
+        b0 = self.mem[self.ptr+ofs]
+        b1 = self.mem[self.ptr+ofs+1]
+        number = Number.from_bytes((b0, b1))
+        return number
+
+    def getb(self, relindex):
+        """Get an 8 bit number at an 8 bit position relative to top of stack"""
+        ofs = relindex * self.grow
+        byte = self.mem[self.ptr+ofs]
+        return byte
+
+    def getd(self, relindex):
+        """Get a 32 bit number at a 32 bit position relative to top of stack"""
+        ofs = (relindex*4)*self.grow
+        b0 = self.mem[self.ptr+ofs]
+        b1 = self.mem[self.ptr+ofs+1]
+        b2 = self.mem[self.ptr+ofs+2]
+        b3 = self.mem[self.ptr+ofs+3]
+        double = Double.from_bytes((b0, b1, b2, b3))
+        return double
+
+    def setn(self, relindex, number):
+        """Write to a 16 bit number at a 16 bit position relative to top of stack"""
+        ofs = (relindex*2)*self.grow
+        b0, b1 = Number.to_bytes(number)
+        self.mem[self.ptr+ofs]   = b0
+        self.mem[self.ptr+ofs+1] = b1
+
+    def setb(self, relindex, byte):
+        """Write to an 8 bit number at an 8 bit position relative to top of stack"""
+        ofs = relindex*self.grow
+        self.mem[self.ptr+ofs] = byte
+
+    def setd(self, relindex, double):
+        """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
+        ofs = (relindex*4)*self.grow
+        b0, b1, b2, b3 = Double.to_bytes(double)
+        self.mem[self.ptr+ofs]   = b0
+        self.mem[self.ptr+ofs+1] = b1
+        self.mem[self.ptr+ofs+2] = b2
+        self.mem[self.ptr+ofs+3] = b3
+
+    def dup(self): # ( n -- n n)
+        """Forth DUP top of stack"""
+        n = self.getn(0)
+        self.pushn(n)
+
+    def swap(self): # ( n1 n2 -- n2 n1)
+        """Forth SWAP top two numbers on stack"""
+        n0 = self.getn(0)
+        n1 = self.getn(1)
+        self.setn(0, n1)
+        self.setn(1, n0)
+
+    def rot(self): # ( n1 n2 n3 -- n2 n3 n1)
+        """Forth 3 way ROTate of top 3 number on stack"""
+        n3 = self.getn(0)
+        n2 = self.getn(1)
+        n1 = self.getn(2)
+        self.setn(0, n1)
+        self.setn(1, n3)
+        self.setn(2, n2)
+
+    def over(self): # ( n1 n2 -- n1 n2 n1)
+        """Forth bring second number on stack over on to top of stack"""
+        n = self.getn(1)
+        self.pushn(n)
+
+    def drop(self): # ( n -- )
+        """Forth drop top number on stack"""
+        self.popn()
+
 
 #----- VARS -------------------------------------------------------------------
 
-class Vars():
+#TODO: Put in method comments from here downwards
+
+class Vars(Stack):
     def __init__(self, storage, offset, size):
-        self.mem  = storage
-        self.base = offset
-        self.ptr  = offset
-        self.size = size
+        Stack.__init__(storage, offset, size)
 
     def create(self, size=2):
         """Create a new constant or variable of the given size in bytes"""
         addr = self.ptr
-        self.ptr += size
-        #TODO limit check?
+        self.pushn(0)
+        # A variable is just an address in a managed region, so reading and
+        # writing is just done directly via memory using this address.
         return addr
-
-    def readn(self, addr):
-        #TODO limit check?
-        return self.mem.readn(addr)
-
-    def readb(self, addr):
-        #TODO limit check?
-        return self.mem.readb(addr)
-
-    def readd(self, addr):
-        #TODO limit check?
-        return self.mem.readd(addr)
-
-    def writen(self, addr, value):
-        #TODO limit check?
-        self.mem.writen(addr, value)
-
-    def writeb(self, addr, value):
-        #TODO limit check?
-        self.mem.writeb(addr, value)
-
-    def writed(self, addr, value):
-        #TODO limit check?
-        self.mem.writed(addr, value)
 
 
 class SysVars(Vars):
-    def __init__(self, storage, offset, size):
-        Vars.__init__(self, storage, offset, size)
+    def __init__(self, storage, base, size):
+        Vars.__init__(self, storage, base, size)
 
     # functions used to implement memory mapped registers
     def rd_sv0(self):
-        return self.offset
+        return self.base
 
     def rd_svz(self):
         return self.size
@@ -236,12 +360,12 @@ class SysVars(Vars):
 #e.g. BASE
 
 class UserVars(Vars):
-    def __init__(self, storage, offset, size):
-        Vars.__init__(self, storage, offset, size)
+    def __init__(self, storage, base, size):
+        Vars.__init__(self, storage, base, size)
 
     # functions used to implement memory mapped registers
     def rd_uv0(self):
-        return self.offset
+        return self.base
 
     def rd_uvz(self):
         return self.size
@@ -257,63 +381,160 @@ class UserVars(Vars):
 #
 # Structure:
 #   HEADER
-#     NFA->NF (name field) {count byte, chars} (16 bit aligned) bit7 of count byte set = 'immediate'
-#     LFA->LF (link field) {16bit addr of prev entry} TODO: which field?
+#     FFA->FF   (flags field) {b7=immediate flag, b6=defining, b5=unused, b4..b0=count 0..31}
+#     NFA->NF   (name field) 16 bit padded name string
+#          1PAD (optional pad byte to 16 bit align next field)
+#     LFA->LF   (link field) {16bit addr of prev entry}
 #   BODY
-#     CFA->CF (code field) {16bit addr of machine code routine}  TODO: If zero, not used?
+#     CFA->CF (code field) {16bit addr of machine code routine}
 #     PFA->PF (parameter field) list of {16 bit parameters specific to CFA type}
 
-# Note, how do H and HERE interrelate?
-# is one the NFA of the last entry, the other the latest byte being written?
+class Dictionary(Stack):
+    FLAG_IMMEDIATE = 0x80
+    FLAG_DEFINING  = 0x40
+    FLAG_UNUSED    = 0x20
+    FIELD_COUNT    = 0x1F # 0..31
 
-# Also, when building an entry, I think it is marked as unusable until it is completed,
-# where is the flag for this stored?
+    def __init__(self, storage, base, size):
+        Stack.__init__(storage, base, size)
+        self.pushn(0) # first FFA entry is always zero, to mark end of search chain
+        self.last_ffa = self.ptr
 
-class Dictionary():
-    def __init__(self, storage, offset, size):
-        self.mem  = storage
-        self.base = offset
-        self.ptr  = offset
-        self.size = size
-        #TODO: First entry must be a cell with 0 in it (marks end of chain)
-        #is this zero in the count byte of the NFA, or a zero in the LFA?
-
-    def create(self, nf, cf=None, pf=None, immediate=False, finished=False):
+    def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
-        #TODO create new dict entry and link LF to PREV (NFA?)
-        #adjust HERE pointer and H
-        #mark it as 'in progress'?
-        #mark as immediate?
 
-    def allot(self):
-        self.ptr += 2
+        # truncate name to maximum length
+        if len(nf) > 32:
+            nf = nf[:32]
+
+        # work out header
+        #   FF: flag field (immediate, defining, unused, 5count)
+        if immediate: im=Dictionary.FLAG_IMMEDIATE
+        else: im=0
+        df = Dictionary.FLAG_DEFINING
+
+        ff = im + df + len(nf)
+        # extra pad byte to 16 bit align
+        pad = len(nf) % 2
+        #   NF: name field
+        # as above, already truncated
+        #   LF: link field
+        lf = self.last_ffa
+
+        # store header
+        self.allot(1)
+        self.writeb(ff)
+        for ch in nf:
+            self.allot(1)
+            self.writeb(ch)
+        if pad: self.allot(1)
+        self.allot(2)
+        self.write(lf)
+
+        # if cf/nf provided, fill them in too
+        if cf != None:
+            self.allot()
+            self.write(cf)
+        if pf != None:
+            for f in pf:
+                self.allot()
+                self.write(f)
+
+        # if finished, clear the defining flag and advance self.last_ffa
+        if finish:
+            self.finished()
+
+    def finished(self):
+        # get FFA
+        growth = self.ptr - self.last_ffa
+        # clear 'defining' bit
+        ff = self.getb(-growth)
+        self.setb(-growth, ff & ~ Dictionary.FLAG_DEFINING)
+        # advance end pointer
+        self.last_ffa = self.ptr
+
+    def allot(self, size=2):
+        if size == 2:
+            self.pushn(0) # note this moves the pointer
+        else:
+            for i in range(size):
+                self.pushb(0) # note this moves the pointer
 
     def write(self, number):
-        b0, b1 = Number.to_bytes(number)
-        self.mem[self.ptr]   = b0
-        self.mem[self.ptr+1] = b1
+        self.setn(0, number) # note this does not move the pointer
 
-    def prev(self, addr=None):
-        #TODO: get addr of previous word (if no addr, get last-1)
-        pass
+    def writeb(self, byte):
+        self.setb(0, byte) # note this does not move the pointer
+
+    def prev(self, ffa_addr=None):
+        if ffa_addr==None:
+            ffa_addr = self.last_ffa
+        lfa = self.ffa2lfa(ffa_addr)
+        lf = self.storage.read(lfa)
+        return lf
+
+    #TODO: Not sure yet if these will all be relative to FFA, or if they will be
+    #relative to the previous field (might skip one field at a time in reality)
+
+    def nfa(self, addr):
+        """skip from ffa to nfa"""
+        return addr+1
+
+    def lfa(self, addr):
+        """skip from nfa to lfa"""
+        ff = self.storage.readb(addr)
+        count = ff & ~ Dictionary.FIELD_COUNT # now the count
+        addr += count
+        addr += (count % 2) # optional PAD
+        # should now be the address of the LFA
+        return addr
 
     def cfa(self, addr):
-        pass # TODO get CFA of (?FA)
+        """skip from lfa to cfa"""
+        return addr+2
 
     def pfa(self, addr):
-        pass # TODO get PFA of (?FA)
+        """skip from cfa to pfa"""
+        return addr+2
 
-    def find(self, name):
-        pass # TODO search chain for name and get it's address (NFA?)
+    def ffa2nfa(self, addr):
+        """skip from ffa to nfa"""
+        return addr+1
 
-    # how do H and HERE interrelate?
-    #def here(self):
-    #    pass # TODO get the ptr
+    def ffa2lfa(self, addr):
+        """skip from ffa to lfa"""
+        ff = self.storage.readb(addr)
+        count = ff & ~ Dictionary.FIELD_COUNT # now the count
+        addr += count
+        addr += (count % 2) # optional PAD
+        # should now be the address of the LFA
+        return addr
+
+    def ffa2cfa(self, addr):
+        """skip from ffa to cfa"""
+        return self.ffa2lfa()+2
+
+    def ffa2pfa(self, addr):
+        """skip from ffa to pfa"""
+        return self.ffa2lfa()+4
+
+    def find(self, name, ffa_addr=None):
+        if ffa_addr == None:
+            start = self.last_ffa
+        else:
+            start = ffa_addr
+        #### HERE ####
+        # TODO 'start' points to an FFA
+        # test this FFA/NFA
+        pass # TODO search back through chain for name
+        # if addr==None, start searching from the last entry. Vocabularies will alter how this works?
 
     def forget(self, name):
-        pass # TODO walk to name, set ptr back to NFA? LFA?
-        # find name, get addr
-        # set HERE/H back to addr if non zero
+        pass # TODO get addr of name, then move self.last_ffa to there, and self.ptr to end of the record.
+        # Note, to do this, need to know the length of the PFA???
+
+    #TODO: might be some functions for address calculations exposed as natives too!
+    #beware, we might not be able to pass parameters to them, so defaults should be good?
 
     # functions for memory mapped registers
 
@@ -325,146 +546,6 @@ class Dictionary():
 
     def wr_h(self, number):
         self.ptr = number
-
-    # difference between HERE and H??
-    # addr of NFA of latest entry, vs addr of next byte to write?
-
-
-#----- STACK ------------------------------------------------------------------
-
-class Stack():
-    def __init__(self, mem, base, size, grows=1, incwrite=True):
-        self.mem  = mem
-        self.base = base
-        self.size = size
-        if grows > 0:
-            self.grows = 1
-            self.ptr = base
-        else:
-            self.grows = -1
-            self.ptr = base+size
-        self.incwrite = incwrite
-
-    def clear(self):
-        if self.grows > 0:
-            self.ptr = self.base
-        else:
-            self.ptr = self.base + self.size
-
-    def grow(self, bytes):
-        self.ptr += bytes * self.grows
-
-    def shrink(self, bytes):
-        self.ptr -= bytes * self.grows
-
-    def pushn(self, number):
-        b0, b1 = Number.to_bytes(number)
-        if self.incwrite: self.grow(2)
-        self.mem[self.ptr]   = b0
-        self.mem[self.ptr+1] = b1
-        if not self.incwrite: self.grow(2)
-
-    def pushb(self, byte):
-        if self.incwrite: self.grow(1)
-        self.mem[self.ptr] = byte & 0xFF
-        if not self.incwrite: self.grow(1)
-
-    def pushd(self, double):
-        b0, b1, b2, b3 = Double.to_bytes(double)
-        if self.incwrite: self.grow(4)
-        self.mem[self.ptr]   = b0
-        self.mem[self.ptr+1] = b1
-        self.mem[self.ptr+2] = b2
-        self.mem[self.ptr+3] = b3
-        if not self.incwrite: self.grow(4)
-
-    def popn(self):
-        if self.incwrite: self.grow(2)
-        b0 = self.mem[self.ptr]
-        b1 = self.mem[self.ptr+1]
-        number = Number.from_bytes((b0, b1))
-        if not self.incwrite: self.grow(2)
-        return number
-
-    def popb(self):
-        if not self.incwrite: self.shrink(1)
-        byte = self.mem[self.ptr]
-        if self.incwrite: self.shrink(1)
-        return byte
-
-    def popd(self):
-        if not self.incwrite: self.shrink(4)
-        b0 = self.mem[self.ptr]
-        b1 = self.mem[self.ptr+1]
-        b2 = self.mem[self.ptr+2]
-        b3 = self.mem[self.ptr+3]
-        double = Double.from_bytes((b0, b1, b2, b3))
-        if self.incwrite: self.shrink(4)
-        return double
-
-    def getn(self, relindex):
-        ofs = (relindex*2)*self.grow
-        b0 = self.mem[self.ptr+ofs]
-        b1 = self.mem[self.ptr+ofs+1]
-        number = Number.from_bytes((b0, b1))
-        return number
-
-    def getb(self, relindex):
-        ofs = relindex * self.grow
-        byte = self.mem[self.ptr+ofs]
-        return byte
-
-    def getd(self, relindex):
-        ofs = (relindex*4)*self.grow
-        b0 = self.mem[self.ptr+ofs]
-        b1 = self.mem[self.ptr+ofs+1]
-        b2 = self.mem[self.ptr+ofs+2]
-        b3 = self.mem[self.ptr+ofs+3]
-        double = Double.from_bytes((b0, b1, b2, b3))
-        return double
-
-    def setn(self, relindex, number):
-        ofs = (relindex*2)*self.grow
-        b0, b1 = Number.to_bytes(number)
-        self.mem[self.ptr+ofs]   = b0
-        self.mem[self.ptr+ofs+1] = b1
-
-    def setb(self, relindex, byte):
-        ofs = relindex*self.grow
-        self.mem[self.ptr+ofs] = byte
-
-    def setd(self, relindex, double):
-        ofs = (relindex*4)*self.grow
-        b0, b1, b2, b3 = Double.to_bytes(double)
-        self.mem[self.ptr+ofs]   = b0
-        self.mem[self.ptr+ofs+1] = b1
-        self.mem[self.ptr+ofs+2] = b2
-        self.mem[self.ptr+ofs+3] = b3
-
-    def dup(self): # ( n -- n n)
-        n = self.getn(0)
-        self.pushn(n)
-
-    def swap(self): # ( n1 n2 -- n2 n1)
-        n0 = self.getn(0)
-        n1 = self.getn(1)
-        self.setn(0, n1)
-        self.setn(1, n0)
-
-    def rot(self): # ( n1 n2 n3 -- n2 n3 n1)
-        n3 = self.getn(0)
-        n2 = self.getn(1)
-        n1 = self.getn(2)
-        self.setn(0, n1)
-        self.setn(1, n3)
-        self.setn(2, n2)
-
-    def over(self): # ( n1 n2 -- n1 n2 n1)
-        n = self.getn(1)
-        self.pushn(n)
-
-    def drop(self): # ( n -- )
-        self.popn()
 
 
 class DataStack(Stack):
@@ -554,7 +635,11 @@ class ReturnStack(Stack):
 #class Disk():
 #    def __init__(self):
 #        pass
-
+#    def read(self, diskaddr, mem, memaddr, size):
+#        Debug.warning("disk_rd not implemented")
+#
+#    def write(self, diskaddr, mem, memaddr, size);
+#        Debug.warning("disk_wr not implemented")
 
 
 #----- MACHINE ----------------------------------------------------------------
@@ -568,46 +653,88 @@ class Machine():
         self.parent = parent
         self.mem    = parent.mem
         self.sv     = parent.sv
+        #TODO self.uv = parent.uv #user vars (task specific offset?)
         self.dict   = parent.dict
         self.ds     = parent.ds
         self.rs     = parent.rs
 
         # dispatch table for rdbyte(addr), wrbyte(addr, byte), call(addr)
-        #TODO map in system constants and variables into this table
-        #as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
+        #TODO:as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
+        #how will the forth machine access these, using two 8-bit memory accesses, or one
+        #16 bit memory access (preferred)
+        #in which case, we need to know that it *is* a 16 bit read, and generate a 'bus error' like thing
+        #if it is not.
         self.dispatch = [
             #name      readfn,      writefn,      execfunction
-            ("NOP",    None,        None,         self.n_nop),
-            ("STORE",  None,        None,         self.n_store),
-            ("FETCH",  None,        None,         self.n_fetch),
-            ("STORE8", None,        None,         self.n_store8),
-            ("FETCH8", None,        None,         self.n_fetch8),
-            ("ADD",    None,        None,         self.n_add),
-            ("SUB",    None,        None,         self.n_sub),
-            ("AND",    None,        None,         self.n_and),
-            ("OR",     None,        None,         self.n_or),
-            ("XOR",    None,        None,         self.n_xor),
-            ("MULT",   None,        None,         self.n_mult),
-            ("DIV",    None,        None,         self.n_div),
-            ("MOD",    None,        None,         self.n_mod),
-            ("FLAGS",  None,        None,         self.n_flags),
-            ("SWAP",   None,        None,         self.ds.swap),
-            ("DUP",    None,        None,         self.ds.dup),
-            ("OVER",   None,        None,         self.ds.over),
-            ("ROT",    None,        None,         self.ds.rot),
-            ("DROP",   None,        None,         self.ds.drop),
-            ("KEY",    None,        None,         self.n_key),
-            ("KEYQ",   None,        None,         self.n_keyq),
-            ("EMIT",   None,        None,         self.n_emit),
-            ("RDPFA",  None,        None,         self.n_rdpfa),
-            ("ADRUV",  None,        None,         self.n_adruv),
-            ("BRANCH", None,        None,         self.n_branch),
-            ("0BRANCH",None,        None,         self.n_0branch),
-            ("NEXT",   None,        None,         self.n_next),
-            ("EXIT",   None,        None,         self.n_exit),
-            ("DODOES", None,        None,         self.n_dodoes),
-            ("RBLK",   None,        None,         self.n_rblk),
-            ("WBLK",   None,        None,         self.n_wblk)
+            ("NOP",    None,        None,         self.n_nop),       # CODE
+            ("STORE",  None,        None,         self.n_store),     # CODE
+            ("FETCH",  None,        None,         self.n_fetch),     # CODE
+            ("STORE8", None,        None,         self.n_store8),    # CODE
+            ("FETCH8", None,        None,         self.n_fetch8),    # CODE
+            ("ADD",    None,        None,         self.n_add),       # CODE
+            ("SUB",    None,        None,         self.n_sub),       # CODE
+            ("AND",    None,        None,         self.n_and),       # CODE
+            ("OR",     None,        None,         self.n_or),        # CODE
+            ("XOR",    None,        None,         self.n_xor),       # CODE
+            ("MULT",   None,        None,         self.n_mult),      # CODE
+            ("DIV",    None,        None,         self.n_div),       # CODE
+            ("MOD",    None,        None,         self.n_mod),       # CODE
+            ("FLAGS",  None,        None,         self.n_flags),     # CODE
+            ("SWAP",   None,        None,         self.ds.swap),     # CODE
+            ("DUP",    None,        None,         self.ds.dup),      # CODE
+            ("OVER",   None,        None,         self.ds.over),     # CODE
+            ("ROT",    None,        None,         self.ds.rot),      # CODE
+            ("DROP",   None,        None,         self.ds.drop),     # CODE
+            ("KEY",    None,        None,         self.n_key),       # CODE
+            ("KEYQ",   None,        None,         self.n_keyq),      # CODE
+            ("EMIT",   None,        None,         self.n_emit),      # CODE
+            ("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
+            ("ADRUV",  None,        None,         self.n_adruv),     # CODE
+            ("BRANCH", None,        None,         self.n_branch),    # CODE
+            ("0BRANCH",None,        None,         self.n_0branch),   # CODE
+            ("NEXT",   None,        None,         self.n_next),      # CODE
+            ("EXIT",   None,        None,         self.n_exit),      # CODE
+            ("DODOES", None,        None,         self.n_dodoes),    # CODE
+            ("RBLK",   None,        None,         self.n_rblk),      # CODE
+            ("WBLK",   None,        None,         self.n_wblk),      # CODE
+
+            # DICT registers
+            ("D0",     self.dict.rd_d0, None,     None),             # CONST
+            ("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
+
+            # DATA STACK registers
+            ("S0",     self.ds.rd_s0,  None,      None),             # CONST
+            ("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
+
+            # RETURN STACK registers
+            ("R0",     self.rs.rd_r0,  None,      None),             # CONST
+            ("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
+
+            # SYSTEM VARS registers
+            # base and ptr for sys vars (SV0, SVP)
+
+            # USER VARS registers
+            # base and ptr for user vars (UV0, UVP)
+
+            # BLOCK BUFFER registers
+            # base and size for block buffers (BB0, BBZ)
+
+            # MISC
+            ("IP",    self.rd_ip, self.wr_ip, None),               # VAR
+
+            #TODO: compiler routines etc
+            # DOES>
+            # COLON
+            # SEMICOLON
+            # VARIABLE
+            # CONSTANT
+            # DODOES
+            # DOCOL
+            # DOCON
+            # DOVAR
+            # NEXT
+            # QUIT (run interpreter loop)
+            # BYE (stop the forth engine)
         ]
 
     # functions for memory mapped registers
@@ -802,25 +929,20 @@ class Machine():
         while True:
             self.n_next()
 
-    def n_rblk(self): # TODO put in Disk()?
+    def n_rblk(self):
         #: n_RBLK  ( n a -- )
         # { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
         a = self.ds.popn()
         n = self.ds.popn()
-        b = self.disk_rd(1024*n, self.mem, a, 1024)
+        #b = self.disk.read(1024*n, self.mem, a, 1024)
 
-    def n_wblk(self): # TODO put in Disk()?
+    def n_wblk(self):
         #: n_WBLK  ( n a -- )
         # { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
         a = self.ds.popn()
         n = self.ds.popn()
-        self.disk_wr(1024*n, self.mem, a, 1024)
+        #self.disk.write(1024*n, self.mem, a, 1024)
 
-    def disk_rd(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
-        Debug.warning("disk_rd not implemented")
-
-    def disk_wr(self, diskaddr, mem, memaddr, size): # TODO put in Disk()?
-        Debug.warning("disk_wr not implemented")
 
 
     # functions for memory mapped access to registers and routines
@@ -921,12 +1043,21 @@ class Forth:
         #iterate through native.index and register all DICT entries for them
         for i in range(len(self.machine.index)):
             n = self.machine.index[i]
-            name, fn = n #TODO: name, rdfn, wrfn, execfn
-            #TODO: rdfn and wrfn can be used to memory map consts and variables
-            #including to things like: ds.base, ds.ptr, rs.base, rs.ptr, dict.base, dict.ptr
+            name, rdfn, wrfn, execfn = n
             if name != None:
                 # only named items get appended to the DICT
-                self.dict.create(nf=name, cf=i, pf=[])
+                # read only (a constant)
+                # write only (not supported??)
+                # read and write (a variable)
+                if rdfn != None and wrfn == None:
+                    pass # TODO create a constant record in DICT (DOCON)
+                if rdfn != None and wrfn != None:
+                    pass # TODO create a variable record in DICT (DOVAR)
+                # other R/W combinations not created in the dict.
+
+                if execfn != None:
+                    # It's a native code call, with no parameters
+                    self.dict.create(nf=name, cf=i, pf=[])
 
     #def run(self):
     #    #NOTE: can boot() then clone(), and then customise and run() multiple clones

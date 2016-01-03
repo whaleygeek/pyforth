@@ -16,7 +16,24 @@ ANSI X3.215-1994
 Portable forth environment (PFE)
 http://pfe.sourceforge.net/pfe-manual/index.html
 
+DECISIONS
+  Byte order is unspecified by the standard. Implementing big-endian.
 
+  LFA Link field points to name field of previous entry
+
+  threads stored in the PFA are pointers to the CFA of the linked word,
+  so that no additional maths is required on following the link.
+
+  CFA is a pointer to a machine code routine.
+
+  H points to the last used entry of the dict.
+  HERE puts the address stored in H on TOS
+  ' gets the PFA address of the word (so that you can write directly to it)
+  ! assumes the address is of the bytes to write to
+  @ assumes the address on TOS is of the bytes to read from
+
+  stack growth directions are DS grows higher, RS grows smaller
+  pointer semantics are TBD (what does it actually point to?)
 
 ===== WORD LIST PACKAGES =====================================================
 

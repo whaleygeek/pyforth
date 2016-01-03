@@ -1,19 +1,24 @@
 / design.txt  30/12/2015  D.J.Whale
 
-
-NOTE:
-While this is a forth engine, it could be paired back to the basic building blocks,
-and used to implement and port any forth-like system, with a completely different
-set of vocabularies. Once the native nucleus is written and working, it could be
-a generic platform for anything.
-
 PLAN
 
-- check endianness (encapsulated, but assumed big)
-- check NFA,CFA,PFA for various uses:
-  link field = points to PREV/NFA?
-  threads - each entry points to CFA field?
-  defining a word with high level code (puts DODOES in CFA?)
+Implement the dict abstraction, taking the following into account:
+
+  LFA Link field points to name field of previous entry
+
+  threads stored in the PFA are pointers to the CFA of the linked word,
+  so that no additional maths is required on following the link.
+
+  CFA is a pointer to a machine code routine.
+
+  H points to the last used entry of the dict.
+  HERE puts the address stored in H on TOS
+  ' gets the PFA address of the word (so that you can write directly to it)
+  ! assumes the address is of the bytes to write to
+  @ assumes the address on TOS is of the bytes to read from
+
+
+------ DODOES -----------------------------------------------------------------
 
 - read the DODOES in brad rodrigez "moving forth ch 3"
   basically DODOES arranges for the IP to be the PFA following, and then does NEXT
@@ -34,10 +39,8 @@ So, any non immediate words are copied into the PFA, any immediate words are exe
 Those immediate words run code at compile time, rather than deferring the code to runtime.
 
 
---------
-- confirm stack growth directions
-- confirm stack pointer semantics
---------
+-------------------------------------------------------------------------------
+
 - map all stack pointers and other useful constants into memory
 - finish the dictionary accessor abstraction
 - seed the dictionary with words for all the const/var/natives we need.

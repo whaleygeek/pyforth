@@ -9,12 +9,35 @@ a generic platform for anything.
 
 PLAN
 
-- decide on endianness
-- implement classes for number and double read/write (with chosen endianness)
-- decide on stack growth directions
-- decide on stack pointer semantics
-- design memory mapped registers idea
-- move Machine dispatch table to a rwx (read/write/execute) structure
+- check endianness (encapsulated, but assumed big)
+- check NFA,CFA,PFA for various uses:
+  link field = points to PREV/NFA?
+  threads - each entry points to CFA field?
+  defining a word with high level code (puts DODOES in CFA?)
+
+- read the DODOES in brad rodrigez "moving forth ch 3"
+  basically DODOES arranges for the IP to be the PFA following, and then does NEXT
+  to start executing high level code from there.
+  so DOES> puts the address of DODOES in the next defined cell, and then
+  the following high level actions are compiled after it.
+  ; compiles in an EXIT (basically a high level return)
+
+DOES> is executed during Sequence 1, when CONSTANT is compiled. Thus DOES> is a Forth IMMEDIATE word. It does two things:
+
+a. It compiles the Forth word (DOES>) into CONSTANT.
+b. It compiles a JSR DODOES into CONSTANT.
+
+Because DOES> is marked as immediate, when used in a definition, instead of being copied into the definition,
+it actually executes (and then puts the DOES> and JSR DODOES)
+
+So, any non immediate words are copied into the PFA, any immediate words are executed.
+Those immediate words run code at compile time, rather than deferring the code to runtime.
+
+
+--------
+- confirm stack growth directions
+- confirm stack pointer semantics
+--------
 - map all stack pointers and other useful constants into memory
 - finish the dictionary accessor abstraction
 - seed the dictionary with words for all the const/var/natives we need.

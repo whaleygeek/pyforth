@@ -540,7 +540,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.storage.readb(ffa)
             if ff == 0:
-                return 0 # Not found
+                return 0 # Not found # TODO: Should this be an exception?
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
                 # check if name in NFA matches
@@ -556,8 +556,20 @@ class Dictionary(Stack):
             ffa = self.prev(ffa)
 
     def forget(self, name):
-        pass # TODO get addr of name, then move self.last_ffa to there, and self.ptr to end of the record.
-        # Note, to do this, need to know the length of the PFA???
+        """Forget all words up to and including this name"""
+
+        ffa = self.find(name)
+        if ffa == 0:
+            return # Nothing to delete, name not found
+            #TODO: really this should be an exception?
+
+        # ffa is the FFA of the first item to delete (the new dict ptr)
+        prev = self.prev(ffa) # addr of FFA of the item we want to be the last defined item
+
+        # Adjust the pointers
+        self.last_ffa = prev # the last defined word in the dictionary
+        self.ptr      = ffa  # the H pointer, next free byte in dictionary
+
 
     #TODO: might be some functions for address calculations exposed as natives too!
     #beware, we might not be able to pass parameters to them, so defaults should be good?
@@ -691,13 +703,13 @@ class Machine():
         self.parent = parent
         self.mem    = parent.mem
         self.sv     = parent.sv
-        #TODO self.uv = parent.uv #user vars (task specific offset?)
+        #TODO: self.uv = parent.uv #user vars (task specific offset?)
         self.dict   = parent.dict
         self.ds     = parent.ds
         self.rs     = parent.rs
 
         # dispatch table for rdbyte(addr), wrbyte(addr, byte), call(addr)
-        #TODO:as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
+        #TODO: as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
         #how will the forth machine access these, using two 8-bit memory accesses, or one
         #16 bit memory access (preferred)
         #in which case, we need to know that it *is* a 16 bit read, and generate a 'bus error' like thing
@@ -830,7 +842,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 + n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_sub(self):
@@ -839,7 +851,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 - n2
-        flags = 0; # TODO ZNCV
+        flags = 0; # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_and(self):
@@ -848,7 +860,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 & n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_or(self):
@@ -857,7 +869,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 | n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_xor(self):
@@ -866,7 +878,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 ^ n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_mult(self):
@@ -875,7 +887,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 * n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_div(self):
@@ -884,7 +896,7 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 / n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_mod(self):
@@ -893,25 +905,25 @@ class Machine():
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 % n2
-        flags = 0 # TODO ZNCV
+        flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
 
     def n_flags(self):
         """: n_FLAGS   ( -- )
         # { mem[FLAGS]=flags } ;"""
-        pass # TODO
+        pass # TODO:
 
-    def n_keyq(self): # TODO Input()
+    def n_keyq(self):
         """: n_KEYQ   ( -- ?)
         { ds_push8(kbhit) } ;"""
         pass #TODO: knit to Input()
 
-    def n_key(self): # TODO Input()
+    def n_key(self):
         """: n_KEY   ( -- c)
         { ds_push8(getch) } ;"""
         pass #TODO: knit to Input()
 
-    def n_emit(self): # TODO Output()
+    def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
         pass #TODO: knit to Output()
@@ -928,7 +940,7 @@ class Machine():
         { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;"""
         pfa = self.ds.popn()
         rel = self.mem[pfa]
-        uservars = 0 # TODO per-task offset to uservars
+        uservars = 0 # TODO: per-task offset to uservars
         a = uservars + rel
         self.ds.pushn(a)
 
@@ -1093,9 +1105,9 @@ class Forth:
                 # write only (not supported??)
                 # read and write (a variable)
                 if rdfn != None and wrfn == None:
-                    pass # TODO create a constant record in DICT (DOCON)
+                    pass # TODO: create a constant record in DICT (DOCON)
                 if rdfn != None and wrfn != None:
-                    pass # TODO create a variable record in DICT (DOVAR)
+                    pass # TODO: create a variable record in DICT (DOVAR)
                 # other R/W combinations not created in the dict.
 
                 if execfn != None:
@@ -1114,7 +1126,7 @@ class Forth:
 
 def test():
     f = Forth().boot()
-    #TODO write a 1st unit test, perhaps a series of words to interpret?
+    #TODO: write a 1st unit test, perhaps a series of words to interpret?
     #i.e. could hand define a word in the dict and then execute it to
     #see if it has the correct side effect?
 

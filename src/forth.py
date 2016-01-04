@@ -323,9 +323,8 @@ class Stack():
 
 #----- VARS -------------------------------------------------------------------
 
-#TODO: Put in method comments from here downwards
-
 class Vars(Stack):
+    """A generic variable region abstraction"""
     def __init__(self, storage, offset, size):
         Stack.__init__(storage, offset, size)
 
@@ -339,41 +338,49 @@ class Vars(Stack):
 
 
 class SysVars(Vars):
+    #TODO: not sure yet what system variables are used for
     def __init__(self, storage, base, size):
         Vars.__init__(self, storage, base, size)
 
     # functions used to implement memory mapped registers
     def rd_sv0(self):
+        """Read the SysVars base address"""
         return self.base
 
     def rd_svz(self):
+        """Read the SysVars size in bytes"""
         return self.size
 
     def rd_svp(self):
+        """Read the SysVars current pointer"""
         return self.ptr
 
     def wr_svp(self, number):
+        """Write to the SysVars current pointer"""
         self.ptr = number
 
 
-#TODO: There should be one copy of these for each user task in a multiprogrammed setup.
-#e.g. BASE
-
 class UserVars(Vars):
+    #TODO: should be one copy per user task.
+    #e.g. BASE
     def __init__(self, storage, base, size):
         Vars.__init__(self, storage, base, size)
 
     # functions used to implement memory mapped registers
     def rd_uv0(self):
+        """Read the UserVars base address"""
         return self.base
 
     def rd_uvz(self):
+        """Read the UserVars size in bytes"""
         return self.size
 
     def rd_uvp(self):
+        """Read the UserVars pointer"""
         return self.ptr
 
     def wr_uvp(self, number):
+        """Write to the UserVars pointer"""
         self.ptr = number
 
 
@@ -390,6 +397,7 @@ class UserVars(Vars):
 #     PFA->PF (parameter field) list of {16 bit parameters specific to CFA type}
 
 class Dictionary(Stack):
+    """A dictionary of defined Forth WORDs"""
     FLAG_IMMEDIATE = 0x80
     FLAG_DEFINING  = 0x40
     FLAG_UNUSED    = 0x20
@@ -401,6 +409,7 @@ class Dictionary(Stack):
         self.last_ffa = self.ptr
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
+        """Create a new dictionary record"""
         Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
 
         # truncate name to maximum length
@@ -445,6 +454,7 @@ class Dictionary(Stack):
             self.finished()
 
     def finished(self):
+        """Mark the most recently used dictionary record as finished/available"""
         # get FFA
         growth = self.ptr - self.last_ffa
         # clear 'defining' bit
@@ -454,6 +464,7 @@ class Dictionary(Stack):
         self.last_ffa = self.ptr
 
     def allot(self, size=2):
+        """Allot some extra space in the presently defining dictionary record"""
         if size == 2:
             self.pushn(0) # note this moves the pointer
         else:
@@ -461,68 +472,72 @@ class Dictionary(Stack):
                 self.pushb(0) # note this moves the pointer
 
     def write(self, number):
+        """Write a 16 bit number at the present H pointer in the dictionary"""
         self.setn(0, number) # note this does not move the pointer
 
     def writeb(self, byte):
+        """Write an 8 bit number at the present H pointer in the dictionary"""
         self.setb(0, byte) # note this does not move the pointer
 
     def prev(self, ffa_addr=None):
+        """Find the FFA address of the previous dictionary word"""
         if ffa_addr==None:
             ffa_addr = self.last_ffa
         lfa = self.ffa2lfa(ffa_addr)
         lf = self.storage.read(lfa)
         return lf
 
-    #TODO: Not sure yet if these will all be relative to FFA, or if they will be
-    #relative to the previous field (might skip one field at a time in reality)
+    def nfa(self, ffa):
+        """relative skip from ffa to nfa"""
+        return ffa+1
 
-    def nfa(self, addr):
-        """skip from ffa to nfa"""
-        return addr+1
-
-    def lfa(self, addr):
-        """skip from nfa to lfa"""
-        ff = self.storage.readb(addr)
+    def lfa(self, nfa):
+        """relative skip from nfa to lfa"""
+        ff = self.storage.readb(nfa)
         count = ff & ~ Dictionary.FIELD_COUNT # now the count
-        addr += count
-        addr += (count % 2) # optional PAD
-        # should now be the address of the LFA
-        return addr
+        lfa = nfa + count + (count%2) # optional PAD
+        return lfa
 
-    def cfa(self, addr):
-        """skip from lfa to cfa"""
-        return addr+2
+    def cfa(self, lfa):
+        """relative skip from lfa to cfa"""
+        return lfa+2
 
-    def pfa(self, addr):
-        """skip from cfa to pfa"""
-        return addr+2
+    def pfa(self, cfa):
+        """relative skip from cfa to pfa"""
+        return cfa+2
 
-    def ffa2nfa(self, addr):
-        """skip from ffa to nfa"""
-        return addr+1
+    def ffa2nfa(self, ffa):
+        """relative skip from ffa to nfa"""
+        return ffa+1
 
-    def ffa2lfa(self, addr):
-        """skip from ffa to lfa"""
-        ff = self.storage.readb(addr)
+    def ffa2lfa(self, ffa=None):
+        """relative skip from ffa to lfa"""
+        if ffa == None:
+            ffa = self.last_ffa
+        ff = self.storage.readb(ffa)
         count = ff & ~ Dictionary.FIELD_COUNT # now the count
-        addr += count
-        addr += (count % 2) # optional PAD
-        # should now be the address of the LFA
-        return addr
+        lfa = count + (count % 2) # optional PAD
+        return lfa
 
-    def ffa2cfa(self, addr):
-        """skip from ffa to cfa"""
-        return self.ffa2lfa()+2
+    def ffa2cfa(self, ffa=None):
+        """relative skip from ffa to cfa"""
+        if ffa == None:
+            ffa = self.last_ffa
+        return ffa+2
 
-    def ffa2pfa(self, addr):
-        """skip from ffa to pfa"""
-        return self.ffa2lfa()+4
+    def ffa2pfa(self, ffa=None):
+        """relative skip from ffa to pfa"""
+        if ffa == None:
+            ffa = self.last_ffa
+        return ffa+4
 
-    def find(self, name, ffa_addr=None):
-        if ffa_addr == None:
+    def find(self, name, ffa=None):
+        """Find a word by it's name, following the chain from ffa backwards"""
+        if ffa == None:
             start = self.last_ffa
         else:
-            start = ffa_addr
+            start = ffa
+
         #### HERE ####
         # TODO 'start' points to an FFA
         # test this FFA/NFA
@@ -539,48 +554,61 @@ class Dictionary(Stack):
     # functions for memory mapped registers
 
     def rd_d0(self):
+        """Read the dictionary base address"""
         return self.base
 
     def rd_h(self):
+        """Read the present H value"""
         return self.ptr
 
     def wr_h(self, number):
+        """Write to the present H value"""
         self.ptr = number
 
 
 class DataStack(Stack):
+    """A stack for pushing application data on to """
     def __init__(self, mem, base, size):
         Stack.__init__(self, mem, base, size, grows=1, incwrite=False)
 
     # functions to allow memory mapped registers
     def rd_s0(self):
+        """Read the DataStack base address"""
         return self.base
 
     def rd_sz(self):
+        """Read the DataStack size in bytes"""
         return self.size
 
     def rd_sp(self):
+        """Read the DataStack present TOS pointer"""
         return self.ptr
 
     def wr_sp(self, number):
+        """Write to the DataStack present TOS pointer"""
         self.ptr = number
 
 
 class ReturnStack(Stack):
+    """A stack for high level forth call/return addresses"""
     def __init__(self, mem, base, size):
         Stack.__init__(self, mem, base, size, grows=-1, incwrite=False)
 
     # functions to allow memory mapped registers
     def rd_r0(self):
+        """Read the ReturnStack base address"""
         return self.base
 
     def rd_rz(self):
+        """Read the ReturnStack size in bytes"""
         return self.size
 
     def rd_rp(self):
+        """Read the ReturnStack present TOS pointer"""
         return self.ptr
 
     def wr_rp(self, number):
+        """Write to the ReturnStack present TOS pointer"""
         self.ptr = number
 
 
@@ -635,6 +663,7 @@ class ReturnStack(Stack):
 #class Disk():
 #    def __init__(self):
 #        pass
+#
 #    def read(self, diskaddr, mem, memaddr, size):
 #        Debug.warning("disk_rd not implemented")
 #
@@ -643,11 +672,9 @@ class ReturnStack(Stack):
 
 
 #----- MACHINE ----------------------------------------------------------------
-#
-# The native machine simulation
-# This is a minimal simulation, it could though simulate a complete CPU.
 
 class Machine():
+    """A native machine simulation, enough to attach ALU and stack ops to"""
     def __init__(self, parent):
         self.ip     = 0
         self.parent = parent
@@ -740,19 +767,22 @@ class Machine():
     # functions for memory mapped registers
 
     def rd_ip(self):
+        """Read the present high level forth instruction pointer"""
         return self.ip
 
     def wr_ip(self, number):
+        """Write to the present high level forth instruction pointer"""
         self.ip = number
 
     # functions for native code
 
     def n_nop(self):
+        """Do nothing"""
         pass
 
     def n_store(self):
-        #: n_STORE   ( n a -- )
-        # { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;
+        """: n_STORE   ( n a -- )
+        { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;"""
         a = self.ds.popn()
         n0 = self.ds.popb()
         n1 = self.ds.popb()
@@ -760,8 +790,8 @@ class Machine():
         self.mem[a+1] = n1
 
     def n_fetch(self):
-        #: n_FETCH  ( a -- n)
-        # { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;
+        """: n_FETCH  ( a -- n)
+        { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
         a = self.ds.popn()
         n0 = self.mem[a]
         n1 = self.mem[a+1]
@@ -769,23 +799,23 @@ class Machine():
         self.ds.pushb(n1)
 
     def n_store8(self):
-        #: n_STORE8  ( b a -- )
-        # { a=ds_pop; b=ds_pop8; mem[a]=b } ;
+        """: n_STORE8  ( b a -- )
+        { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
         b = self.ds.popb()
         self.mem[a] = b
 
     def n_fetch8(self):
-        #: n_FETCH8   ( a -- b)
-        # { a=ds_pop; b=mem[a]; ds_push8(b) } ;
+        """: n_FETCH8   ( a -- b)
+        { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
         b = self.mem[a]
         self.ds.pushb(b)
         pass
 
     def n_add(self):
-        #: n_ADD   ( n1 n2 -- n-sum)
-        # { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;
+        """: n_ADD   ( n1 n2 -- n-sum)
+        { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 + n2
@@ -793,8 +823,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_sub(self):
-        #: n_SUB   ( n1 n2 -- n-diff)
-        # { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;
+        """: n_SUB   ( n1 n2 -- n-diff)
+        { n2=ds_pop; n1=ds_pop; r=n1-n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 - n2
@@ -802,8 +832,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_and(self):
-        #: n_AND   ( n1 n2 -- n-and)
-        # { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;
+        """: n_AND   ( n1 n2 -- n-and)
+        { n2=ds_pop; n1=ds_pop; r=n1 and n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 & n2
@@ -811,8 +841,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_or(self):
-        #: n_OR   ( n1 n2 -- n-or)
-        # { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;
+        """: n_OR   ( n1 n2 -- n-or)
+        { n2=ds_pop; n1=ds_pop; r=n1 or n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 | n2
@@ -820,8 +850,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_xor(self):
-        #: n_XOR   ( n1 n2 -- n-xor)
-        # { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;
+        """: n_XOR   ( n1 n2 -- n-xor)
+        { n2=ds_pop; n1=ds_pop; r=n1 xor n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 ^ n2
@@ -829,8 +859,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_mult(self):
-        #: n_MULT   ( n1 n2 -- n-prod)
-        # { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;
+        """: n_MULT   ( n1 n2 -- n-prod)
+        { n2=ds_pop; n1=ds_pop; r=n1*n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 * n2
@@ -838,8 +868,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_div(self):
-        #: n_DIV   ( n1 n2 -- n-quot)
-        # { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;
+        """: n_DIV   ( n1 n2 -- n-quot)
+        { n2=ds_pop; n2=ds_pop; r=n1/n2; flags=zncv; ds_push(c) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 / n2
@@ -847,8 +877,8 @@ class Machine():
         self.ds.pushn(r)
 
     def n_mod(self):
-        #: n_MOD   ( n1 n2 -- n-rem)
-        # { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;
+        """: n_MOD   ( n1 n2 -- n-rem)
+        { n2=ds_pop; n1=ds_pop; r=n1 mod n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
         r = n1 % n2
@@ -856,35 +886,35 @@ class Machine():
         self.ds.pushn(r)
 
     def n_flags(self):
-        #: n_FLAGS   ( -- )
-        # { mem[FLAGS]=flags } ;
-        pass
+        """: n_FLAGS   ( -- )
+        # { mem[FLAGS]=flags } ;"""
+        pass # TODO
 
     def n_keyq(self): # TODO Input()
-        #: n_KEYQ   ( -- ?)
-        # { ds_push8(kbhit) } ;
-        pass # knit to Input()
+        """: n_KEYQ   ( -- ?)
+        { ds_push8(kbhit) } ;"""
+        pass #TODO: knit to Input()
 
     def n_key(self): # TODO Input()
-        #: n_KEY   ( -- c)
-        # { ds_push8(getch) } ;
-        pass # knit to Input()
+        """: n_KEY   ( -- c)
+        { ds_push8(getch) } ;"""
+        pass #TODO: knit to Input()
 
     def n_emit(self): # TODO Output()
-        #: n_EMIT   ( c -- )
-        # { putch(ds_pop8) } ;
-        pass # knit to Output()
+        """: n_EMIT   ( c -- )
+        { putch(ds_pop8) } ;"""
+        pass #TODO: knit to Output()
 
     def n_rdpfa(self):
-        #: n_RDPFA   ( a-pfa -- n)
-        # { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;
+        """: n_RDPFA   ( a-pfa -- n)
+        { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;"""
         pfa = self.ds.popn()
         r = self.mem[pfa]
         self.ds.pushn(r)
 
     def n_adruv(self):
-        #: n_ADRUV   ( a-pfa -- a)
-        # { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;
+        """: n_ADRUV   ( a-pfa -- a)
+        { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;"""
         pfa = self.ds.popn()
         rel = self.mem[pfa]
         uservars = 0 # TODO per-task offset to uservars
@@ -892,8 +922,8 @@ class Machine():
         self.ds.pushn(a)
 
     def n_branch(self):
-        #: n_BRANCH   ( -- )
-        # { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;
+        """: n_BRANCH   ( -- )
+        { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
         ip = self.ip
         rel = self.mem[ip]
         ip += 2
@@ -901,8 +931,8 @@ class Machine():
         self.ip = abs
 
     def n_0branch(self):
-        #: n_0BRANCH   ( ? -- )
-        # { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;
+        """: n_0BRANCH   ( ? -- )
+        { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;"""
         f = self.ds.popn()
         ip = self.ip
         rel = self.mem[ip]
@@ -912,42 +942,42 @@ class Machine():
             self.ip += 2
 
     def n_next(self):
-        #: n_NEXT   ( -- )
-        # { cfa=mem[ip]; ip+=2; call(cfa) } ;
+        """: n_NEXT   ( -- )
+        { cfa=mem[ip]; ip+=2; call(cfa) } ;"""
         cfa = self.mem[self.ip]
         self.ip += 2
         self.call(cfa)
 
     def n_exit(self):
-        #: n_EXIT   ( -- )
-        # { ip=rs_pop() } ;
+        """: n_EXIT   ( -- )
+        { ip=rs_pop() } ;"""
         self.ip = self.rs.popn()
 
     def n_dodoes(self):
-        #: n_DODOES   ( -- )
-        # { while True: n_NEXT} ; / beware of python stack on return?
+        """: n_DODOES   ( -- )
+        { while True: n_NEXT} ; / beware of python stack on return? """
         while True:
             self.n_next()
 
     def n_rblk(self):
-        #: n_RBLK  ( n a -- )
-        # { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;
+        """: n_RBLK  ( n a -- )
+        { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;"""
         a = self.ds.popn()
         n = self.ds.popn()
-        #b = self.disk.read(1024*n, self.mem, a, 1024)
+        #TODO: b = self.disk.read(1024*n, self.mem, a, 1024)
 
     def n_wblk(self):
-        #: n_WBLK  ( n a -- )
-        # { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;
+        """: n_WBLK  ( n a -- )
+        { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;"""
         a = self.ds.popn()
         n = self.ds.popn()
-        #self.disk.write(1024*n, self.mem, a, 1024)
-
+        #TODO: self.disk.write(1024*n, self.mem, a, 1024)
 
 
     # functions for memory mapped access to registers and routines
 
     def call(self, addr):
+        """Look up the call address in the dispatch table, and dispatch if known"""
         if addr < len(self.dispatch):
             name, rdfn, wrfn, execfn = self.dispatch[addr]
             Debug.trace("calling native fn:%d %s" % (addr, name))
@@ -957,6 +987,7 @@ class Machine():
         Debug.fail("call to unknown native address: %d" % addr)
 
     def rdbyte(self, addr):
+        """Look up read address in dispatch table, and dispatch if known"""
         if addr < len(self.dispatch):
             name, rdfn, wrfn, execfn = self.dispatch[addr]
             Debug.trace("reading native byte:%d %s" % (addr, name))
@@ -965,6 +996,7 @@ class Machine():
         Debug.fail("read from unknown native address: %d" % addr)
 
     def wrbyte(self, addr, byte):
+        """Look up write address in dispatch table, and dispatch if known"""
         if addr < len(self.dispatch):
             name, rdfn, wrfn, execfn = self.dispatch[addr]
             Debug.trace("writing native byte:%d %s" % (addr, name))
@@ -975,17 +1007,16 @@ class Machine():
 
 
 #----- FORTH CONTEXT ----------------------------------------------------------
-#
-# The Forth language - knits everything together into one helpful object.
 
 class Forth:
+    """The Forth language - knits everything together into one helpful object"""
     def boot(self):
         self.build_ds()
         self.build_native()
         return self
 
     def build_ds(self):
-        # BOOT DATASTRUCTURES (base, ptr, limit for each)
+        """Build datastructures in memory"""
         MEM_SIZE  = 65536
         SV_MEM   = (0,               +1024      )
         #EL_MEM   = (1024,            +0         )
@@ -1038,6 +1069,7 @@ class Forth:
 
 
     def build_native(self):
+        """Build the native dispatch table and machine"""
         self.machine = Machine(self)
 
         #iterate through native.index and register all DICT entries for them

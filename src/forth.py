@@ -708,6 +708,10 @@ class Machine():
         self.ds     = parent.ds
         self.rs     = parent.rs
 
+        self.build_dispatch()
+
+    def build_dispatch(self):
+        """Build the dispatch table"""
         # dispatch table for rdbyte(addr), wrbyte(addr, byte), call(addr)
         #TODO: as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
         #how will the forth machine access these, using two 8-bit memory accesses, or one
@@ -716,6 +720,7 @@ class Machine():
         #if it is not.
         self.dispatch = [
             #name      readfn,      writefn,      execfunction
+            # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
             ("STORE",  None,        None,         self.n_store),     # CODE
             ("FETCH",  None,        None,         self.n_fetch),     # CODE
@@ -772,20 +777,35 @@ class Machine():
             # MISC
             ("IP",    self.rd_ip, self.wr_ip, None),               # VAR
 
-            #TODO: compiler routines etc
-            # DOES>
-            # COLON
-            # SEMICOLON
-            # VARIABLE
-            # CONSTANT
-            # DODOES
-            # DOCOL
-            # DOCON
-            # DOVAR
-            # NEXT
-            # QUIT (run interpreter loop)
-            # BYE (stop the forth engine)
+            # Compiler support routines that can be called by high-level forth
+            #("DOES>"),
+            #(":"),
+            #(";")
+            #("VARIABLE")
+            #("CONSTANT")
+
+            # Compiler support routines that cannot be called by high-level forth
+            # but can be destinations in a CFA.
+            # Not registered in dictionary, this is flagged by first char of name=space
+            # But this table can still be searched for addresses for internal use.
+            #(" DODOES")
+            #(" DOCOL")
+            (" DOCON",   None,   None,   self.n_docon),
+            (" DOVAR",   None,   None,   self.n_dovar)
+            #(" NEXT")
+            #(" QUIT")
+            #(" BYE")
         ]
+
+    def getIndex(self, name):
+        """Get the index address of a native routine.
+        Note that hidden names are preceeded by a space"""
+        for i in range(len(self.dispatch)):
+            n = (self.dispatch[i])[0]
+            if n == name:
+                return i
+        return 0 # NOT FOUND (will be a NOP)
+        #TODO: Should this be an Exception?
 
     # functions for memory mapped registers
 
@@ -802,6 +822,22 @@ class Machine():
     def n_nop(self):
         """Do nothing"""
         pass
+
+    def n_docon(self):
+        """Reads the 16 bit constant pointed to by PFA and pushes onto DS"""
+        #TODO: The PFA of the current word needs to be accessible implicitly somewhere
+        #the parser would have read out the CFA of the word to execute,
+        #CFA+2 is the PFA for it, and that parameter is the constant value
+        #which needs to be pushed onto the DS
+        pass #TODO:
+
+    def n_dovar(self):
+        """Reads the address of the variable, i.e. PFA, and pushes onto DS"""
+        #TODO: The PFA of the current word needs to be accessible implicitly somewhere
+        #the parser would have read out the CFA of the word to execute,
+        #CFA+2 is the PFA for it, and that parameter is the variable address
+        #which needs to be pushed onto the DS
+        pass # TODO:
 
     def n_store(self):
         """: n_STORE   ( n a -- )
@@ -1105,14 +1141,16 @@ class Forth:
                 # write only (not supported??)
                 # read and write (a variable)
                 if rdfn != None and wrfn == None:
-                    pass # TODO: create a constant record in DICT (DOCON)
+                    DOCON = self.machine.getIndex(" DOCON")
+                    self.dict.create(nf=name, cf=DOCON, pf=[0], finish=True)
                 if rdfn != None and wrfn != None:
-                    pass # TODO: create a variable record in DICT (DOVAR)
+                    DOVAR = self.machine.getIndex(" DOVAR")
+                    self.dict.create(nf=name, cf=DOVAR, pf=[0], finish=True)
                 # other R/W combinations not created in the dict.
 
                 if execfn != None:
                     # It's a native code call, with no parameters
-                    self.dict.create(nf=name, cf=i, pf=[])
+                    self.dict.create(nf=name, cf=i, pf=[], finish=True)
 
     #def run(self):
     #    #NOTE: can boot() then clone(), and then customise and run() multiple clones

@@ -4,6 +4,7 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+#TODO looks like dict header is corrupted at the moment (dump output)
 
 #----- DEBUG ------------------------------------------------------------------
 
@@ -425,7 +426,7 @@ class Dictionary(Stack):
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         """Create a new dictionary record"""
-        Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
+        #Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
 
         # truncate name to maximum length
         if len(nf) > 32:
@@ -451,7 +452,7 @@ class Dictionary(Stack):
         self.writeb(ff)
         for ch in nf:
             self.allot(1)
-            self.writeb(ch)
+            self.writeb(ord(ch))
         if pad: self.allot(1)
         self.allot(2)
         self.write(lf)
@@ -481,6 +482,70 @@ class Dictionary(Stack):
         # advance end pointer
         self.last_ffa = self.defining_ffa
         self.defining_ffa = None
+
+    def dump(self):
+        """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
+        print("DICTIONARY")
+        print("start:       %d" % self.start)
+        print("size:        %d" % self.size)
+        print("ptr:         %d" % self.ptr)
+        print("last_ffa:    %d" % self.last_ffa)
+        print("defining_ffa:%s" % str(self.defining_ffa))
+
+        #BUG: It's not storing the ascii number, it's storing a str (char) for names in NF
+        for addr in range(self.start, self.ptr):
+            b = self.storage[addr]
+            if b > 32:
+                ch = chr(b)
+            else:
+                ch = ' '
+            print("%d:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
+
+        ffa = self.last_ffa
+        while True:
+            ptr = ffa
+            ff = self.storage.readb(ptr)
+            if ff == 0:
+                print("found NULL at %d" % ffa)
+                return # FINISHED
+
+            print("-" * 40)
+            #### FF - Flags Field
+            buf = "FF: "
+            if ff & Dictionary.FLAG_IMMEDIATE: buf += "immediate "
+            if ff & Dictionary.FLAG_DEFINING:  buf += "defining "
+            if ff & Dictionary.FLAG_UNUSED:    buf += "unused "
+            count = ff & Dictionary.FIELD_COUNT
+            buf += " sz:" + count
+            print(buf)
+            ptr += 1
+
+            #### NF - Name Field
+            buf = ""
+            for i in range(count):
+                buf += self.storage.readb(ptr)
+                ptr += 1
+            print("NF: %s" % buf)
+            ptr += (count % 2) # pad
+
+            #### LF - Link Field
+            lf = self.storage.readn(ptr)
+            print("LF: %s" % lf)
+            ptr += 2
+
+            #### CF - Code Field
+            cf = self.storage.readn(ptr)
+            print("CF: %s" % cf)
+            ptr += 2
+
+            #### PF - Parameter Field
+            #TODO:Need to know how to sense the end of this?
+            #There is no length byte, so depends on CF value
+            #could look for ptr matching prev ptr, close enough, but not guaranteed
+            print("PF: here TODO")
+
+            # Move to prev
+            ffa = self.prev(ffa)
 
     def allot(self, size=2):
         """Allot some extra space in the presently defining dictionary record"""
@@ -1281,9 +1346,13 @@ class Forth:
 def test_star():
     f = Forth().boot()
 
+    f.machine.dict.dump()
+
     # TEST: output a * on stdout
-    f.create_word("STAR", 42, "EMIT")
-    f.execute_word("STAR")
+    #f.create_word("STAR", 42, "EMIT")
+
+    #f.machine.dict.dump()
+    #f.execute_word("STAR")
 
 
 if __name__ == "__main__":

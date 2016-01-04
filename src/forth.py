@@ -95,19 +95,27 @@ class Memory():
             size = len(storage)
         self.size = size
         #self.offset = offset #TODO: Apply offset throughout
-        self.mem = storage
+        self.bytes = storage
         self.map = []
+
+    def __setitem__(self, key, value):
+        self.bytes[key] = value
+
+    def __getitem__(self, key):
+        return self.bytes[key]
 
     def region(self, name, spec):
         """Define a new memory region in the memory map"""
+        # spec=(base, dirn/size)
+        addr  = spec[0]
         size  = spec[1]
         if size < 0:
             # grows down towards low memory
-            start = spec[0] - -size
+            start = addr - -size
         else:
             # grows up towards high memory
-            start = spec[0]
-        ptr = spec[0]
+            start = addr
+        ptr = addr
         end = start + size
 
         # check for overlaps with an existing region
@@ -118,7 +126,7 @@ class Memory():
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
         self.map.append((name, start, abs(size)))
-        return start, ptr, end
+        return start, size, ptr
 
     def show_map(self):
         """Display the memory map on stdout"""
@@ -136,61 +144,61 @@ class Memory():
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
-        value = Number.from_bytes((self.mem[addr], self.mem[addr+1]))
+        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1]))
         return value
 
     def readb(self, addr):
         """Read a 1 byte variable"""
-        value = self.mem[addr]
+        value = self.bytes[addr]
         return value
 
     def readd(self, addr):
         """Read a double length variable (4 byte, 32 bits)"""
-        value = Number.from_bytes((self.mem[addr], self.mem[addr+1], self.mem[addr+2], self.mem[addr+3]))
+        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1], self.bytes[addr+2], self.bytes[addr+3]))
         return value
 
     def writen(self, addr, value):
         """Write a cell sized 2 byte variable"""
         b0, b1 = Number.to_bytes(value)
-        self.mem[addr]   = b0
-        self.mem[addr+1] = b1
+        self.bytes[addr]   = b0
+        self.bytes[addr+1] = b1
 
     def writeb(self, addr, value):
         """Write a 1 byte variable"""
         low = (value & 0xFF)
-        self.mem[addr] = low
+        self.bytes[addr] = low
 
     def writed(self, addr, value):
         """Write a double length variable (4 byte, 32 bits)"""
         b0, b1, b2, b3 = Double.to_bytes(value)
-        self.mem[addr]   = b0
-        self.mem[addr+1] = b1
-        self.mem[addr+2] = b2
-        self.mem[addr+3] = b3
+        self.bytes[addr]   = b0
+        self.bytes[addr+1] = b1
+        self.bytes[addr+2] = b2
+        self.bytes[addr+3] = b3
 
 
 #----- STACK ------------------------------------------------------------------
 
 class Stack():
     """A general purpose stack abstraction to wrap around memory storage"""
-    def __init__(self, mem, base, size, grows=1, incwrite=True):
-        self.mem  = mem
-        self.base = base
+    def __init__(self, storage, start, size, ptr, grows=1, incwrite=True):
+        self.storage  = storage
+        self.start = start
         self.size = size
         if grows > 0:
             self.grows = 1
-            self.ptr = base
+            self.ptr = start
         else:
             self.grows = -1
-            self.ptr = base+size
+            self.ptr = start+size
         self.incwrite = incwrite
 
     def clear(self):
         """Reset the stack to empty"""
         if self.grows > 0:
-            self.ptr = self.base
+            self.ptr = self.start
         else:
-            self.ptr = self.base + self.size
+            self.ptr = self.start + self.size
 
     def grow(self, bytes):
         """Expand the stack by a number of bytes"""
@@ -204,31 +212,31 @@ class Stack():
         """Push a 16 bit number onto the stack"""
         b0, b1 = Number.to_bytes(number)
         if self.incwrite: self.grow(2)
-        self.mem[self.ptr]   = b0
-        self.mem[self.ptr+1] = b1
+        self.storage[self.ptr]   = b0
+        self.storage[self.ptr+1] = b1
         if not self.incwrite: self.grow(2)
 
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
         if self.incwrite: self.grow(1)
-        self.mem[self.ptr] = byte & 0xFF
+        self.storage[self.ptr] = byte & 0xFF
         if not self.incwrite: self.grow(1)
 
     def pushd(self, double):
         """Push a 32 bit double onto the stack"""
         b0, b1, b2, b3 = Double.to_bytes(double)
         if self.incwrite: self.grow(4)
-        self.mem[self.ptr]   = b0
-        self.mem[self.ptr+1] = b1
-        self.mem[self.ptr+2] = b2
-        self.mem[self.ptr+3] = b3
+        self.storage[self.ptr]   = b0
+        self.storage[self.ptr+1] = b1
+        self.storage[self.ptr+2] = b2
+        self.storage[self.ptr+3] = b3
         if not self.incwrite: self.grow(4)
 
     def popn(self):
         """Pop a 16 bit number from the stack"""
         if self.incwrite: self.grow(2)
-        b0 = self.mem[self.ptr]
-        b1 = self.mem[self.ptr+1]
+        b0 = self.storage[self.ptr]
+        b1 = self.storage[self.ptr+1]
         number = Number.from_bytes((b0, b1))
         if not self.incwrite: self.grow(2)
         return number
@@ -236,65 +244,65 @@ class Stack():
     def popb(self):
         """Pop an 8 bit byte from the stack"""
         if not self.incwrite: self.shrink(1)
-        byte = self.mem[self.ptr]
+        byte = self.storage[self.ptr]
         if self.incwrite: self.shrink(1)
         return byte
 
     def popd(self):
         """Pop a 32 bit double from the stack"""
         if not self.incwrite: self.shrink(4)
-        b0 = self.mem[self.ptr]
-        b1 = self.mem[self.ptr+1]
-        b2 = self.mem[self.ptr+2]
-        b3 = self.mem[self.ptr+3]
+        b0 = self.storage[self.ptr]
+        b1 = self.storage[self.ptr+1]
+        b2 = self.storage[self.ptr+2]
+        b3 = self.storage[self.ptr+3]
         double = Double.from_bytes((b0, b1, b2, b3))
         if self.incwrite: self.shrink(4)
         return double
 
     def getn(self, relindex):
         """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        ofs = (relindex*2)*self.grow
-        b0 = self.mem[self.ptr+ofs]
-        b1 = self.mem[self.ptr+ofs+1]
+        ofs = (relindex*2)*self.grows
+        b0 = self.storage[self.ptr+ofs]
+        b1 = self.storage[self.ptr+ofs+1]
         number = Number.from_bytes((b0, b1))
         return number
 
     def getb(self, relindex):
         """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        ofs = relindex * self.grow
-        byte = self.mem[self.ptr+ofs]
+        ofs = relindex * self.grows
+        byte = self.storage[self.ptr+ofs]
         return byte
 
     def getd(self, relindex):
         """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        ofs = (relindex*4)*self.grow
-        b0 = self.mem[self.ptr+ofs]
-        b1 = self.mem[self.ptr+ofs+1]
-        b2 = self.mem[self.ptr+ofs+2]
-        b3 = self.mem[self.ptr+ofs+3]
+        ofs = (relindex*4)*self.grows
+        b0 = self.storage[self.ptr+ofs]
+        b1 = self.storage[self.ptr+ofs+1]
+        b2 = self.storage[self.ptr+ofs+2]
+        b3 = self.storage[self.ptr+ofs+3]
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
     def setn(self, relindex, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
-        ofs = (relindex*2)*self.grow
+        ofs = (relindex*2)*self.grows
         b0, b1 = Number.to_bytes(number)
-        self.mem[self.ptr+ofs]   = b0
-        self.mem[self.ptr+ofs+1] = b1
+        self.storage[self.ptr+ofs]   = b0
+        self.storage[self.ptr+ofs+1] = b1
 
     def setb(self, relindex, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        ofs = relindex*self.grow
-        self.mem[self.ptr+ofs] = byte
+        ofs = relindex*self.grows
+        self.storage[self.ptr+ofs] = byte
 
     def setd(self, relindex, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
-        ofs = (relindex*4)*self.grow
+        ofs = (relindex*4)*self.grows
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.mem[self.ptr+ofs]   = b0
-        self.mem[self.ptr+ofs+1] = b1
-        self.mem[self.ptr+ofs+2] = b2
-        self.mem[self.ptr+ofs+3] = b3
+        self.storage[self.ptr+ofs]   = b0
+        self.storage[self.ptr+ofs+1] = b1
+        self.storage[self.ptr+ofs+2] = b2
+        self.storage[self.ptr+ofs+3] = b3
 
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
@@ -331,8 +339,8 @@ class Stack():
 
 class Vars(Stack):
     """A generic variable region abstraction"""
-    def __init__(self, storage, offset, size):
-        Stack.__init__(storage, offset, size)
+    def __init__(self, storage, start, size, ptr):
+        Stack.__init__(self, storage, start, size, ptr)
 
     def create(self, size=2):
         """Create a new constant or variable of the given size in bytes"""
@@ -345,13 +353,13 @@ class Vars(Stack):
 
 class SysVars(Vars):
     #TODO: not sure yet what system variables are used for
-    def __init__(self, storage, base, size):
-        Vars.__init__(self, storage, base, size)
+    def __init__(self, storage, start, size, ptr):
+        Vars.__init__(self, storage, start, size, ptr)
 
     # functions used to implement memory mapped registers
     def rd_sv0(self):
-        """Read the SysVars base address"""
-        return self.base
+        """Read the SysVars start address"""
+        return self.start
 
     def rd_svz(self):
         """Read the SysVars size in bytes"""
@@ -369,13 +377,13 @@ class SysVars(Vars):
 class UserVars(Vars):
     #TODO: should be one copy per user task.
     #e.g. BASE
-    def __init__(self, storage, base, size):
-        Vars.__init__(self, storage, base, size)
+    def __init__(self, storage, start, size, ptr):
+        Vars.__init__(self, storage, start, size, ptr)
 
     # functions used to implement memory mapped registers
     def rd_uv0(self):
-        """Read the UserVars base address"""
-        return self.base
+        """Read the UserVars start address"""
+        return self.start
 
     def rd_uvz(self):
         """Read the UserVars size in bytes"""
@@ -409,8 +417,9 @@ class Dictionary(Stack):
     FLAG_UNUSED    = 0x20
     FIELD_COUNT    = 0x1F # 0..31
 
-    def __init__(self, storage, base, size):
-        Stack.__init__(storage, base, size)
+    def __init__(self, storage, start, size, ptr):
+        Stack.__init__(self, storage, start, size, ptr)
+
         self.pushn(0) # first FFA entry is always zero, to mark end of search chain
         self.last_ffa = self.ptr
 
@@ -437,6 +446,7 @@ class Dictionary(Stack):
         lf = self.last_ffa
 
         # store header
+        self.defining_ffa = self.ptr
         self.allot(1)
         self.writeb(ff)
         for ch in nf:
@@ -462,12 +472,15 @@ class Dictionary(Stack):
     def finished(self):
         """Mark the most recently used dictionary record as finished/available"""
         # get FFA
-        growth = self.ptr - self.last_ffa
         # clear 'defining' bit
-        ff = self.getb(-growth)
-        self.setb(-growth, ff & ~ Dictionary.FLAG_DEFINING)
+        if self.defining_ffa == None:
+            raise RuntimeError("Trying to finish an already finished dict defn at:%d", self.last_ffa)
+
+        ff = self.getb(self.defining_ffa)
+        self.setb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
         # advance end pointer
-        self.last_ffa = self.ptr
+        self.last_ffa = self.defining_ffa
+        self.defining_ffa = None
 
     def allot(self, size=2):
         """Allot some extra space in the presently defining dictionary record"""
@@ -549,7 +562,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.storage.readb(ffa)
             if ff == 0:
-                return 0 # Not found # TODO: Should this be an exception?
+                raise RuntimeError("Could not find word in dict:%s", name)
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
                 # check if name in NFA matches
@@ -569,8 +582,7 @@ class Dictionary(Stack):
 
         ffa = self.find(name)
         if ffa == 0:
-            return # Nothing to delete, name not found
-            #TODO: really this should be an exception?
+            raise RuntimeError("Could not find word to forget it:%s", name)
 
         # ffa is the FFA of the first item to delete (the new dict ptr)
         prev = self.prev(ffa) # addr of FFA of the item we want to be the last defined item
@@ -586,8 +598,8 @@ class Dictionary(Stack):
     # functions for memory mapped registers
 
     def rd_d0(self):
-        """Read the dictionary base address"""
-        return self.base
+        """Read the dictionary start address"""
+        return self.start
 
     def rd_h(self):
         """Read the present H value"""
@@ -600,13 +612,13 @@ class Dictionary(Stack):
 
 class DataStack(Stack):
     """A stack for pushing application data on to """
-    def __init__(self, mem, base, size):
-        Stack.__init__(self, mem, base, size, grows=1, incwrite=False)
+    def __init__(self, mem, start, size, ptr):
+        Stack.__init__(self, mem, start, size, ptr, grows=1, incwrite=False)
 
     # functions to allow memory mapped registers
     def rd_s0(self):
-        """Read the DataStack base address"""
-        return self.base
+        """Read the DataStack start address"""
+        return self.start
 
     def rd_sz(self):
         """Read the DataStack size in bytes"""
@@ -623,13 +635,13 @@ class DataStack(Stack):
 
 class ReturnStack(Stack):
     """A stack for high level forth call/return addresses"""
-    def __init__(self, mem, base, size):
-        Stack.__init__(self, mem, base, size, grows=-1, incwrite=False)
+    def __init__(self, mem, start, size, ptr):
+        Stack.__init__(self, mem, start, size, ptr, grows=-1, incwrite=False)
 
     # functions to allow memory mapped registers
     def rd_r0(self):
-        """Read the ReturnStack base address"""
-        return self.base
+        """Read the ReturnStack start address"""
+        return self.start
 
     def rd_rz(self):
         """Read the ReturnStack size in bytes"""
@@ -647,19 +659,19 @@ class ReturnStack(Stack):
 #----- BUFFERS ----------------------------------------------------------------
 
 #class TextInputBuffer():
-#    def __init__(self, mem, base, ptr, limit):
+#    def __init__(self, mem, start, size, ptr, limit):
 #        pass
 #    # addr, erase, read, write, advance, retard
 
 
 #class Pad():
-#    def __init__(self, mem, base, ptr, limit):
+#    def __init__(self, mem, start, size, ptr, limit):
 #        pass
 #    # addr, clear, read, write, advance, retard, reset, move?
 
 
 #class BlockBuffers():
-#    def __init__(self, mem, base, ptr, limit):
+#    def __init__(self, mem, start, size, ptr, limit):
 #        pass
 #    # addr, read, write, erase
 #    # cache index
@@ -716,56 +728,60 @@ class Machine():
         self.build_ds()       # builds memory abstractions
         self.build_dispatch() # builds magic routine/register dispatch table
         self.build_native()   # puts native routines/registers into DICT
+        return self
 
     def build_ds(self):
         """Build datastructures in memory"""
+
         MEM_SIZE  = 65536
+        #          base,             dirn/size
         SV_MEM   = (0,               +1024      )
-        #EL_MEM   = (1024,            +0         )
+        EL_MEM   = (1024,            +0         )
         DICT_MEM = (1024,            +1024      )
-        #PAD_MEM  = (2048,            +80        )
+        PAD_MEM  = (2048,            +80        )
         DS_MEM   = (8192,            -1024      ) # grows downwards
-        #TIB_MEM  = (8192,            +80        )
+        TIB_MEM  = (8192,            +80        )
         RS_MEM   = (16384,           -1024      ) # grows downwards
-        #UV_MEM   = (16384,           +1024      )
-        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+        UV_MEM   = (16384,           +1024      )
+        BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
         self.mem = Memory(mem)
 
         #   init sysvars
-        svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
-        self.sv = SysVars(self.mem, svbase, svptr, svlimit)
+        svstart, svsize, svptr = self.mem.region("SV", SV_MEM)
+        self.sv = SysVars(self.mem, svstart, svsize, ptr=svptr)
 
         #   init elective space??
-        #elbase, elptr, ellimit = self.region("EL", at=, size=)
+        #elstart, elsize, elptr  = self.region("EL", at=, EV_MEM)
+        #self.el = Elective(self.mem, elstart, elsize, ptr=elptr)
 
         #   init dictionary
-        dictbase, dictptr, dictlimit = self.mem.region("DICT", DICT_MEM)
-        self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
+        dictstart, dictsize, dictptr = self.mem.region("DICT", DICT_MEM)
+        self.dict = Dictionary(self.mem, dictstart, dictsize, ptr=dictptr)
 
         #   init pad
-        #padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
-        #self.pad = Pad(self.mem, padbase, padptr, padlimit)
+        #padstart, padsize, padptr = self.mem.region("PAD", PAD_MEM)
+        #self.pad = Pad(self.mem, padstart, padptr, padsize, ptr=padptr)
 
         #   init data stack
-        dsbase, dsptr, dslimit = self.mem.region("DS", DS_MEM)
-        self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
+        dsstart, dssize, dsptr = self.mem.region("DS", DS_MEM)
+        self.ds = DataStack(self.mem, dsstart, dssize, ptr=dsptr)
 
         #   init text input buffer
-        #tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
-        #self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
+        #tibstart, tibsize, tibptr = self.mem.region("TIB", TIB_MEM)
+        #self.tib = TextInputBuffer(self.mem, tibstart, tibsize, ptr=tibptr)
 
         #   init return stack
-        rsbase, rsptr, rslimit = self.mem.region("RS", RS_MEM)
-        self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
+        rsstart, rssize, rsptr = self.mem.region("RS", RS_MEM)
+        self.rs = ReturnStack(self.mem, rsstart, rssize, ptr=rsptr)
 
         #   init user variables (BASE, S0,...)
-        #uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
-        #self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
+        #uvstart, uvsize, uvptr = self.mem.region("UV", UV_MEM)
+        #self.uv = UserVars(self.mem, uvstart, uvsize, ptr=uvptr)
 
         #   init block buffers
-        #bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
-        #self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
+        #bbstart, bbsize, bbptr = self.mem.region("BB", BB_MEM)
+        #self.bb = BlockBuffers(self.mem, bbstart, bbsize, ptr=bbptr)
 
         self.mem.show_map()
 
@@ -823,13 +839,13 @@ class Machine():
             ("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
 
             # SYSTEM VARS registers
-            # base and ptr for sys vars (SV0, SVP)
+            # start and ptr for sys vars (SV0, SVP)
 
             # USER VARS registers
-            # base and ptr for user vars (UV0, UVP)
+            # start and ptr for user vars (UV0, UVP)
 
             # BLOCK BUFFER registers
-            # base and size for block buffers (BB0, BBZ)
+            # start and size for block buffers (BB0, BBZ)
 
             # MISC
             ("IP",    self.rd_ip, self.wr_ip, None),               # VAR
@@ -847,8 +863,10 @@ class Machine():
             # But this table can still be searched for addresses for internal use.
             #(" DODOES")
             #(" DOCOL")
-            (" DOCON",   None,   None,   self.n_docon),
-            (" DOVAR",   None,   None,   self.n_dovar)
+            (" DOCON",    None,   None,   self.n_docon),
+            (" DOVAR",    None,   None,   self.n_dovar),
+            (" DOLIT",    None,   None,   self.n_dolit),
+            (" EXIT",     None,   None,   self.n_exit),
             #(" NEXT")
             #(" QUIT")
             #(" BYE")
@@ -856,11 +874,10 @@ class Machine():
 
     def build_native(self):
         """Build the native dispatch table and machine"""
-        self.machine = Machine(self)
 
         #iterate through native.index and register all DICT entries for them
-        for i in range(len(self.machine.index)):
-            n = self.machine.index[i]
+        for i in range(len(self.dispatch)):
+            n = self.dispatch[i]
             name, rdfn, wrfn, execfn = n
             if name != None:
                 # only named items get appended to the DICT
@@ -868,10 +885,10 @@ class Machine():
                 # write only (not supported??)
                 # read and write (a variable)
                 if rdfn != None and wrfn == None:
-                    DOCON = self.machine.getIndex(" DOCON")
+                    DOCON = self.getIndex(" DOCON")
                     self.dict.create(nf=name, cf=DOCON, pf=[0], finish=True)
                 if rdfn != None and wrfn != None:
-                    DOVAR = self.machine.getIndex(" DOVAR")
+                    DOVAR = self.getIndex(" DOVAR")
                     self.dict.create(nf=name, cf=DOVAR, pf=[0], finish=True)
                 # other R/W combinations not created in the dict.
 
@@ -886,8 +903,40 @@ class Machine():
             n = (self.dispatch[i])[0]
             if n == name:
                 return i
-        return 0 # NOT FOUND (will be a NOP)
-        #TODO: Should this be an Exception?
+        raise RuntimeError("native function not found:%s", name)
+
+    # functions for memory mapped access to registers and routines
+
+    #TODO: byte or number?
+    def rdbyte(self, addr):
+        """Look up read address in dispatch table, and dispatch if known"""
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("reading native byte:%d %s" % (addr, name))
+            if rdfn != None:
+                return rdfn()
+        Debug.fail("read from unknown native address: %d" % addr)
+
+    #TODO: byte or number?
+    def wrbyte(self, addr, byte):
+        """Look up write address in dispatch table, and dispatch if known"""
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("writing native byte:%d %s" % (addr, name))
+            if wrfn != None:
+                wrfn(byte)
+                return
+        Debug.fail("write to unknown native address: %d" % addr)
+
+    def call(self, addr):
+        """Look up the call address in the dispatch table, and dispatch if known"""
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("calling native fn:%d %s" % (addr, name))
+            if execfn != None:
+                execfn()
+                return
+        Debug.fail("call to unknown native address: %d" % addr)
 
     # functions for memory mapped registers
 
@@ -1111,40 +1160,6 @@ class Machine():
         #TODO: self.disk.write(1024*n, self.mem, a, 1024)
         Debug.unimplemented("n_wblk")
 
-    # functions for memory mapped access to registers and routines
-
-    #TODO: byte or number?
-    def rdbyte(self, addr):
-        """Look up read address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("reading native byte:%d %s" % (addr, name))
-            if rdfn != None:
-                return rdfn()
-        Debug.fail("read from unknown native address: %d" % addr)
-
-    #TODO: byte or number?
-    def wrbyte(self, addr, byte):
-        """Look up write address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("writing native byte:%d %s" % (addr, name))
-            if wrfn != None:
-                wrfn(byte)
-                return
-        Debug.fail("write to unknown native address: %d" % addr)
-
-    def call(self, addr):
-        """Look up the call address in the dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("calling native fn:%d %s" % (addr, name))
-            if execfn != None:
-                execfn()
-                return
-        Debug.fail("call to unknown native address: %d" % addr)
-
-
 
     #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
 
@@ -1190,9 +1205,10 @@ class Machine():
 
 class Forth:
     def boot(self):
-        self.machine = Machine().boot()
-
         self.outs = Output() #TODO: Forth or Machine, who owns the streams??
+
+        self.machine = Machine(self).boot()
+
         #TODO how do ins and outs streams get redirected?
         #e.g. printer functions redirect outs to printing routines
         #e.g. input stream can come from a disk block when using LOAD
@@ -1210,15 +1226,15 @@ class Forth:
 
         # Build the PF entries (all should contain CFAs)
         plist  = []
-        DOLIT  = self.machine.dict.ffa2cfa(self.dict.find("DOLIT"))
+        DOLIT  = self.machine.dict.ffa2cfa(self.machine.dict.find(" DOLIT"))
         EXIT   = self.machine.getIndex(" EXIT")
         DODOES = self.machine.getIndex(" DODOES")
 
         for word in args:
             if type(word) == str:
                 # It's a word, so lookup it's address in DICT
-                ffa = self.dict.find(word)
-                cfa = self.dict.ffa2cfa(ffa)
+                ffa = self.machine.dict.find(word)
+                cfa = self.machine.dict.ffa2cfa(ffa)
                 plist.append(cfa)
             elif type(word) == int:
                 # It's a number, so insert a DOLIT
@@ -1241,7 +1257,7 @@ class Forth:
 
         # Push PFA of word to execute on stack (equivalent to TICK)
         word_ffa = self.machine.dict.find(word)
-        word_pfa = self.machine.ffa2pfa(word_ffa)
+        word_pfa = self.machine.dict.ffa2pfa(word_ffa)
         self.machine.ds.pushn(word_pfa)
 
         # Execute word who's PFA is on the stack (actually, EXECUTE)

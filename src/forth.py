@@ -29,6 +29,11 @@ class Debug():
         Debug.out("warning", msg)
 
     @staticmethod
+    def unimplemented(msg):
+        """Display a warning about an unimplemented feature"""
+        Debug.out("unimplemented", msg)
+
+    @staticmethod
     def fail(msg):
         """Display a failure message on stdout and stop the progra"""
         Debug.out("fail", msg)
@@ -507,6 +512,9 @@ class Dictionary(Stack):
         """relative skip from cfa to pfa"""
         return cfa+2
 
+    def pfa2cfa(self, pfa):
+        return pfa-2 # back skip to cfa
+
     def ffa2nfa(self, ffa):
         """relative skip from ffa to nfa"""
         return ffa+1
@@ -689,10 +697,10 @@ class Output():
 #        pass
 #
 #    def read(self, diskaddr, mem, memaddr, size):
-#        Debug.warning("disk_rd not implemented")
+#        Debug.unimplemented("disk_rd")
 #
 #    def write(self, diskaddr, mem, memaddr, size);
-#        Debug.warning("disk_wr not implemented")
+#        Debug.unimplemented("disk_wr")
 
 
 #----- FORTH MACHINE INNER INTERPRETER ----------------------------------------
@@ -701,7 +709,6 @@ class Machine():
     """The inner-interpreter of the lower level/native FORTH words"""
     def __init__(self, parent):
         self.ip     = 0
-        #self.parent = parent #TODO: might not need this
         self.outs   = parent.outs
         #self.ins   = parent.ins # TODO: Will need this eventually
 
@@ -905,6 +912,7 @@ class Machine():
         #CFA+2 is the PFA for it, and that parameter is the constant value
         #which needs to be pushed onto the DS
         pass #TODO:
+        Debug.unimplemented("n_docon")
 
     def n_dovar(self):
         """Reads the address of the variable, i.e. PFA, and pushes onto DS"""
@@ -913,6 +921,7 @@ class Machine():
         #CFA+2 is the PFA for it, and that parameter is the variable address
         #which needs to be pushed onto the DS
         pass # TODO:
+        Debug.unimplemented("n_dovar")
 
     def n_store(self):
         """: n_STORE   ( n a -- )
@@ -1023,16 +1032,19 @@ class Machine():
         """: n_FLAGS   ( -- )
         # { mem[FLAGS]=flags } ;"""
         pass # TODO:
+        Debug.unimplemented("n_flags")
 
     def n_keyq(self):
         """: n_KEYQ   ( -- ?)
         { ds_push8(kbhit) } ;"""
         pass #TODO: knit to Input()
+        Debug.unimplemented("n_keyq")
 
     def n_key(self):
         """: n_KEY   ( -- c)
         { ds_push8(getch) } ;"""
         pass #TODO: knit to Input()
+        Debug.unimplemented("n_key")
 
     def n_emit(self):
         """: n_EMIT   ( c -- )
@@ -1045,6 +1057,7 @@ class Machine():
         { printnum(ds_pop16) } ;"""
         pass#TODO: knit to Output()
         #TODO need a number formatter?
+        Debug.unimplemented("n_printtos")
 
     def n_rdpfa(self):
         """: n_RDPFA   ( a-pfa -- n)
@@ -1088,6 +1101,7 @@ class Machine():
         a = self.ds.popn()
         n = self.ds.popn()
         #TODO: b = self.disk.read(1024*n, self.mem, a, 1024)
+        Debug.unimplemented("n_rblk")
 
     def n_wblk(self):
         """: n_WBLK  ( n a -- )
@@ -1095,6 +1109,7 @@ class Machine():
         a = self.ds.popn()
         n = self.ds.popn()
         #TODO: self.disk.write(1024*n, self.mem, a, 1024)
+        Debug.unimplemented("n_wblk")
 
     # functions for memory mapped access to registers and routines
 
@@ -1132,64 +1147,43 @@ class Machine():
 
 
     #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
-    #####HERE#####
+
     def n_execute(self):
-        #TODO:see notes below, check calling style of EXECUTE first.
-        #TODO: implement ( FFA --) EXECUTE - define in Machine()
-        #ffa  = f.ds.popn()
-        #pfa  = f.dict.ffa2pfa(ffa)
-        #cfa  = f.dict.ffa2cfa(ffa)
-        #cf   = f.mem.readn(cfa)
-        #f.ip = pfa
-        #f.machine.call(cf)
-        pass
+        """EXECUTE a high level address"""
+        # ( pfa -- )
 
-    #####HERE#####
+        pfa = self.ds.popn()
+        # Don't assume DODOES, just in case it is a low level word!
+        cfa = self.dict.pfa2cfa(pfa)
+        cf = self.mem.readn(cfa)
+        self.ip = pfa
+        self.machine.call(cf)
+
     def n_dodoes(self):
-        """: n_DODOES   ( -- )
-        { while True: n_NEXT} ; / beware of python stack on return? """
+        """Repeatedly fetch and execute CFA's until EXIT"""
         while True:
-            self.n_next()
-
-    def n_dodoes(self):
-        #TODO: DODOES - define in Machine()
-        #while True:
-        #    ip = f.ip
-        #    f.rs.pushn(f.ip+2)
-        #    # ip points to the cfa of the word to execute
-        #    cfa = f.mem[ip]
-        #    cf = f.mem.readn(cfa)
-        #    f.machine.call(cf)
-        pass
+            #NEXT
+            self.rs.pushn(self.ip+2)
+            # ip points to the cfa of the word to execute
+            cfa = self.mem[self.ip]
+            cf = self.mem.readn(cfa)
+            self.machine.call(cf)
 
     def n_dolit(self):
-        #TODO: implement DOLIT - define in Machine()
-        #ip = f.rs.popn()
-        #number = f.mem.readn(ip)
-        #f.ip += 2
-        #return
-        pass
+        """Process an inline 16 bit literal and put it on DS"""
+        #: n_DOLIT  ( -- )
+        #{ip=rs_pop; n=mem_readn(ip); ds.pushn(n) ip+=2}
 
-    #TODO: Is this just part of the while True loop in DODOES?
-    def n_next(self):
-        """: n_NEXT   ( -- )
-        { cfa=mem[ip]; ip+=2; call(cfa) } ;"""
-        cfa = self.mem[self.ip]
+        self.ip = self.rs.popn()
+        n = self.mem.readn(self.ip)
+        self.ds.pushn(n)
         self.ip += 2
-        self.call(cfa)
 
-    #####HERE#####
     def n_exit(self):
+        """EXIT word - basically a high level Forth return"""
         """: n_EXIT   ( -- )
         { ip=rs_pop() } ;"""
         self.ip = self.rs.popn()
-
-    def n_exit(self):
-        #TODO: implement EXIT - define in Machine()
-        #r = f.rs.popn()
-        #f.ip = r
-        #return #NEXT
-        pass
 
 
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
@@ -1207,8 +1201,55 @@ class Forth:
         return self
 
 
-    #TODO: high level forth actions
-    #TODO: in particular, need a helper for create() and execute()
+    # High level forth actions
+
+    def create_word(self, name, *args):
+        """Create a new high level dictionary entry containing a list of words.
+             Note this is not a full defining compiler, just a word list
+             that also understands numbers."""
+
+        # Build the PF entries (all should contain CFAs)
+        plist  = []
+        DOLIT  = self.machine.dict.ffa2cfa(self.dict.find("DOLIT"))
+        EXIT   = self.machine.getIndex(" EXIT")
+        DODOES = self.machine.getIndex(" DODOES")
+
+        for word in args:
+            if type(word) == str:
+                # It's a word, so lookup it's address in DICT
+                ffa = self.dict.find(word)
+                cfa = self.dict.ffa2cfa(ffa)
+                plist.append(cfa)
+            elif type(word) == int:
+                # It's a number, so insert a DOLIT
+                plist.append(DOLIT)
+                plist.append(word)
+        plist.append(EXIT)
+
+        # Now create the dictionary entry
+        # CF=DODOES is implied for all high level word definitions
+
+        self.machine.dict.create(
+            nf=name,
+            cf=DODOES,
+            pf=plist,
+            finish=True
+        )
+
+    def execute_word(self, word):
+        """Equivalent to ' word EXECUTE"""
+
+        # Push PFA of word to execute on stack (equivalent to TICK)
+        word_ffa = self.machine.dict.find(word)
+        word_pfa = self.machine.ffa2pfa(word_ffa)
+        self.machine.ds.pushn(word_pfa)
+
+        # Execute word who's PFA is on the stack (actually, EXECUTE)
+        exec_ffa = self.machine.dict.find("EXECUTE")
+        exec_cfa = self.machine.dict.ffa2cfa(exec_ffa)
+        exec_cf  = self.machine.mem.readn(exec_cfa)
+        self.machine.call(exec_cf)
+
 
     #word parser      - parses a word from an input stream
     #output formatter - formats numbers etc
@@ -1224,55 +1265,9 @@ class Forth:
 def test_star():
     f = Forth().boot()
 
-    #TODO: Forth() needs high level redirector for create
-    #as this is a high level create, it will always have DODOES inside it.
-    #but it will need a helper for literals such as Forth.Literal(42) that does
-    #the actual work of coding in a literal.
-
-    #DODOES is implied for a high level word definition
-    # numbers automatically converted to DOLIT
-    # strings automatically looked up in dictionary to get their CFA
-    # EXIT automatically added at end.
-
-    #   f.create('STAR', [42, "EMIT"])
-    # or even using varargs:
-    #   f.create("STAR", 42, "EMIT")
-    # which is then not far away from the real word parser, which can be added
-    # when the full interpreter is written.
-
-    # define word to be tested
-    # : STAR 42 EMIT ;
-    f.machine.dict.create(
-        nf='STAR',
-        cf=f.machine.getIndex(" DODOES"),
-        pf=[
-            f.machine.dict.ffa2cfa(f.dict.find("DOLIT")),
-            42,
-            f.machine.dict.ffa1cfa(f.dict.find("EMIT")),
-            f.machine.getIndex(" EXIT")
-        ],
-        finish=True
-    )
-
-
-    #TODO: does 'tick' return FFA, CFA?? #####HERE#####
-    #TODO: does EXECUTE take addr on DS, or name in input stream?
-
-    #TODO: execute the STAR word: ' STAR EXECUTE or: STAR EXECUTE
-    #star_ffa = f.machine.dict.find("STAR")
-    #f.machine.ds.pushn(star_ffa)
-
-    #TODO: Forth() needs high level redirector for TICK and EXECUTE???
-
-    #exec_ffa = f.machine.dict.find("EXECUTE")
-    #exec_cfa = f.machine.dict.ffa2cfa(exec_ffa)
-    #exec_cf  = f.machine.mem.readn(exec_cfa)
-    #f.machine.call(exec_cf)
-
-    # Helper could be
-    # f.execute("STAR")
-    # automatically gets address of STAR and turns into CFA
-    # automatically calls EXECUTE on the CFA.
+    # TEST: output a * on stdout
+    f.create_word("STAR", 42, "EMIT")
+    f.execute_word("STAR")
 
 
 if __name__ == "__main__":

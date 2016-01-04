@@ -4,6 +4,7 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
@@ -680,7 +681,7 @@ class Output():
         print(ch)
 
 
-# Probably an interface to reading and writing blocks in a nominated
+# An interface to reading and writing blocks in a nominated
 # disk file image.
 
 #class Disk():
@@ -694,26 +695,72 @@ class Output():
 #        Debug.warning("disk_wr not implemented")
 
 
-#----- MACHINE ----------------------------------------------------------------
+#----- FORTH MACHINE INNER INTERPRETER ----------------------------------------
 
 class Machine():
-    """A native machine simulation, enough to attach ALU and stack ops to"""
+    """The inner-interpreter of the lower level/native FORTH words"""
     def __init__(self, parent):
         self.ip     = 0
-        #TODO lots of parent references here, is this right?
-        #or do we need to merge Forth() and Machine() into one class?
-        self.parent = parent
-        self.mem    = parent.mem
-        self.sv     = parent.sv
-        #TODO: self.uv = parent.uv #user vars (task specific offset?)
-        self.dict   = parent.dict
-        self.ds     = parent.ds
-        self.rs     = parent.rs
-        self.out    = parent.out
-        #TODO:input stream
+        #self.parent = parent #TODO: might not need this
+        self.outs   = parent.outs
+        #self.ins   = parent.ins # TODO: Will need this eventually
 
+    def boot(self):
+        self.build_ds()       # builds memory abstractions
+        self.build_dispatch() # builds magic routine/register dispatch table
+        self.build_native()   # puts native routines/registers into DICT
 
-        self.build_dispatch()
+    def build_ds(self):
+        """Build datastructures in memory"""
+        MEM_SIZE  = 65536
+        SV_MEM   = (0,               +1024      )
+        #EL_MEM   = (1024,            +0         )
+        DICT_MEM = (1024,            +1024      )
+        #PAD_MEM  = (2048,            +80        )
+        DS_MEM   = (8192,            -1024      ) # grows downwards
+        #TIB_MEM  = (8192,            +80        )
+        RS_MEM   = (16384,           -1024      ) # grows downwards
+        #UV_MEM   = (16384,           +1024      )
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+
+        self.mem = Memory(mem)
+
+        #   init sysvars
+        svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
+        self.sv = SysVars(self.mem, svbase, svptr, svlimit)
+
+        #   init elective space??
+        #elbase, elptr, ellimit = self.region("EL", at=, size=)
+
+        #   init dictionary
+        dictbase, dictptr, dictlimit = self.mem.region("DICT", DICT_MEM)
+        self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
+
+        #   init pad
+        #padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
+        #self.pad = Pad(self.mem, padbase, padptr, padlimit)
+
+        #   init data stack
+        dsbase, dsptr, dslimit = self.mem.region("DS", DS_MEM)
+        self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
+
+        #   init text input buffer
+        #tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
+        #self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
+
+        #   init return stack
+        rsbase, rsptr, rslimit = self.mem.region("RS", RS_MEM)
+        self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
+
+        #   init user variables (BASE, S0,...)
+        #uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
+        #self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
+
+        #   init block buffers
+        #bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
+        #self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
+
+        self.mem.show_map()
 
     def build_dispatch(self):
         """Build the dispatch table"""
@@ -799,6 +846,31 @@ class Machine():
             #(" QUIT")
             #(" BYE")
         ]
+
+    def build_native(self):
+        """Build the native dispatch table and machine"""
+        self.machine = Machine(self)
+
+        #iterate through native.index and register all DICT entries for them
+        for i in range(len(self.machine.index)):
+            n = self.machine.index[i]
+            name, rdfn, wrfn, execfn = n
+            if name != None:
+                # only named items get appended to the DICT
+                # read only (a constant)
+                # write only (not supported??)
+                # read and write (a variable)
+                if rdfn != None and wrfn == None:
+                    DOCON = self.machine.getIndex(" DOCON")
+                    self.dict.create(nf=name, cf=DOCON, pf=[0], finish=True)
+                if rdfn != None and wrfn != None:
+                    DOVAR = self.machine.getIndex(" DOVAR")
+                    self.dict.create(nf=name, cf=DOVAR, pf=[0], finish=True)
+                # other R/W combinations not created in the dict.
+
+                if execfn != None:
+                    # It's a native code call, with no parameters
+                    self.dict.create(nf=name, cf=i, pf=[], finish=True)
 
     def getIndex(self, name):
         """Get the index address of a native routine.
@@ -966,7 +1038,7 @@ class Machine():
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
         ch = self.ds.popb()
-        self.out.writech(ch)
+        self.outs.writech(ch)
 
     def n_printtos(self):
         """: n_PRINTTOS ( n --)
@@ -1010,24 +1082,6 @@ class Machine():
         else:
             self.ip += 2
 
-    def n_next(self):
-        """: n_NEXT   ( -- )
-        { cfa=mem[ip]; ip+=2; call(cfa) } ;"""
-        cfa = self.mem[self.ip]
-        self.ip += 2
-        self.call(cfa)
-
-    def n_exit(self):
-        """: n_EXIT   ( -- )
-        { ip=rs_pop() } ;"""
-        self.ip = self.rs.popn()
-
-    def n_dodoes(self):
-        """: n_DODOES   ( -- )
-        { while True: n_NEXT} ; / beware of python stack on return? """
-        while True:
-            self.n_next()
-
     def n_rblk(self):
         """: n_RBLK  ( n a -- )
         { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;"""
@@ -1042,8 +1096,28 @@ class Machine():
         n = self.ds.popn()
         #TODO: self.disk.write(1024*n, self.mem, a, 1024)
 
-
     # functions for memory mapped access to registers and routines
+
+    #TODO: byte or number?
+    def rdbyte(self, addr):
+        """Look up read address in dispatch table, and dispatch if known"""
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("reading native byte:%d %s" % (addr, name))
+            if rdfn != None:
+                return rdfn()
+        Debug.fail("read from unknown native address: %d" % addr)
+
+    #TODO: byte or number?
+    def wrbyte(self, addr, byte):
+        """Look up write address in dispatch table, and dispatch if known"""
+        if addr < len(self.dispatch):
+            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            Debug.trace("writing native byte:%d %s" % (addr, name))
+            if wrfn != None:
+                wrfn(byte)
+                return
+        Debug.fail("write to unknown native address: %d" % addr)
 
     def call(self, addr):
         """Look up the call address in the dispatch table, and dispatch if known"""
@@ -1055,135 +1129,153 @@ class Machine():
                 return
         Debug.fail("call to unknown native address: %d" % addr)
 
-    def rdbyte(self, addr):
-        """Look up read address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("reading native byte:%d %s" % (addr, name))
-            if rdfn != None:
-                return rdfn()
-        Debug.fail("read from unknown native address: %d" % addr)
-
-    def wrbyte(self, addr, byte):
-        """Look up write address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("writing native byte:%d %s" % (addr, name))
-            if wrfn != None:
-                wrfn(byte)
-                return
-        Debug.fail("write to unknown native address: %d" % addr)
 
 
-#----- FORTH CONTEXT ----------------------------------------------------------
+    #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
+    #####HERE#####
+    def n_execute(self):
+        #TODO:see notes below, check calling style of EXECUTE first.
+        #TODO: implement ( FFA --) EXECUTE - define in Machine()
+        #ffa  = f.ds.popn()
+        #pfa  = f.dict.ffa2pfa(ffa)
+        #cfa  = f.dict.ffa2cfa(ffa)
+        #cf   = f.mem.readn(cfa)
+        #f.ip = pfa
+        #f.machine.call(cf)
+        pass
+
+    #####HERE#####
+    def n_dodoes(self):
+        """: n_DODOES   ( -- )
+        { while True: n_NEXT} ; / beware of python stack on return? """
+        while True:
+            self.n_next()
+
+    def n_dodoes(self):
+        #TODO: DODOES - define in Machine()
+        #while True:
+        #    ip = f.ip
+        #    f.rs.pushn(f.ip+2)
+        #    # ip points to the cfa of the word to execute
+        #    cfa = f.mem[ip]
+        #    cf = f.mem.readn(cfa)
+        #    f.machine.call(cf)
+        pass
+
+    def n_dolit(self):
+        #TODO: implement DOLIT - define in Machine()
+        #ip = f.rs.popn()
+        #number = f.mem.readn(ip)
+        #f.ip += 2
+        #return
+        pass
+
+    #TODO: Is this just part of the while True loop in DODOES?
+    def n_next(self):
+        """: n_NEXT   ( -- )
+        { cfa=mem[ip]; ip+=2; call(cfa) } ;"""
+        cfa = self.mem[self.ip]
+        self.ip += 2
+        self.call(cfa)
+
+    #####HERE#####
+    def n_exit(self):
+        """: n_EXIT   ( -- )
+        { ip=rs_pop() } ;"""
+        self.ip = self.rs.popn()
+
+    def n_exit(self):
+        #TODO: implement EXIT - define in Machine()
+        #r = f.rs.popn()
+        #f.ip = r
+        #return #NEXT
+        pass
+
+
+#----- FORTH OUTER INTERPRETER ------------------------------------------------
 
 class Forth:
-    """The Forth language - knits everything together into one helpful object"""
     def boot(self):
-        self.build_ds()
-        self.build_native()
-        self.out = Output()
+        self.machine = Machine().boot()
+
+        self.outs = Output() #TODO: Forth or Machine, who owns the streams??
+        #TODO how do ins and outs streams get redirected?
+        #e.g. printer functions redirect outs to printing routines
+        #e.g. input stream can come from a disk block when using LOAD
+        #They are both encapsulated as classes, so they can just be
+        #re-mapped by the appropriate routines, but who are their parent?
         return self
 
-    def build_ds(self):
-        """Build datastructures in memory"""
-        MEM_SIZE  = 65536
-        SV_MEM   = (0,               +1024      )
-        #EL_MEM   = (1024,            +0         )
-        DICT_MEM = (1024,            +1024      )
-        #PAD_MEM  = (2048,            +80        )
-        DS_MEM   = (8192,            -1024      ) # grows downwards
-        #TIB_MEM  = (8192,            +80        )
-        RS_MEM   = (16384,           -1024      ) # grows downwards
-        #UV_MEM   = (16384,           +1024      )
-        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
-        self.mem = Memory(mem)
+    #TODO: high level forth actions
+    #TODO: in particular, need a helper for create() and execute()
 
-        #   init sysvars
-        svbase, svptr, svlimit = self.mem.region("SV", SV_MEM)
-        self.sv = SysVars(self.mem, svbase, svptr, svlimit)
-
-        #   init elective space??
-        #elbase, elptr, ellimit = self.region("EL", at=, size=)
-
-        #   init dictionary
-        dictbase, dictptr, dictlimit = self.mem.region("DICT", DICT_MEM)
-        self.dict = Dictionary(self.mem, dictbase, dictptr, dictlimit)
-
-        #   init pad
-        #padbase, padptr, padlimit = self.mem.region("PAD", PAD_MEM)
-        #self.pad = Pad(self.mem, padbase, padptr, padlimit)
-
-        #   init data stack
-        dsbase, dsptr, dslimit = self.mem.region("DS", DS_MEM)
-        self.ds = DataStack(self.mem, dsbase, dsptr, dslimit)
-
-        #   init text input buffer
-        #tibbase, tibptr, tiblimit = self.mem.region("TIB", TIB_MEM)
-        #self.tib = TextInputBuffer(self.mem, tibbase, tibptr, tiblimit)
-
-        #   init return stack
-        rsbase, rsptr, rslimit = self.mem.region("RS", RS_MEM)
-        self.rs = ReturnStack(self.mem, rsbase, rsptr, rslimit)
-
-        #   init user variables (BASE, S0,...)
-        #uvbase, uvptr, uvlimit = self.mem.region("UV", UV_MEM)
-        #self.uv = UserVars(self.mem, uvbase, uvptr, uvlimit)
-
-        #   init block buffers
-        #bbbase, bbptr, bblimit = self.mem.region("BB", BB_MEM)
-        #self.bb = BlockBuffers(self.mem, bbbase, bbptr, bblimit)
-
-        self.mem.show_map()
-
-
-    def build_native(self):
-        """Build the native dispatch table and machine"""
-        self.machine = Machine(self)
-
-        #iterate through native.index and register all DICT entries for them
-        for i in range(len(self.machine.index)):
-            n = self.machine.index[i]
-            name, rdfn, wrfn, execfn = n
-            if name != None:
-                # only named items get appended to the DICT
-                # read only (a constant)
-                # write only (not supported??)
-                # read and write (a variable)
-                if rdfn != None and wrfn == None:
-                    DOCON = self.machine.getIndex(" DOCON")
-                    self.dict.create(nf=name, cf=DOCON, pf=[0], finish=True)
-                if rdfn != None and wrfn != None:
-                    DOVAR = self.machine.getIndex(" DOVAR")
-                    self.dict.create(nf=name, cf=DOVAR, pf=[0], finish=True)
-                # other R/W combinations not created in the dict.
-
-                if execfn != None:
-                    # It's a native code call, with no parameters
-                    self.dict.create(nf=name, cf=i, pf=[], finish=True)
-
-    #def run(self):
-    #    #NOTE: can boot() then clone(), and then customise and run() multiple clones
-    #    # optionally load app?
-    #    # run main interpreter loop (optionally in a thread?)
-    #    # only gets here when see a 'BYE' command.
-    #    Debug.warning("No interpreter yet")
+    #word parser      - parses a word from an input stream
+    #output formatter - formats numbers etc
+    #interpreter      - interprets words on an input stream
+    #compiler         - compiles new high level definitions into the dictionary
+    #assembler        - compiles new inline assembly code into the dictionary
+    #editor           - text editor
+    #language         - outer layers of language support
 
 
 #----- RUNNER -----------------------------------------------------------------
 
-def test():
+def test_star():
     f = Forth().boot()
-    #TODO: write a 1st unit test, perhaps a series of words to interpret?
-    #i.e. could hand define a word in the dict and then execute it to
-    #see if it has the correct side effect?
 
-    # unittest would be easier if various data structures had test interfaces
-    # for mocking etc?
-    #f.run()
+    #TODO: Forth() needs high level redirector for create
+    #as this is a high level create, it will always have DODOES inside it.
+    #but it will need a helper for literals such as Forth.Literal(42) that does
+    #the actual work of coding in a literal.
+
+    #DODOES is implied for a high level word definition
+    # numbers automatically converted to DOLIT
+    # strings automatically looked up in dictionary to get their CFA
+    # EXIT automatically added at end.
+
+    #   f.create('STAR', [42, "EMIT"])
+    # or even using varargs:
+    #   f.create("STAR", 42, "EMIT")
+    # which is then not far away from the real word parser, which can be added
+    # when the full interpreter is written.
+
+    # define word to be tested
+    # : STAR 42 EMIT ;
+    f.machine.dict.create(
+        nf='STAR',
+        cf=f.machine.getIndex(" DODOES"),
+        pf=[
+            f.machine.dict.ffa2cfa(f.dict.find("DOLIT")),
+            42,
+            f.machine.dict.ffa1cfa(f.dict.find("EMIT")),
+            f.machine.getIndex(" EXIT")
+        ],
+        finish=True
+    )
+
+
+    #TODO: does 'tick' return FFA, CFA?? #####HERE#####
+    #TODO: does EXECUTE take addr on DS, or name in input stream?
+
+    #TODO: execute the STAR word: ' STAR EXECUTE or: STAR EXECUTE
+    #star_ffa = f.machine.dict.find("STAR")
+    #f.machine.ds.pushn(star_ffa)
+
+    #TODO: Forth() needs high level redirector for TICK and EXECUTE???
+
+    #exec_ffa = f.machine.dict.find("EXECUTE")
+    #exec_cfa = f.machine.dict.ffa2cfa(exec_ffa)
+    #exec_cf  = f.machine.mem.readn(exec_cfa)
+    #f.machine.call(exec_cf)
+
+    # Helper could be
+    # f.execute("STAR")
+    # automatically gets address of STAR and turns into CFA
+    # automatically calls EXECUTE on the CFA.
+
 
 if __name__ == "__main__":
-    test()
+    test_star()
 
 # END

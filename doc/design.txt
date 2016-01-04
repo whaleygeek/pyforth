@@ -27,9 +27,9 @@ PF  ffa2cfa(find(("DOLIT"))
 i.e. print a star.
 
 - hand-define STAR in dict
-- implement DODOES  # loops through all PFA cells and EXECUTE's their words
+- implement EXECUTE # find word in dict, FFA2CFA, IP=PFA, call it's CFA
+- implement DODOES  # adds 2 to IP, push IP to RS, call CFA pointed to by IP-2
                     # DODOES probably terminates when RS is empty and it tries to pop again.
-- implement EXECUTE # adds 2 to IP, push IP to RS, call at CFA pointed to by IP-2
 - implement DOLIT   # pushes next number in thread on stack, advances IP
 - implement EXIT    # pops RS into IP and does NEXT (basically returning to DODOES loop)
                     # i.e. NEXT is probably just top of while loop in DODOES

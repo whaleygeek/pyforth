@@ -6,32 +6,45 @@ PLAN
 
 Need to define a single test case that exercises the boot and an execute
 
-This could be as simple as a manual EXECUTE on a word in the dictionary
-and testing that it does something.
+- manually define a word in the dict using code
+- manually EXECUTE that word
 
-Could even manually define a thread as a word in the dictionary like this:
-: HELLO 1 1 + . ;
+manually define a thread as a word in the dictionary like this:
+emitting a character is more basic than 1+1
+: HELLO 42 EMIT ;
 
-i.e. print the result of 1+1
+Definition needs to be done by hand:
+FF  0,0,0,5
+NF  STAR
+PAD 0
+LF  prev_ffa
+CF  getIndex(" DODOES")
+PF  ffa2cfa(find(("DOLIT"))
+    42
+    ffa2cfa(find("EMIT"))
+    getIndex(" NEXT")
 
-- need a place in the code where words can be manually defined.
-(would be nice if this was just a text file, but for now it could be
-a code sequence)
+i.e. print a star.
 
-- need constant '1' in dictionary
+- hand-define STAR in dict
+- implement DODOES  # loops through all PFA cells and EXECUTE's their words
+                    # DODOES probably terminates when RS is empty and it tries to pop again.
+- implement EXECUTE # adds 2 to IP, push IP to RS, call at CFA pointed to by IP-2
+- implement DOLIT   # pushes next number in thread on stack, advances IP
+- implement EXIT    # pops RS into IP and does NEXT (basically returning to DODOES loop)
+                    # i.e. NEXT is probably just top of while loop in DODOES
+\
+- write run() routine to "EXECUTE STAR"
 
-- need to implement EXECUTE
-  - decide where it starts from? Need to seed with "HELLO" when run()
-
-- write run() routine
-
-- implement Output.emit()
-
-- check native binding for "." goes to Output.emit()
-
-- Run it and see if we get '2' on stdout.
+- Run it and see if we get '*' on stdout.
 
 
+------ DEFINING MORE HIGH LEVEL WORDS -----------------------------------------
+
+Next to do is probably to come up with a mechanism to define a load of words
+in a file (this might mean we need the parser and compiler written next)
+Or is there a simple python way we could do this, without just writing
+another parser?
 
 
 ------ DODOES -----------------------------------------------------------------

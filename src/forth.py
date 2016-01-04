@@ -672,12 +672,12 @@ class ReturnStack(Stack):
 # Interface to screen output
 
 
-#class Output():
-#    def __init__(self):
-#        pass
-#
-#    def write(self, ch):
-#        print(ch)
+class Output():
+    def __init__(self):
+        pass
+
+    def writech(self, ch):
+        print(ch)
 
 
 # Probably an interface to reading and writing blocks in a nominated
@@ -700,6 +700,8 @@ class Machine():
     """A native machine simulation, enough to attach ALU and stack ops to"""
     def __init__(self, parent):
         self.ip     = 0
+        #TODO lots of parent references here, is this right?
+        #or do we need to merge Forth() and Machine() into one class?
         self.parent = parent
         self.mem    = parent.mem
         self.sv     = parent.sv
@@ -707,6 +709,9 @@ class Machine():
         self.dict   = parent.dict
         self.ds     = parent.ds
         self.rs     = parent.rs
+        self.out    = parent.out
+        #TODO:input stream
+
 
         self.build_dispatch()
 
@@ -726,13 +731,13 @@ class Machine():
             ("FETCH",  None,        None,         self.n_fetch),     # CODE
             ("STORE8", None,        None,         self.n_store8),    # CODE
             ("FETCH8", None,        None,         self.n_fetch8),    # CODE
-            ("ADD",    None,        None,         self.n_add),       # CODE
-            ("SUB",    None,        None,         self.n_sub),       # CODE
+            ("+",      None,        None,         self.n_add),       # CODE
+            ("-",      None,        None,         self.n_sub),       # CODE
             ("AND",    None,        None,         self.n_and),       # CODE
             ("OR",     None,        None,         self.n_or),        # CODE
             ("XOR",    None,        None,         self.n_xor),       # CODE
-            ("MULT",   None,        None,         self.n_mult),      # CODE
-            ("DIV",    None,        None,         self.n_div),       # CODE
+            ("*",      None,        None,         self.n_mult),      # CODE
+            ("/",      None,        None,         self.n_div),       # CODE
             ("MOD",    None,        None,         self.n_mod),       # CODE
             ("FLAGS",  None,        None,         self.n_flags),     # CODE
             ("SWAP",   None,        None,         self.ds.swap),     # CODE
@@ -747,11 +752,9 @@ class Machine():
             ("ADRUV",  None,        None,         self.n_adruv),     # CODE
             ("BRANCH", None,        None,         self.n_branch),    # CODE
             ("0BRANCH",None,        None,         self.n_0branch),   # CODE
-            ("NEXT",   None,        None,         self.n_next),      # CODE
-            ("EXIT",   None,        None,         self.n_exit),      # CODE
-            ("DODOES", None,        None,         self.n_dodoes),    # CODE
             ("RBLK",   None,        None,         self.n_rblk),      # CODE
             ("WBLK",   None,        None,         self.n_wblk),      # CODE
+            (".",      None,        None,         self.n_printtos),  # CODE
 
             # DICT registers
             ("D0",     self.dict.rd_d0, None,     None),             # CONST
@@ -962,7 +965,14 @@ class Machine():
     def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
-        pass #TODO: knit to Output()
+        ch = self.ds.popb()
+        self.out.writech(ch)
+
+    def n_printtos(self):
+        """: n_PRINTTOS ( n --)
+        { printnum(ds_pop16) } ;"""
+        pass#TODO: knit to Output()
+        #TODO need a number formatter?
 
     def n_rdpfa(self):
         """: n_RDPFA   ( a-pfa -- n)
@@ -1072,6 +1082,7 @@ class Forth:
     def boot(self):
         self.build_ds()
         self.build_native()
+        self.out = Output()
         return self
 
     def build_ds(self):

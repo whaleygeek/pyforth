@@ -534,15 +534,26 @@ class Dictionary(Stack):
     def find(self, name, ffa=None):
         """Find a word by it's name, following the chain from ffa backwards"""
         if ffa == None:
-            start = self.last_ffa
-        else:
-            start = ffa
+            ffa = self.last_ffa
 
-        #### HERE ####
-        # TODO 'start' points to an FFA
-        # test this FFA/NFA
-        pass # TODO search back through chain for name
-        # if addr==None, start searching from the last entry. Vocabularies will alter how this works?
+        while True:
+            # check if FFA is zero
+            ff = self.storage.readb(ffa)
+            if ff == 0:
+                return 0 # Not found
+            # check if still defining
+            if ff & Dictionary.FLAG_DEFINING == 0:
+                # check if name in NFA matches
+                nfa = self.ffa2nfa(ffa)
+                count = ff & Dictionary.FIELD_COUNT
+                this_name = ""
+                for i in range(count):
+                    this_name += self.storage.readb(nfa+i)
+                if this_name == name:
+                    return ffa # FOUND
+
+            # Still definining, or did not match, move to previous entry
+            ffa = self.prev(ffa)
 
     def forget(self, name):
         pass # TODO get addr of name, then move self.last_ffa to there, and self.ptr to end of the record.

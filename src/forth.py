@@ -4,6 +4,12 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+#TODO: Resolve DOLIT (need a DOLITC for char)
+#or check Brodie, how is the following coded:
+#  42 EMIT
+# because the 42 really should be a number, so EMIT should take a number
+# and ignore the high byte??
+
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
@@ -906,33 +912,33 @@ class Machine():
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
-            ("STORE",  None,        None,         self.n_store),     # CODE
-            ("FETCH",  None,        None,         self.n_fetch),     # CODE
-            ("STORE8", None,        None,         self.n_store8),    # CODE
-            ("FETCH8", None,        None,         self.n_fetch8),    # CODE
+            #("STORE",  None,        None,         self.n_store),     # CODE
+            #("FETCH",  None,        None,         self.n_fetch),     # CODE
+            #("STORE8", None,        None,         self.n_store8),    # CODE
+            #("FETCH8", None,        None,         self.n_fetch8),    # CODE
             ("+",      None,        None,         self.n_add),       # CODE
-            ("-",      None,        None,         self.n_sub),       # CODE
-            ("AND",    None,        None,         self.n_and),       # CODE
-            ("OR",     None,        None,         self.n_or),        # CODE
-            ("XOR",    None,        None,         self.n_xor),       # CODE
-            ("*",      None,        None,         self.n_mult),      # CODE
-            ("/",      None,        None,         self.n_div),       # CODE
-            ("MOD",    None,        None,         self.n_mod),       # CODE
+            #("-",      None,        None,         self.n_sub),       # CODE
+            #("AND",    None,        None,         self.n_and),       # CODE
+            #("OR",     None,        None,         self.n_or),        # CODE
+            #("XOR",    None,        None,         self.n_xor),       # CODE
+            #("*",      None,        None,         self.n_mult),      # CODE
+            #("/",      None,        None,         self.n_div),       # CODE
+            #("MOD",    None,        None,         self.n_mod),       # CODE
             #("FLAGS",  None,        None,         self.n_flags),     # CODE
-            ("SWAP",   None,        None,         self.ds.swap),     # CODE
-            ("DUP",    None,        None,         self.ds.dup),      # CODE
-            ("OVER",   None,        None,         self.ds.over),     # CODE
-            ("ROT",    None,        None,         self.ds.rot),      # CODE
-            ("DROP",   None,        None,         self.ds.drop),     # CODE
-            ("KEY",    None,        None,         self.n_key),       # CODE
-            ("KEYQ",   None,        None,         self.n_keyq),      # CODE
+            #("SWAP",   None,        None,         self.ds.swap),     # CODE
+            #("DUP",    None,        None,         self.ds.dup),      # CODE
+            #("OVER",   None,        None,         self.ds.over),     # CODE
+            #("ROT",    None,        None,         self.ds.rot),      # CODE
+            #("DROP",   None,        None,         self.ds.drop),     # CODE
+            #("KEY",    None,        None,         self.n_key),       # CODE
+            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
             ("EMIT",   None,        None,         self.n_emit),      # CODE
-            ("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
-            ("ADRUV",  None,        None,         self.n_adruv),     # CODE
-            ("BRANCH", None,        None,         self.n_branch),    # CODE
-            ("0BRANCH",None,        None,         self.n_0branch),   # CODE
-            ("RBLK",   None,        None,         self.n_rblk),      # CODE
-            ("WBLK",   None,        None,         self.n_wblk),      # CODE
+            #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
+            #("ADRUV",  None,        None,         self.n_adruv),     # CODE
+            #("BRANCH", None,        None,         self.n_branch),    # CODE
+            #("0BRANCH",None,        None,         self.n_0branch),   # CODE
+            #("RBLK",   None,        None,         self.n_rblk),      # CODE
+            #("WBLK",   None,        None,         self.n_wblk),      # CODE
             (".",      None,        None,         self.n_printtos),  # CODE
 
             # DICT registers
@@ -1120,6 +1126,7 @@ class Machine():
         { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
+        #print("n1 %x n2 %x" % (n1, n2))
         r = n1 + n2
         flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
@@ -1209,16 +1216,15 @@ class Machine():
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
         import sys
-        ch = chr(self.ds.popb())
+        ch = chr(self.ds.popn() & 0xFF) # TODO check Brodie
         sys.stdout.write(ch)
         #sys.stdout.flush()
 
     def n_printtos(self):
         """: n_PRINTTOS ( n --)
         { printnum(ds_pop16) } ;"""
-        pass#TODO: knit to Output()
-        #TODO need a number formatter?
-        Debug.unimplemented("n_printtos")
+        n = self.ds.popn()
+        print("%d" % n)
 
     def n_rdpfa(self):
         """: n_RDPFA   ( a-pfa -- n)
@@ -1312,7 +1318,7 @@ class Machine():
         #Debug.trace("dolit")
         ip = self.rs.popn()
         n = self.mem.readn(ip)
-        self.ds.pushb(n)
+        self.ds.pushn(n)
         #Debug.trace("found literal: %d" % n)
         ip += 2
         self.rs.pushn(ip)
@@ -1375,13 +1381,14 @@ class Forth:
 
         # Now create the dictionary entry
         # CF=DODOES is implied for all high level word definitions
-
+        #print(plist)
         self.machine.dict.create(
             nf=name,
             cf=DODOES,
             pf=plist,
             finish=True
         )
+        #self.machine.dict.dumpraw()
 
     def execute_word(self, word):
         """Equivalent to ' word EXECUTE"""
@@ -1410,9 +1417,6 @@ class Forth:
 #----- RUNNER -----------------------------------------------------------------
 
 def test_hello():
-    f = Forth().boot()
-    #f.machine.dict.dump()
-
     # TEST: output a * on stdout
     msg = "Hello world!\n"
     pfa = []
@@ -1420,10 +1424,20 @@ def test_hello():
         pfa.append(ord(ch))
         pfa.append("EMIT")
 
-    f.create_word("HELLO", *pfa)
-    f.execute_word("HELLO")
+    forth.create_word("HELLO", *pfa)
+    forth.execute_word("HELLO")
 
+def test_add():
+    # TEST: add two numbers and show result
+    forth.create_word("TESTSUM", 1, 2, "+", ".")
+    #forth.machine.dict.dump()
+    forth.execute_word("TESTSUM")
+
+forth = None
 if __name__ == "__main__":
-    test_hello()
+    forth = Forth().boot()
+    #forth.machine.dict.dump()
+    #test_hello()
+    test_add()
 
 # END

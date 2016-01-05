@@ -233,54 +233,50 @@ class Stack():
         self.ptr -= bytes * self.growdirn
         return self.ptr
 
-    def addr(self, byteindex):
-        """Work out correct address of a byteindex starting at this position relative to TOS"""
-        # byteindex is already scaled for the size of the object
-        # byte   at TOS is byteindex 0  byte   at TOS-1 is 1
-        # number at TOS is byteindex 1  number at TOS-1 is 3
-        # double at TOS is byteindex 3  double at TOS-1 is 7
-        #TODO: so, there is a size-1 missing somewhere? perhaps in caller?
+    def addr(self, rel, size):
+        """Work out correct start address of a rel byte index starting at this position, relative to TOS"""
+        #rel should reference the relative distance in bytes back from TOS (0 is TOS for all data sizes)
 
         if self.growdirn > 0: # +ve growth
             if self.ptrtype == Stack.FIRSTFREE:
-                return self.ptr - byteindex # TODO
+                return self.ptr - rel - size
             else: # LASTUSED
-                return self.ptr - byteindex #  TODO
+                return self.ptr - rel - (size-1)
         else: # -ve growth
             if self.ptrtype == Stack.FIRSTFREE:
-                return self.ptr + byteindex # TODO
+                return self.ptr + rel + 1
             else: #LASTUSED
-                return self.ptr + byteindex # TODO
+                return self.ptr + rel
 
-    def write(self, byteindex, bytes):
+    def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
-        #size = len(bytes)
-        ptr = self.addr(byteindex)
+        size = len(bytes)
+        ptr = self.addr(rel, size)
         for b in bytes:
             self.storage[ptr] = b
             ptr += 1
 
-    def read(self, byteindex, size):
+    def read(self, rel, size):
         """Read a list of bytes, at a specific byte index from TOS"""
         bytes = []
-        ptr = self.addr(byteindex)
-        for i in range(size)
+        ptr = self.addr(rel, size)
+        for i in range(size):
             b = self.storage[ptr]
             bytes.append(b)
         return bytes
-    #--------------------------------------------------------------------------
+
     def push(self, bytes):
         """Push a list of bytes"""
         size = len(bytes)
         self.grow(size)
-        self.write(size, bytes)
+        self.write(rel=0, bytes=bytes)
 
     def pop(self, size):
         """Pop a list of bytes of required size"""
-        bytes = self.read(size, size)
+        bytes = self.read(rel=0, size=size)
         self.shrink(size)
         return bytes
-
+    #--------------------------------------------------------------------------
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
         self.push((byte))
@@ -314,32 +310,32 @@ class Stack():
 
     def setb(self, index, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        self.write(index*1, (byte))
+        self.write(rel=index, bytes=(byte))
 
     def setn(self, index, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
         b0, b1 = Number.to_bytes(number)
-        self.write(index*2, (b0, b1))
+        self.write(rel=index*2, bytes=(b0, b1))
 
     def setd(self, index, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.write(index*4, (b0, b1, b2, b3))
+        self.write(rel=index*4, bytes=(b0, b1, b2, b3))
 
     def getb(self, index):
         """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        bytes = self.read(index*1, 1)
+        bytes = self.read(rel=index, size=1)
         return bytes[0]
 
     def getn(self, index):
         """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        b0, b1 = self.read(index*2, 2)
+        b0, b1 = self.read(rel=index*2, size=2)
         number = Number.from_bytes((b0, b1))
         return number
 
     def getd(self, index):
         """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        b0, b1, b2, b3 = self.read(index*4, 4)
+        b0, b1, b2, b3 = self.read(rel=index*4, size=4)
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
     #--------------------------------------------------------------------------

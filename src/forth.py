@@ -223,138 +223,111 @@ class Stack():
     def push(self, bytes):
         #TODO: Generic push a list of bytes
         pass
+        #if self.incwrite: self.grow(2)
+        #self.storage[self.ptr]   = b0 #TODO: looks suspect
+        #self.storage[self.ptr+1] = b1
+        #if not self.incwrite: self.grow(2)
 
     def pop(self, numbytes):
         #TODO: generic pop a list of bytes
         pass
+        #if not self.incwrite: self.shrink(4)
+        #b0 = self.storage[self.ptr] #TODO: looks suspect
+        #b1 = self.storage[self.ptr+1]
+        #b2 = self.storage[self.ptr+2]
+        #b3 = self.storage[self.ptr+3]
+        #double = Double.from_bytes((b0, b1, b2, b3))
+        #if self.incwrite: self.shrink(4)
+        #return double
 
     def set(self, relindex, bytes):
         #TODO: set an arbitrary list of bytes at a relative index
         pass
+        # 0 means the 32 bit item at TOS
+        # 1 means the 32 bit item below TOS
+        #ofs = (relindex*4)*self.growdirn
+        #b0, b1, b2, b3 = Double.to_bytes(double)
+        #self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
+        #self.storage[self.ptr+ofs+1] = b1
+        #self.storage[self.ptr+ofs+2] = b2
+        #self.storage[self.ptr+ofs+3] = b3
 
     def get(self, relindex, size):
         #TODO: get an arbitrary number of bytes, as a list
         pass
+        # 0 means the 32 bit item at TOS
+        # 1 means the 32 bit item below TOS
+        #ofs = (relindex*4)*self.growdirn
+        #b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
+        #b1 = self.storage[self.ptr+ofs+1]
+        #b2 = self.storage[self.ptr+ofs+2]
+        #b3 = self.storage[self.ptr+ofs+3]
+        #double = Double.from_bytes((b0, b1, b2, b3))
+        #return double
+
     #--------------------------------------------------------------------------
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
-        #TODO: use push()
-        if self.incwrite: self.grow(1)
-        self.storage[self.ptr] = byte & 0xFF
-        if not self.incwrite: self.grow(1)
+        self.push((byte))
 
     def pushn(self, number):
         """Push a 16 bit number onto the stack"""
-        #TODO: use push()
         b0, b1 = Number.to_bytes(number)
-        if self.incwrite: self.grow(2)
-        self.storage[self.ptr]   = b0 #TODO: looks suspect
-        self.storage[self.ptr+1] = b1
-        if not self.incwrite: self.grow(2)
+        self.push((b0, b1))
 
     def pushd(self, double):
         """Push a 32 bit double onto the stack"""
-        #TODO: use push()
         b0, b1, b2, b3 = Double.to_bytes(double)
-        if self.incwrite: self.grow(4)
-        self.storage[self.ptr]   = b0 #TODO: looks suspect
-        self.storage[self.ptr+1] = b1
-        self.storage[self.ptr+2] = b2
-        self.storage[self.ptr+3] = b3
-        if not self.incwrite: self.grow(4)
+        self.push((b0, b1, b2, b3))
 
     def popb(self):
         """Pop an 8 bit byte from the stack"""
-        #TODO: use pop()
-        if not self.incwrite: self.shrink(1)
-        byte = self.storage[self.ptr]
-        if self.incwrite: self.shrink(1)
-        return byte
+        bytes = self.pop(1)
+        return bytes[0]
 
     def popn(self):
         """Pop a 16 bit number from the stack"""
-        #TODO: use pop()
-        if not self.incwrite: self.shrink(2)
-        b0 = self.storage[self.ptr] #TODO: looks suspect
-        b1 = self.storage[self.ptr+1]
+        b0, b1 = self.pop(2)
         number = Number.from_bytes((b0, b1))
-        if self.incwrite: self.shrink(2)
         return number
 
     def popd(self):
         """Pop a 32 bit double from the stack"""
-        #TODO: use pop()
-        if not self.incwrite: self.shrink(4)
-        b0 = self.storage[self.ptr] #TODO: looks suspect
-        b1 = self.storage[self.ptr+1]
-        b2 = self.storage[self.ptr+2]
-        b3 = self.storage[self.ptr+3]
-        double = Double.from_bytes((b0, b1, b2, b3))
-        if self.incwrite: self.shrink(4)
-        return double
-
-    def getb(self, relindex):
-        """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        #TODO: use get()
-        # 0 means the 8 bit item at TOS
-        # 1 means the 8 bit item below TOS
-        ofs = relindex * self.growdirn
-        byte = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
-        return byte
-
-    def getn(self, relindex):
-        """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        #TODO: use get()
-        # 0 means the 16 bit item at TOS
-        # 1 means the 16 bit item below TOS
-        ofs = (relindex*2)*self.growdirn
-        b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
-        b1 = self.storage[self.ptr+ofs+1]
-        number = Number.from_bytes((b0, b1))
-        return number
-
-    def getd(self, relindex):
-        """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        #TODO: use get()
-        # 0 means the 32 bit item at TOS
-        # 1 means the 32 bit item below TOS
-        ofs = (relindex*4)*self.growdirn
-        b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
-        b1 = self.storage[self.ptr+ofs+1]
-        b2 = self.storage[self.ptr+ofs+2]
-        b3 = self.storage[self.ptr+ofs+3]
+        b0, b1, b2, b3 = self.pop(4)
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
     def setb(self, relindex, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        #TODO: use set()
-        # 0 means the 8 bit item at TOS
-        # 1 means the 8 bit item below TOS
-        ofs = relindex*self.growdirn
-        self.storage[self.ptr+ofs] = byte #TODO: incwrite strategy?
+        self.set(relindex, (byte))
 
     def setn(self, relindex, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
-        #TODO: use set()
-        # 0 means the 16 bit item at TOS
-        # 1 means the 16 bit item below TOS
-        ofs = (relindex*2)*self.growdirn
         b0, b1 = Number.to_bytes(number)
-        self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
-        self.storage[self.ptr+ofs+1] = b1
+        self.set(relindex, (b0, b1))
 
     def setd(self, relindex, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
-        #TODO: use set()
-        # 0 means the 32 bit item at TOS
-        # 1 means the 32 bit item below TOS
-        ofs = (relindex*4)*self.growdirn
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
-        self.storage[self.ptr+ofs+1] = b1
-        self.storage[self.ptr+ofs+2] = b2
-        self.storage[self.ptr+ofs+3] = b3
+        self.set(relindex, (b0, b1, b2, b3))
+
+    def getb(self, relindex):
+        """Get an 8 bit number at an 8 bit position relative to top of stack"""
+        bytes = self.get(relindex, 1)
+        return bytes[0]
+
+    def getn(self, relindex):
+        """Get a 16 bit number at a 16-bit position relative to top of stack"""
+        b0, b1 = self.get(relindex, 2)
+        number = Number.from_bytes((b0, b1))
+        return number
+
+    def getd(self, relindex):
+        """Get a 32 bit number at a 32 bit position relative to top of stack"""
+        b0, b1, b2, b3 = self.get(relindex, 4)
+        double = Double.from_bytes((b0, b1, b2, b3))
+        return double
+
     #--------------------------------------------------------------------------
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""

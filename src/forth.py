@@ -421,8 +421,9 @@ class Dictionary(Stack):
     def __init__(self, storage, start, size, ptr):
         Stack.__init__(self, storage, start, size, ptr)
 
-        self.pushn(0) # first FFA entry is always zero, to mark end of search chain
         self.last_ffa = self.ptr
+        self.pushb(0) # first FFA entry is always zero, to mark end of search chain
+        self.defining_ffa = None
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         """Create a new dictionary record"""
@@ -492,7 +493,6 @@ class Dictionary(Stack):
         print("last_ffa:    %d" % self.last_ffa)
         print("defining_ffa:%s" % str(self.defining_ffa))
 
-        #BUG: It's not storing the ascii number, it's storing a str (char) for names in NF
         for addr in range(self.start, self.ptr):
             b = self.storage[addr]
             if b > 32:
@@ -861,47 +861,47 @@ class Machine():
         self.dispatch = [
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
-            ("NOP",    None,        None,         self.n_nop),       # CODE
-            ("STORE",  None,        None,         self.n_store),     # CODE
-            ("FETCH",  None,        None,         self.n_fetch),     # CODE
-            ("STORE8", None,        None,         self.n_store8),    # CODE
-            ("FETCH8", None,        None,         self.n_fetch8),    # CODE
-            ("+",      None,        None,         self.n_add),       # CODE
-            ("-",      None,        None,         self.n_sub),       # CODE
-            ("AND",    None,        None,         self.n_and),       # CODE
-            ("OR",     None,        None,         self.n_or),        # CODE
-            ("XOR",    None,        None,         self.n_xor),       # CODE
-            ("*",      None,        None,         self.n_mult),      # CODE
-            ("/",      None,        None,         self.n_div),       # CODE
-            ("MOD",    None,        None,         self.n_mod),       # CODE
-            ("FLAGS",  None,        None,         self.n_flags),     # CODE
-            ("SWAP",   None,        None,         self.ds.swap),     # CODE
-            ("DUP",    None,        None,         self.ds.dup),      # CODE
-            ("OVER",   None,        None,         self.ds.over),     # CODE
-            ("ROT",    None,        None,         self.ds.rot),      # CODE
-            ("DROP",   None,        None,         self.ds.drop),     # CODE
-            ("KEY",    None,        None,         self.n_key),       # CODE
-            ("KEYQ",   None,        None,         self.n_keyq),      # CODE
-            ("EMIT",   None,        None,         self.n_emit),      # CODE
-            ("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
-            ("ADRUV",  None,        None,         self.n_adruv),     # CODE
-            ("BRANCH", None,        None,         self.n_branch),    # CODE
-            ("0BRANCH",None,        None,         self.n_0branch),   # CODE
-            ("RBLK",   None,        None,         self.n_rblk),      # CODE
-            ("WBLK",   None,        None,         self.n_wblk),      # CODE
-            (".",      None,        None,         self.n_printtos),  # CODE
+            #("NOP",    None,        None,         self.n_nop),       # CODE
+            #("STORE",  None,        None,         self.n_store),     # CODE
+            #("FETCH",  None,        None,         self.n_fetch),     # CODE
+            #("STORE8", None,        None,         self.n_store8),    # CODE
+            #("FETCH8", None,        None,         self.n_fetch8),    # CODE
+            #("+",      None,        None,         self.n_add),       # CODE
+            #("-",      None,        None,         self.n_sub),       # CODE
+            #("AND",    None,        None,         self.n_and),       # CODE
+            #("OR",     None,        None,         self.n_or),        # CODE
+            #("XOR",    None,        None,         self.n_xor),       # CODE
+            #("*",      None,        None,         self.n_mult),      # CODE
+            #("/",      None,        None,         self.n_div),       # CODE
+            #("MOD",    None,        None,         self.n_mod),       # CODE
+            #("FLAGS",  None,        None,         self.n_flags),     # CODE
+            #("SWAP",   None,        None,         self.ds.swap),     # CODE
+            #("DUP",    None,        None,         self.ds.dup),      # CODE
+            #("OVER",   None,        None,         self.ds.over),     # CODE
+            #("ROT",    None,        None,         self.ds.rot),      # CODE
+            #("DROP",   None,        None,         self.ds.drop),     # CODE
+            #("KEY",    None,        None,         self.n_key),       # CODE
+            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
+            #("EMIT",   None,        None,         self.n_emit),      # CODE
+            #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
+            #("ADRUV",  None,        None,         self.n_adruv),     # CODE
+            #("BRANCH", None,        None,         self.n_branch),    # CODE
+            #("0BRANCH",None,        None,         self.n_0branch),   # CODE
+            #("RBLK",   None,        None,         self.n_rblk),      # CODE
+            #("WBLK",   None,        None,         self.n_wblk),      # CODE
+            #(".",      None,        None,         self.n_printtos),  # CODE
 
             # DICT registers
-            ("D0",     self.dict.rd_d0, None,     None),             # CONST
-            ("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
+            #("D0",     self.dict.rd_d0, None,     None),             # CONST
+            #("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
 
             # DATA STACK registers
-            ("S0",     self.ds.rd_s0,  None,      None),             # CONST
-            ("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
+            #("S0",     self.ds.rd_s0,  None,      None),             # CONST
+            #("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
 
             # RETURN STACK registers
-            ("R0",     self.rs.rd_r0,  None,      None),             # CONST
-            ("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
+            #("R0",     self.rs.rd_r0,  None,      None),             # CONST
+            #("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
 
             # SYSTEM VARS registers
             # start and ptr for sys vars (SV0, SVP)
@@ -913,7 +913,7 @@ class Machine():
             # start and size for block buffers (BB0, BBZ)
 
             # MISC
-            ("IP",    self.rd_ip, self.wr_ip, None),               # VAR
+            #("IP",    self.rd_ip, self.wr_ip, None),               # VAR
 
             # Compiler support routines that can be called by high-level forth
             #("DOES>"),
@@ -928,10 +928,10 @@ class Machine():
             # But this table can still be searched for addresses for internal use.
             #(" DODOES")
             #(" DOCOL")
-            (" DOCON",    None,   None,   self.n_docon),
-            (" DOVAR",    None,   None,   self.n_dovar),
-            (" DOLIT",    None,   None,   self.n_dolit),
-            (" EXIT",     None,   None,   self.n_exit),
+            #(" DOCON",    None,   None,   self.n_docon),
+            #(" DOVAR",    None,   None,   self.n_dovar),
+            #(" DOLIT",    None,   None,   self.n_dolit),
+            #(" EXIT",     None,   None,   self.n_exit),
             #(" NEXT")
             #(" QUIT")
             #(" BYE")

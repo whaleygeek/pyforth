@@ -453,8 +453,8 @@ class Dictionary(Stack):
     def __init__(self, storage, start, size):
         Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
-        self.last_ffa = self.ptr
         self.pushb(0) # first FFA entry is always zero, to mark end of search chain
+        self.last_ffa = self.ptr
         self.defining_ffa = None
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
@@ -478,9 +478,9 @@ class Dictionary(Stack):
         lf = self.last_ffa
 
         # store header
-        self.defining_ffa = self.ptr
         self.allot(1)
         self.storeb(ff)
+        self.defining_ffa = self.ptr
         for ch in nf:
             self.allot(1)
             self.storeb(ord(ch))
@@ -507,8 +507,9 @@ class Dictionary(Stack):
         if self.defining_ffa == None:
             raise RuntimeError("Trying to finish an already finished dict defn at:%d", self.last_ffa)
 
-        ff = self.getb(self.defining_ffa)
-        self.setb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
+        print("finishing using defining_ffa:%x" % self.defining_ffa)
+        ff = self.storage.readb(self.defining_ffa)
+        self.storage.writeb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
         # advance end pointer
         self.last_ffa = self.defining_ffa
         self.defining_ffa = None
@@ -523,20 +524,20 @@ class Dictionary(Stack):
         if self.defining_ffa != None:
             print("defining_ffa:%x" % self.defining_ffa)
 
-        for addr in range(self.start, self.ptr+1):
-            b = self.storage[addr]
-            if b > 32 and b < 127:
-                ch = chr(b)
-            else:
-                ch = ' '
-            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
+        #for addr in range(self.start, self.ptr+1):
+        #    b = self.storage[addr]
+        #    if b > 32 and b < 127:
+        #        ch = chr(b)
+        #    else:
+        #        ch = ' '
+        #    print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
         ffa = self.last_ffa
         while True:
             ptr = ffa
             ff = self.storage.readb(ptr)
             if ff == 0:
-                print("found NULL at %d" % ffa)
+                print("found NULL at %x" % ffa)
                 return # FINISHED
 
             print("-" * 40)
@@ -546,35 +547,36 @@ class Dictionary(Stack):
             if ff & Dictionary.FLAG_DEFINING:  buf += "defining "
             if ff & Dictionary.FLAG_UNUSED:    buf += "unused "
             count = ff & Dictionary.FIELD_COUNT
-            buf += " sz:" + count
+            buf += " sz:" + str(count)
             print(buf)
             ptr += 1
 
             #### NF - Name Field
             buf = ""
             for i in range(count):
-                buf += self.storage.readb(ptr)
+                buf += chr(self.storage.readb(ptr))
                 ptr += 1
             print("NF: %s" % buf)
 
             #### LF - Link Field
             lf = self.storage.readn(ptr)
-            print("LF: %s" % lf)
+            print("LF: %x" % lf)
             ptr += 2
 
             #### CF - Code Field
             cf = self.storage.readn(ptr)
-            print("CF: %s" % cf)
+            print("CF: %x" % cf)
             ptr += 2
 
             #### PF - Parameter Field
             #TODO:Need to know how to sense the end of this?
             #There is no length byte, so depends on CF value
             #could look for ptr matching prev ptr, close enough, but not guaranteed
-            print("PF: here TODO")
+            print("PF: (here TODO)")
 
             # Move to prev
             ffa = self.prev(ffa)
+            print("walking via link field to FFA:%x" % ffa)
 
     def allot(self, size=2):
         """Allot some extra space in the presently defining dictionary record"""
@@ -597,7 +599,7 @@ class Dictionary(Stack):
         if ffa_addr==None:
             ffa_addr = self.last_ffa
         lfa = self.ffa2lfa(ffa_addr)
-        lf = self.storage.read(lfa)
+        lf = self.storage.readn(lfa)
         return lf
 
     def nfa(self, ffa):
@@ -631,8 +633,8 @@ class Dictionary(Stack):
         if ffa == None:
             ffa = self.last_ffa
         ff = self.storage.readb(ffa)
-        count = ff & ~ Dictionary.FIELD_COUNT # now the count
-        lfa = count + (count % 2) # optional PAD
+        count = ff & Dictionary.FIELD_COUNT # now the count
+        lfa = ffa + count + 1
         return lfa
 
     def ffa2cfa(self, ffa=None):
@@ -892,7 +894,7 @@ class Machine():
             # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
             ("STORE",  None,        None,         self.n_store),     # CODE
-            #("FETCH",  None,        None,         self.n_fetch),     # CODE
+            ("FETCH",  None,        None,         self.n_fetch),     # CODE
             #("STORE8", None,        None,         self.n_store8),    # CODE
             #("FETCH8", None,        None,         self.n_fetch8),    # CODE
             #("+",      None,        None,         self.n_add),       # CODE

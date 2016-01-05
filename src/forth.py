@@ -4,9 +4,6 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
-#TODO: DICT sort of working now.
-#link fields are off by one byte (presumably due to sampling ptr at wrong time)
-
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
@@ -130,6 +127,7 @@ class Memory():
 
     def show_map(self):
         """Display the memory map on stdout"""
+        print("MEMORY MAP")
         last_end = 0
         for i in self.map:
             name, start, size = i
@@ -138,9 +136,10 @@ class Memory():
                 ustart = last_end
                 uend   = start-1
                 usize  = uend-ustart-1
-                print("%10s %5d %5d %5d" %(uname, ustart, uend, usize))
-            print("%10s %5d %5d %5d" % (name, start, start+size-1, size))
+                print("%10s %5x %5x %5x" %(uname, ustart, uend, usize))
+            print("%10s %5x %5x %5x" % (name, start, start+size-1, size))
             last_end = start + size
+        #TODO: show any final unused space up to FFFF at end
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
@@ -459,7 +458,7 @@ class Dictionary(Stack):
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         """Create a new dictionary record"""
-        Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
+        #Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
 
         # truncate name to maximum length
         if len(nf) > 32:
@@ -507,7 +506,6 @@ class Dictionary(Stack):
         if self.defining_ffa == None:
             raise RuntimeError("Trying to finish an already finished dict defn at:%d", self.last_ffa)
 
-        print("finishing using defining_ffa:%x" % self.defining_ffa)
         ff = self.storage.readb(self.defining_ffa)
         self.storage.writeb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
         # advance end pointer
@@ -537,7 +535,6 @@ class Dictionary(Stack):
             ptr = ffa
             ff = self.storage.readb(ptr)
             if ff == 0:
-                print("found NULL at %x" % ffa)
                 return # FINISHED
 
             print("-" * 40)
@@ -547,7 +544,7 @@ class Dictionary(Stack):
             if ff & Dictionary.FLAG_DEFINING:  buf += "defining "
             if ff & Dictionary.FLAG_UNUSED:    buf += "unused "
             count = ff & Dictionary.FIELD_COUNT
-            buf += " sz:" + str(count)
+            buf += "sz:" + str(count)
             print(buf)
             ptr += 1
 
@@ -576,7 +573,6 @@ class Dictionary(Stack):
 
             # Move to prev
             ffa = self.prev(ffa)
-            print("walking via link field to FFA:%x" % ffa)
 
     def allot(self, size=2):
         """Allot some extra space in the presently defining dictionary record"""
@@ -895,32 +891,32 @@ class Machine():
             ("NOP",    None,        None,         self.n_nop),       # CODE
             ("STORE",  None,        None,         self.n_store),     # CODE
             ("FETCH",  None,        None,         self.n_fetch),     # CODE
-            #("STORE8", None,        None,         self.n_store8),    # CODE
-            #("FETCH8", None,        None,         self.n_fetch8),    # CODE
-            #("+",      None,        None,         self.n_add),       # CODE
-            #("-",      None,        None,         self.n_sub),       # CODE
-            #("AND",    None,        None,         self.n_and),       # CODE
-            #("OR",     None,        None,         self.n_or),        # CODE
-            #("XOR",    None,        None,         self.n_xor),       # CODE
-            #("*",      None,        None,         self.n_mult),      # CODE
-            #("/",      None,        None,         self.n_div),       # CODE
-            #("MOD",    None,        None,         self.n_mod),       # CODE
+            ("STORE8", None,        None,         self.n_store8),    # CODE
+            ("FETCH8", None,        None,         self.n_fetch8),    # CODE
+            ("+",      None,        None,         self.n_add),       # CODE
+            ("-",      None,        None,         self.n_sub),       # CODE
+            ("AND",    None,        None,         self.n_and),       # CODE
+            ("OR",     None,        None,         self.n_or),        # CODE
+            ("XOR",    None,        None,         self.n_xor),       # CODE
+            ("*",      None,        None,         self.n_mult),      # CODE
+            ("/",      None,        None,         self.n_div),       # CODE
+            ("MOD",    None,        None,         self.n_mod),       # CODE
             #("FLAGS",  None,        None,         self.n_flags),     # CODE
-            #("SWAP",   None,        None,         self.ds.swap),     # CODE
-            #("DUP",    None,        None,         self.ds.dup),      # CODE
-            #("OVER",   None,        None,         self.ds.over),     # CODE
-            #("ROT",    None,        None,         self.ds.rot),      # CODE
-            #("DROP",   None,        None,         self.ds.drop),     # CODE
-            #("KEY",    None,        None,         self.n_key),       # CODE
-            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
-            #("EMIT",   None,        None,         self.n_emit),      # CODE
-            #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
-            #("ADRUV",  None,        None,         self.n_adruv),     # CODE
-            #("BRANCH", None,        None,         self.n_branch),    # CODE
-            #("0BRANCH",None,        None,         self.n_0branch),   # CODE
-            #("RBLK",   None,        None,         self.n_rblk),      # CODE
-            #("WBLK",   None,        None,         self.n_wblk),      # CODE
-            #(".",      None,        None,         self.n_printtos),  # CODE
+            ("SWAP",   None,        None,         self.ds.swap),     # CODE
+            ("DUP",    None,        None,         self.ds.dup),      # CODE
+            ("OVER",   None,        None,         self.ds.over),     # CODE
+            ("ROT",    None,        None,         self.ds.rot),      # CODE
+            ("DROP",   None,        None,         self.ds.drop),     # CODE
+            ("KEY",    None,        None,         self.n_key),       # CODE
+            ("KEYQ",   None,        None,         self.n_keyq),      # CODE
+            ("EMIT",   None,        None,         self.n_emit),      # CODE
+            ("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
+            ("ADRUV",  None,        None,         self.n_adruv),     # CODE
+            ("BRANCH", None,        None,         self.n_branch),    # CODE
+            ("0BRANCH",None,        None,         self.n_0branch),   # CODE
+            ("RBLK",   None,        None,         self.n_rblk),      # CODE
+            ("WBLK",   None,        None,         self.n_wblk),      # CODE
+            (".",      None,        None,         self.n_printtos),  # CODE
 
             # DICT registers
             #("D0",     self.dict.rd_d0, None,     None),             # CONST

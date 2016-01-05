@@ -4,8 +4,9 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
-#TODO looks like dict header is corrupted at the moment (dump output)
+#TODO: looks like dict header is corrupted at the moment (dump output)
 #It's all to do with handling of the DICT ptr increments (its wrong)
+#TODO: Fix this in Stack()
 
 #----- DEBUG ------------------------------------------------------------------
 
@@ -92,11 +93,10 @@ MEMSIZE = 65536
 mem = [0 for i in range(MEMSIZE)]
 
 class Memory():
-    def __init__(self, storage, size=None, offset=0):
+    def __init__(self, storage, size=None):
         if size == None:
             size = len(storage)
         self.size = size
-        #self.offset = offset #TODO: Apply offset throughout
         self.bytes = storage
         self.map = []
 
@@ -117,7 +117,6 @@ class Memory():
         else:
             # grows up towards high memory
             start = addr
-        ptr = addr
         end = start + size
 
         # check for overlaps with an existing region
@@ -128,7 +127,7 @@ class Memory():
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
         self.map.append((name, start, abs(size)))
-        return start, size, ptr
+        return start, size
 
     def show_map(self):
         """Display the memory map on stdout"""
@@ -183,7 +182,8 @@ class Memory():
 
 class Stack():
     """A general purpose stack abstraction to wrap around memory storage"""
-    def __init__(self, storage, start, size, ptr, growdirn=1, incwrite=True):
+    def __init__(self, storage, start, size, growdirn=1, incwrite=True):
+
         #TODO: review incwrite
         #True: increment then write, so ptr points to last used entry
         #but if you push a 16-bit, this means it needs to point to the last *byte* of that 16 bit
@@ -194,12 +194,14 @@ class Stack():
         self.storage  = storage
         self.start    = start
         self.size     = size
-        self.ptr      = ptr
         if growdirn > 0:
             self.growdirn = 1
+            self.ptr = start
         else:
             self.growdirn = -1
+            self.ptr = start+size
         self.incwrite = incwrite
+        #TODO: Adjust pointer for incwrite strategy
 
     def clear(self):
         """Reset the stack to empty"""
@@ -218,22 +220,41 @@ class Stack():
         """Shrink the stack by a number of bytes"""
         self.ptr -= bytes * self.growdirn
 
+    def push(self, bytes):
+        #TODO: Generic push a list of bytes
+        pass
+
+    def pop(self, numbytes):
+        #TODO: generic pop a list of bytes
+        pass
+
+    def set(self, relindex, bytes):
+        #TODO: set an arbitrary list of bytes at a relative index
+        pass
+
+    def get(self, relindex, size):
+        #TODO: get an arbitrary number of bytes, as a list
+        pass
+    #--------------------------------------------------------------------------
+    def pushb(self, byte):
+        """Push an 8 bit byte onto the stack"""
+        #TODO: use push()
+        if self.incwrite: self.grow(1)
+        self.storage[self.ptr] = byte & 0xFF
+        if not self.incwrite: self.grow(1)
+
     def pushn(self, number):
         """Push a 16 bit number onto the stack"""
+        #TODO: use push()
         b0, b1 = Number.to_bytes(number)
         if self.incwrite: self.grow(2)
         self.storage[self.ptr]   = b0 #TODO: looks suspect
         self.storage[self.ptr+1] = b1
         if not self.incwrite: self.grow(2)
 
-    def pushb(self, byte):
-        """Push an 8 bit byte onto the stack"""
-        if self.incwrite: self.grow(1)
-        self.storage[self.ptr] = byte & 0xFF
-        if not self.incwrite: self.grow(1)
-
     def pushd(self, double):
         """Push a 32 bit double onto the stack"""
+        #TODO: use push()
         b0, b1, b2, b3 = Double.to_bytes(double)
         if self.incwrite: self.grow(4)
         self.storage[self.ptr]   = b0 #TODO: looks suspect
@@ -242,8 +263,17 @@ class Stack():
         self.storage[self.ptr+3] = b3
         if not self.incwrite: self.grow(4)
 
+    def popb(self):
+        """Pop an 8 bit byte from the stack"""
+        #TODO: use pop()
+        if not self.incwrite: self.shrink(1)
+        byte = self.storage[self.ptr]
+        if self.incwrite: self.shrink(1)
+        return byte
+
     def popn(self):
         """Pop a 16 bit number from the stack"""
+        #TODO: use pop()
         if not self.incwrite: self.shrink(2)
         b0 = self.storage[self.ptr] #TODO: looks suspect
         b1 = self.storage[self.ptr+1]
@@ -251,15 +281,9 @@ class Stack():
         if self.incwrite: self.shrink(2)
         return number
 
-    def popb(self):
-        """Pop an 8 bit byte from the stack"""
-        if not self.incwrite: self.shrink(1)
-        byte = self.storage[self.ptr]
-        if self.incwrite: self.shrink(1)
-        return byte
-
     def popd(self):
         """Pop a 32 bit double from the stack"""
+        #TODO: use pop()
         if not self.incwrite: self.shrink(4)
         b0 = self.storage[self.ptr] #TODO: looks suspect
         b1 = self.storage[self.ptr+1]
@@ -269,8 +293,18 @@ class Stack():
         if self.incwrite: self.shrink(4)
         return double
 
+    def getb(self, relindex):
+        """Get an 8 bit number at an 8 bit position relative to top of stack"""
+        #TODO: use get()
+        # 0 means the 8 bit item at TOS
+        # 1 means the 8 bit item below TOS
+        ofs = relindex * self.growdirn
+        byte = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
+        return byte
+
     def getn(self, relindex):
         """Get a 16 bit number at a 16-bit position relative to top of stack"""
+        #TODO: use get()
         # 0 means the 16 bit item at TOS
         # 1 means the 16 bit item below TOS
         ofs = (relindex*2)*self.growdirn
@@ -279,16 +313,9 @@ class Stack():
         number = Number.from_bytes((b0, b1))
         return number
 
-    def getb(self, relindex):
-        """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        # 0 means the 8 bit item at TOS
-        # 1 means the 8 bit item below TOS
-        ofs = relindex * self.growdirn
-        byte = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
-        return byte
-
     def getd(self, relindex):
         """Get a 32 bit number at a 32 bit position relative to top of stack"""
+        #TODO: use get()
         # 0 means the 32 bit item at TOS
         # 1 means the 32 bit item below TOS
         ofs = (relindex*4)*self.growdirn
@@ -299,8 +326,17 @@ class Stack():
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
+    def setb(self, relindex, byte):
+        """Write to an 8 bit number at an 8 bit position relative to top of stack"""
+        #TODO: use set()
+        # 0 means the 8 bit item at TOS
+        # 1 means the 8 bit item below TOS
+        ofs = relindex*self.growdirn
+        self.storage[self.ptr+ofs] = byte #TODO: incwrite strategy?
+
     def setn(self, relindex, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
+        #TODO: use set()
         # 0 means the 16 bit item at TOS
         # 1 means the 16 bit item below TOS
         ofs = (relindex*2)*self.growdirn
@@ -308,15 +344,9 @@ class Stack():
         self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
         self.storage[self.ptr+ofs+1] = b1
 
-    def setb(self, relindex, byte):
-        """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        # 0 means the 8 bit item at TOS
-        # 1 means the 8 bit item below TOS
-        ofs = relindex*self.growdirn
-        self.storage[self.ptr+ofs] = byte #TODO: incwrite strategy?
-
     def setd(self, relindex, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
+        #TODO: use set()
         # 0 means the 32 bit item at TOS
         # 1 means the 32 bit item below TOS
         ofs = (relindex*4)*self.growdirn
@@ -325,7 +355,7 @@ class Stack():
         self.storage[self.ptr+ofs+1] = b1
         self.storage[self.ptr+ofs+2] = b2
         self.storage[self.ptr+ofs+3] = b3
-
+    #--------------------------------------------------------------------------
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
         n = self.getn(0)
@@ -361,8 +391,8 @@ class Stack():
 
 class Vars(Stack):
     """A generic variable region abstraction"""
-    def __init__(self, storage, start, size, ptr):
-        Stack.__init__(self, storage, start, size, ptr)
+    def __init__(self, storage, start, size):
+        Stack.__init__(self, storage, start, size)
 
     def create(self, size=2):
         """Create a new constant or variable of the given size in bytes"""
@@ -375,8 +405,8 @@ class Vars(Stack):
 
 class SysVars(Vars):
     #TODO: not sure yet what system variables are used for
-    def __init__(self, storage, start, size, ptr):
-        Vars.__init__(self, storage, start, size, ptr)
+    def __init__(self, storage, start, size):
+        Vars.__init__(self, storage, start, size)
 
     # functions used to implement memory mapped registers
     def rd_sv0(self):
@@ -399,8 +429,8 @@ class SysVars(Vars):
 class UserVars(Vars):
     #TODO: should be one copy per user task.
     #e.g. BASE
-    def __init__(self, storage, start, size, ptr):
-        Vars.__init__(self, storage, start, size, ptr)
+    def __init__(self, storage, start, size):
+        Vars.__init__(self, storage, start, size)
 
     # functions used to implement memory mapped registers
     def rd_uv0(self):
@@ -439,8 +469,8 @@ class Dictionary(Stack):
     FLAG_UNUSED    = 0x20
     FIELD_COUNT    = 0x1F # 0..31
 
-    def __init__(self, storage, start, size, ptr):
-        Stack.__init__(self, storage, start, size, ptr, incwrite=False)
+    def __init__(self, storage, start, size):
+        Stack.__init__(self, storage, start, size, incwrite=False)
 
         self.last_ffa = self.ptr
         self.pushb(0) # first FFA entry is always zero, to mark end of search chain
@@ -834,40 +864,40 @@ class Machine():
         self.mem = Memory(mem)
 
         #   init sysvars
-        svstart, svsize, svptr = self.mem.region("SV", SV_MEM)
-        self.sv = SysVars(self.mem, svstart, svsize, ptr=svptr)
+        svstart, svsize = self.mem.region("SV", SV_MEM)
+        self.sv = SysVars(self.mem, svstart, svsize)
 
         #   init elective space??
-        #elstart, elsize, elptr  = self.region("EL", at=, EV_MEM)
-        #self.el = Elective(self.mem, elstart, elsize, ptr=elptr)
+        #elstart, elsize  = self.region("EL", at=, EV_MEM)
+        #self.el = Elective(self.mem, elstart, elsize)
 
         #   init dictionary
-        dictstart, dictsize, dictptr = self.mem.region("DICT", DICT_MEM)
-        self.dict = Dictionary(self.mem, dictstart, dictsize, ptr=dictptr)
+        dictstart, dictsize = self.mem.region("DICT", DICT_MEM)
+        self.dict = Dictionary(self.mem, dictstart, dictsize)
 
         #   init pad
-        #padstart, padsize, padptr = self.mem.region("PAD", PAD_MEM)
-        #self.pad = Pad(self.mem, padstart, padptr, padsize, ptr=padptr)
+        #padstart, padsize = self.mem.region("PAD", PAD_MEM)
+        #self.pad = Pad(self.mem, padstart, padptr, padsize)
 
         #   init data stack
-        dsstart, dssize, dsptr = self.mem.region("DS", DS_MEM)
-        self.ds = DataStack(self.mem, dsstart, dssize, ptr=dsptr)
+        dsstart, dssize = self.mem.region("DS", DS_MEM)
+        self.ds = DataStack(self.mem, dsstart, dssize)
 
         #   init text input buffer
-        #tibstart, tibsize, tibptr = self.mem.region("TIB", TIB_MEM)
-        #self.tib = TextInputBuffer(self.mem, tibstart, tibsize, ptr=tibptr)
+        #tibstart, tibsize = self.mem.region("TIB", TIB_MEM)
+        #self.tib = TextInputBuffer(self.mem, tibstart, tibsize)
 
         #   init return stack
-        rsstart, rssize, rsptr = self.mem.region("RS", RS_MEM)
-        self.rs = ReturnStack(self.mem, rsstart, rssize, ptr=rsptr)
+        rsstart, rssize = self.mem.region("RS", RS_MEM)
+        self.rs = ReturnStack(self.mem, rsstart, rssize)
 
         #   init user variables (BASE, S0,...)
-        #uvstart, uvsize, uvptr = self.mem.region("UV", UV_MEM)
-        #self.uv = UserVars(self.mem, uvstart, uvsize, ptr=uvptr)
+        #uvstart, uvsize = self.mem.region("UV", UV_MEM)
+        #self.uv = UserVars(self.mem, uvstart, uvsize)
 
         #   init block buffers
-        #bbstart, bbsize, bbptr = self.mem.region("BB", BB_MEM)
-        #self.bb = BlockBuffers(self.mem, bbstart, bbsize, ptr=bbptr)
+        #bbstart, bbsize = self.mem.region("BB", BB_MEM)
+        #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
         self.mem.show_map()
 

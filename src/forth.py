@@ -182,90 +182,105 @@ class Memory():
 
 class Stack():
     """A general purpose stack abstraction to wrap around memory storage"""
-    def __init__(self, storage, start, size, growdirn=1, incwrite=True):
+    # bytes are always stored in the provided order, in increasing memory locations
 
-        #TODO: review incwrite
-        #True: increment then write, so ptr points to last used entry
-        #but if you push a 16-bit, this means it needs to point to the last *byte* of that 16 bit
-        #
-        #False: write then increment, so ptr points to first free entry
-        #but if you push a 16-bit, this means it needs to point to first free *byte*
+    # Pointer strategies
+    FIRSTFREE = False # ptr points to first free byte
+    LASTUSED  = True  # ptr points to last used byte
+    TOS = 0 # TOP OF STACK INDEX
+
+    def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
+
+        if growdirn > 0: # growdirn +ve
+            growdirn = 1
+        else: # growdirn -ve
+            growdirn = -1
+
+        if ptrtype == None:
+            ptrtype = Stack.FIRSTFREE
 
         self.storage  = storage
         self.start    = start
         self.size     = size
-        if growdirn > 0:
-            self.growdirn = 1
-            self.ptr = start
-        else:
-            self.growdirn = -1
-            self.ptr = start+size
-        self.incwrite = incwrite
-        #TODO: Adjust pointer for incwrite strategy
+        self.growdirn = growdirn
+        self.ptrtype  = ptrtype
 
-    def clear(self):
+        self.reset()
+    #--------------------------------------------------------------------------
+    def reset(self):
         """Reset the stack to empty"""
-        if self.growdirn > 0:
-            self.ptr = self.start
-            #TODO: incwrite strategy, adjust ptr
-        else:
-            self.ptr = self.start + self.size
-            #TODO: incwrite strategy. adjust ptr
+        last = self.start+self.size-1
+
+        if self.growdirn > 0: # growdirn +ve
+            if self.ptrtype == Stack.FIRSTFREE:
+                self.ptr = self.start
+            else: # LASTUSED
+                self.ptr = self.start-1
+
+        else: # growdirn -ve
+            if self.ptrtype == Stack.FIRSTFREE:
+                self.ptr = last
+            else: #LASTUSED
+                self.ptr = last+1
 
     def grow(self, bytes):
         """Expand the stack by a number of bytes"""
         self.ptr += bytes * self.growdirn
+        return self.ptr
 
     def shrink(self, bytes):
         """Shrink the stack by a number of bytes"""
         self.ptr -= bytes * self.growdirn
+        return self.ptr
 
-    def push(self, bytes):
-        #TODO: Generic push a list of bytes
-        pass
-        #if self.incwrite: self.grow(2)
-        #self.storage[self.ptr]   = b0 #TODO: looks suspect
-        #self.storage[self.ptr+1] = b1
-        #if not self.incwrite: self.grow(2)
+    def addr(self, byteindex):
+        """Work out correct address of a byteindex starting at this position relative to TOS"""
+        # byteindex is already scaled for the size of the object
+        # byte   at TOS is byteindex 0  byte   at TOS-1 is 1
+        # number at TOS is byteindex 1  number at TOS-1 is 3
+        # double at TOS is byteindex 3  double at TOS-1 is 7
+        #TODO: so, there is a size-1 missing somewhere? perhaps in caller?
 
-    def pop(self, numbytes):
-        #TODO: generic pop a list of bytes
-        pass
-        #if not self.incwrite: self.shrink(4)
-        #b0 = self.storage[self.ptr] #TODO: looks suspect
-        #b1 = self.storage[self.ptr+1]
-        #b2 = self.storage[self.ptr+2]
-        #b3 = self.storage[self.ptr+3]
-        #double = Double.from_bytes((b0, b1, b2, b3))
-        #if self.incwrite: self.shrink(4)
-        #return double
+        if self.growdirn > 0: # +ve growth
+            if self.ptrtype == Stack.FIRSTFREE:
+                return self.ptr - byteindex # TODO
+            else: # LASTUSED
+                return self.ptr - byteindex #  TODO
+        else: # -ve growth
+            if self.ptrtype == Stack.FIRSTFREE:
+                return self.ptr + byteindex # TODO
+            else: #LASTUSED
+                return self.ptr + byteindex # TODO
 
-    def set(self, relindex, bytes):
-        #TODO: set an arbitrary list of bytes at a relative index
-        pass
-        # 0 means the 32 bit item at TOS
-        # 1 means the 32 bit item below TOS
-        #ofs = (relindex*4)*self.growdirn
-        #b0, b1, b2, b3 = Double.to_bytes(double)
-        #self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
-        #self.storage[self.ptr+ofs+1] = b1
-        #self.storage[self.ptr+ofs+2] = b2
-        #self.storage[self.ptr+ofs+3] = b3
+    def write(self, byteindex, bytes):
+        """Write a list of bytes, at a specific byte index from TOS"""
+        #size = len(bytes)
+        ptr = self.addr(byteindex)
+        for b in bytes:
+            self.storage[ptr] = b
+            ptr += 1
 
-    def get(self, relindex, size):
-        #TODO: get an arbitrary number of bytes, as a list
-        pass
-        # 0 means the 32 bit item at TOS
-        # 1 means the 32 bit item below TOS
-        #ofs = (relindex*4)*self.growdirn
-        #b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
-        #b1 = self.storage[self.ptr+ofs+1]
-        #b2 = self.storage[self.ptr+ofs+2]
-        #b3 = self.storage[self.ptr+ofs+3]
-        #double = Double.from_bytes((b0, b1, b2, b3))
-        #return double
-
+    def read(self, byteindex, size):
+        """Read a list of bytes, at a specific byte index from TOS"""
+        bytes = []
+        ptr = self.addr(byteindex)
+        for i in range(size)
+            b = self.storage[ptr]
+            bytes.append(b)
+        return bytes
     #--------------------------------------------------------------------------
+    def push(self, bytes):
+        """Push a list of bytes"""
+        size = len(bytes)
+        self.grow(size)
+        self.write(size, bytes)
+
+    def pop(self, size):
+        """Pop a list of bytes of required size"""
+        bytes = self.read(size, size)
+        self.shrink(size)
+        return bytes
+
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
         self.push((byte))
@@ -297,41 +312,40 @@ class Stack():
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
-    def setb(self, relindex, byte):
+    def setb(self, index, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        self.set(relindex, (byte))
+        self.write(index*1, (byte))
 
-    def setn(self, relindex, number):
+    def setn(self, index, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
         b0, b1 = Number.to_bytes(number)
-        self.set(relindex, (b0, b1))
+        self.write(index*2, (b0, b1))
 
-    def setd(self, relindex, double):
+    def setd(self, index, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.set(relindex, (b0, b1, b2, b3))
+        self.write(index*4, (b0, b1, b2, b3))
 
-    def getb(self, relindex):
+    def getb(self, index):
         """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        bytes = self.get(relindex, 1)
+        bytes = self.read(index*1, 1)
         return bytes[0]
 
-    def getn(self, relindex):
+    def getn(self, index):
         """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        b0, b1 = self.get(relindex, 2)
+        b0, b1 = self.read(index*2, 2)
         number = Number.from_bytes((b0, b1))
         return number
 
-    def getd(self, relindex):
+    def getd(self, index):
         """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        b0, b1, b2, b3 = self.get(relindex, 4)
+        b0, b1, b2, b3 = self.read(index*4, 4)
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
-
     #--------------------------------------------------------------------------
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
-        n = self.getn(0)
+        n = self.getn(self.TOS)
         self.pushn(n)
 
     def swap(self): # ( n1 n2 -- n2 n1)

@@ -36,8 +36,9 @@ class Debug():
     def fail(msg):
         """Display a failure message on stdout and stop the progra"""
         Debug.out("fail", msg)
-        import sys
-        sys.exit()
+        #TODO need to flush stdout to prevent loosing it?
+        #import sys
+        #sys.exit(1)
 
 
 #----- NUMBER and DOUBLE accessors --------------------------------------------
@@ -204,6 +205,19 @@ class Stack():
         self.ptrtype  = ptrtype
 
         self.reset()
+
+    def dumpraw(self):
+        if self.growdirn != 1:
+            raise RuntimeError("negative growth not dumpable yet")
+
+        for addr in range(self.start, self.ptr+1):
+            b = self.storage[addr]
+            if b > 32 and b < 127:
+                ch = chr(b)
+            else:
+                ch = ' '
+            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
+
     #--------------------------------------------------------------------------
     def reset(self):
         """Reset the stack to empty"""
@@ -246,6 +260,13 @@ class Stack():
             else: #LASTUSED
                 return self.ptr + rel
 
+    def getused(self):
+        """Get the number of bytes used on the stack"""
+        if self.growdirn > 0: # +ve growth
+            return self.ptr - self.start
+        else: # -ve growth
+            return (self.start+self.size-1) - self.ptr
+
     def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
         size = len(bytes)
@@ -261,6 +282,7 @@ class Stack():
         for i in range(size):
             b = self.storage[ptr]
             bytes.append(b)
+            ptr += 1
         return bytes
 
     def push(self, bytes):
@@ -522,13 +544,6 @@ class Dictionary(Stack):
         if self.defining_ffa != None:
             print("defining_ffa:%x" % self.defining_ffa)
 
-        #for addr in range(self.start, self.ptr+1):
-        #    b = self.storage[addr]
-        #    if b > 32 and b < 127:
-        #        ch = chr(b)
-        #    else:
-        #        ch = ' '
-        #    print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
         ffa = self.last_ffa
         while True:
@@ -637,13 +652,14 @@ class Dictionary(Stack):
         """relative skip from ffa to cfa"""
         if ffa == None:
             ffa = self.last_ffa
-        return ffa+2
+        return self.ffa2lfa(ffa)+2
 
     def ffa2pfa(self, ffa=None):
         """relative skip from ffa to pfa"""
         if ffa == None:
             ffa = self.last_ffa
-        return ffa+4
+        pfa = self.ffa2lfa(ffa)+4
+        return pfa
 
     def find(self, name, ffa=None):
         """Find a word by it's name, following the chain from ffa backwards"""
@@ -662,7 +678,7 @@ class Dictionary(Stack):
                 count = ff & Dictionary.FIELD_COUNT
                 this_name = ""
                 for i in range(count):
-                    this_name += self.storage.readb(nfa+i)
+                    this_name += chr(self.storage.readb(nfa+i))
                 if this_name == name:
                     return ffa # FOUND
 
@@ -820,6 +836,7 @@ class Machine():
         self.build_ds()       # builds memory abstractions
         self.build_dispatch() # builds magic routine/register dispatch table
         self.build_native()   # puts native routines/registers into DICT
+        self.running = True
         return self
 
     def build_ds(self):
@@ -875,7 +892,7 @@ class Machine():
         #bbstart, bbsize = self.mem.region("BB", BB_MEM)
         #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
-        self.mem.show_map()
+        #self.mem.show_map()
 
     def build_dispatch(self):
         """Build the dispatch table"""
@@ -953,12 +970,13 @@ class Machine():
             # but can be destinations in a CFA.
             # Not registered in dictionary, this is flagged by first char of name=space
             # But this table can still be searched for addresses for internal use.
-            #(" DODOES")
+            (" DODOES",    None,   None,   self.n_dodoes),
+            ("EXECUTE",    None,   None,   self.n_execute),
             #(" DOCOL")
             #(" DOCON",    None,   None,   self.n_docon),
             #(" DOVAR",    None,   None,   self.n_dovar),
-            #(" DOLIT",    None,   None,   self.n_dolit),
-            #(" EXIT",     None,   None,   self.n_exit),
+            (" DOLIT",    None,   None,   self.n_dolit),
+            ("EXIT",     None,   None,   self.n_exit),
             #(" NEXT")
             #(" QUIT")
             #(" BYE")
@@ -1007,7 +1025,7 @@ class Machine():
             Debug.trace("reading native byte:%d %s" % (addr, name))
             if rdfn != None:
                 return rdfn()
-        Debug.fail("read from unknown native address: %d" % addr)
+        Debug.fail("read from unknown native address: %x" % addr)
 
     #TODO: byte or number?
     def wrbyte(self, addr, byte):
@@ -1018,17 +1036,17 @@ class Machine():
             if wrfn != None:
                 wrfn(byte)
                 return
-        Debug.fail("write to unknown native address: %d" % addr)
+        Debug.fail("write to unknown native address: %x" % addr)
 
     def call(self, addr):
         """Look up the call address in the dispatch table, and dispatch if known"""
         if addr < len(self.dispatch):
             name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("calling native fn:%d %s" % (addr, name))
+            #Debug.trace("calling native fn:%d %s" % (addr, name))
             if execfn != None:
                 execfn()
                 return
-        Debug.fail("call to unknown native address: %d" % addr)
+        Debug.fail("call to unknown native address: %x" % addr)
 
     # functions for memory mapped registers
 
@@ -1190,7 +1208,7 @@ class Machine():
     def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
-        ch = self.ds.popb()
+        ch = chr(self.ds.popb())
         self.outs.writech(ch)
 
     def n_printtos(self):
@@ -1258,39 +1276,58 @@ class Machine():
     def n_execute(self):
         """EXECUTE a high level address"""
         # ( pfa -- )
-
-        pfa = self.ds.popn()
+        #Debug.trace("EXECUTE")
+        pfa = self.ds.popn() ###TODO: WRONG ADDR HERE?
+        #Debug.trace(" pfa:%x" % pfa)
         # Don't assume DODOES, just in case it is a low level word!
         cfa = self.dict.pfa2cfa(pfa)
+        #Debug.trace(" cfa:%x" % cfa)
         cf = self.mem.readn(cfa)
         self.ip = pfa
-        self.machine.call(cf)
+        #Debug.trace(" calling cf:%x" % cf)
+        self.call(cf)
 
     def n_dodoes(self):
         """Repeatedly fetch and execute CFA's until EXIT"""
-        while True:
+        #Debug.trace("DODOES")
+        while self.running:
             #NEXT
-            self.rs.pushn(self.ip+2)
+            #Debug.trace("NEXT")
             # ip points to the cfa of the word to execute
-            cfa = self.mem[self.ip]
+            #Debug.trace(" fetch from ip:%x" % self.ip)
+            cfa = self.mem.readn(self.ip)
+            #Debug.trace(" cfa:%x" % cfa)
             cf = self.mem.readn(cfa)
-            self.machine.call(cf)
+            #Debug.trace(" cf:%x" % cf)
+            self.rs.pushn(self.ip+2)
+            self.call(cf)
+            self.ip = self.rs.popn()
 
     def n_dolit(self):
         """Process an inline 16 bit literal and put it on DS"""
         #: n_DOLIT  ( -- )
         #{ip=rs_pop; n=mem_readn(ip); ds.pushn(n) ip+=2}
-
-        self.ip = self.rs.popn()
-        n = self.mem.readn(self.ip)
-        self.ds.pushn(n)
-        self.ip += 2
+        #Debug.trace("dolit")
+        ip = self.rs.popn()
+        n = self.mem.readn(ip)
+        self.ds.pushb(n)
+        #Debug.trace("found literal: %d" % n)
+        ip += 2
+        self.rs.pushn(ip)
 
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
         """: n_EXIT   ( -- )
         { ip=rs_pop() } ;"""
-        self.ip = self.rs.popn()
+        #Debug.trace("exit")
+
+        # If nothing on stack, STOP #TODO need a cleaner way to stop
+        if self.rs.getused() >= 2:
+            self.ip = self.rs.popn()
+            #Debug.trace("popped to IP: %x" % self.ip)
+        else:
+            #Debug.trace("Return stack empty, STOPPING ########")
+            self.running = False
 
 
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
@@ -1319,7 +1356,6 @@ class Forth:
         # Build the PF entries (all should contain CFAs)
         plist  = []
         DOLIT  = self.machine.dict.ffa2cfa(self.machine.dict.find(" DOLIT"))
-        EXIT   = self.machine.getIndex(" EXIT")
         DODOES = self.machine.getIndex(" DODOES")
 
         for word in args:
@@ -1332,7 +1368,8 @@ class Forth:
                 # It's a number, so insert a DOLIT
                 plist.append(DOLIT)
                 plist.append(word)
-        plist.append(EXIT)
+        exit_cfa = self.machine.dict.ffa2cfa(self.machine.dict.find("EXIT"))
+        plist.append(exit_cfa)
 
         # Now create the dictionary entry
         # CF=DODOES is implied for all high level word definitions
@@ -1372,15 +1409,13 @@ class Forth:
 
 def test_star():
     f = Forth().boot()
-
-    f.machine.dict.dump()
+    #f.machine.dict.dump()
 
     # TEST: output a * on stdout
-    #f.create_word("STAR", 42, "EMIT")
-
-    #f.machine.dict.dump()
-    #f.execute_word("STAR")
-
+    f.create_word("STAR", 42, "EMIT")
+    #f.machine.dict.dumpraw()
+    f.execute_word("STAR")
+    #f.machine.ds.dumpraw()
 
 if __name__ == "__main__":
     test_star()

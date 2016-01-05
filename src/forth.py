@@ -4,9 +4,8 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
-#TODO: looks like dict header is corrupted at the moment (dump output)
-#It's all to do with handling of the DICT ptr increments (its wrong)
-#TODO: Fix this in Stack()
+#TODO: DICT sort of working now.
+#link fields are off by one byte (presumably due to sampling ptr at wrong time)
 
 #----- DEBUG ------------------------------------------------------------------
 
@@ -279,7 +278,7 @@ class Stack():
     #--------------------------------------------------------------------------
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
-        self.push((byte))
+        self.push((byte, ))
 
     def pushn(self, number):
         """Push a 16 bit number onto the stack"""
@@ -310,7 +309,7 @@ class Stack():
 
     def setb(self, index, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        self.write(rel=index, bytes=(byte))
+        self.write(rel=index, bytes=(byte,))
 
     def setn(self, index, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
@@ -375,7 +374,7 @@ class Stack():
 class Vars(Stack):
     """A generic variable region abstraction"""
     def __init__(self, storage, start, size):
-        Stack.__init__(self, storage, start, size)
+        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
     def create(self, size=2):
         """Create a new constant or variable of the given size in bytes"""
@@ -438,8 +437,7 @@ class UserVars(Vars):
 # Structure:
 #   HEADER
 #     FFA->FF   (flags field) {b7=immediate flag, b6=defining, b5=unused, b4..b0=count 0..31}
-#     NFA->NF   (name field) 16 bit padded name string
-#          1PAD (optional pad byte to 16 bit align next field)
+#     NFA->NF   (name field) name string
 #     LFA->LF   (link field) {16bit addr of prev entry}
 #   BODY
 #     CFA->CF (code field) {16bit addr of machine code routine}
@@ -453,7 +451,7 @@ class Dictionary(Stack):
     FIELD_COUNT    = 0x1F # 0..31
 
     def __init__(self, storage, start, size):
-        Stack.__init__(self, storage, start, size, incwrite=False)
+        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
         self.last_ffa = self.ptr
         self.pushb(0) # first FFA entry is always zero, to mark end of search chain
@@ -474,8 +472,6 @@ class Dictionary(Stack):
         df = Dictionary.FLAG_DEFINING
 
         ff = im + df + len(nf)
-        # extra pad byte to 16 bit align
-        pad = len(nf) % 2
         #   NF: name field
         # as above, already truncated
         #   LF: link field
@@ -484,22 +480,21 @@ class Dictionary(Stack):
         # store header
         self.defining_ffa = self.ptr
         self.allot(1)
-        self.writeb(ff)
+        self.storeb(ff)
         for ch in nf:
             self.allot(1)
-            self.writeb(ord(ch))
-        if pad: self.allot(1)
+            self.storeb(ord(ch))
         self.allot(2)
-        self.write(lf)
+        self.store(lf)
 
         # if cf/nf provided, fill them in too
         if cf != None:
             self.allot()
-            self.write(cf)
+            self.store(cf)
         if pf != None:
             for f in pf:
                 self.allot()
-                self.write(f)
+                self.store(f)
 
         # if finished, clear the defining flag and advance self.last_ffa
         if finish:
@@ -521,19 +516,20 @@ class Dictionary(Stack):
     def dump(self):
         """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
         print("DICTIONARY")
-        print("start:       %d" % self.start)
-        print("size:        %d" % self.size)
-        print("ptr:         %d" % self.ptr)
-        print("last_ffa:    %d" % self.last_ffa)
-        print("defining_ffa:%s" % str(self.defining_ffa))
+        print("start:       %x" % self.start)
+        print("size:        %x" % self.size)
+        print("ptr:         %x" % self.ptr)
+        print("last_ffa:    %x" % self.last_ffa)
+        if self.defining_ffa != None:
+            print("defining_ffa:%x" % self.defining_ffa)
 
-        for addr in range(self.start, self.ptr):
+        for addr in range(self.start, self.ptr+1):
             b = self.storage[addr]
-            if b > 32:
+            if b > 32 and b < 127:
                 ch = chr(b)
             else:
                 ch = ' '
-            print("%d:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
+            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
         ffa = self.last_ffa
         while True:
@@ -560,7 +556,6 @@ class Dictionary(Stack):
                 buf += self.storage.readb(ptr)
                 ptr += 1
             print("NF: %s" % buf)
-            ptr += (count % 2) # pad
 
             #### LF - Link Field
             lf = self.storage.readn(ptr)
@@ -589,11 +584,11 @@ class Dictionary(Stack):
             for i in range(size):
                 self.pushb(0) # note this moves the pointer
 
-    def write(self, number):
+    def store(self, number):
         """Write a 16 bit number at the present H pointer in the dictionary"""
         self.setn(0, number) # note this does not move the pointer
 
-    def writeb(self, byte):
+    def storeb(self, byte):
         """Write an 8 bit number at the present H pointer in the dictionary"""
         self.setb(0, byte) # note this does not move the pointer
 
@@ -711,8 +706,8 @@ class Dictionary(Stack):
 
 class DataStack(Stack):
     """A stack for pushing application data on to """
-    def __init__(self, mem, start, size, ptr):
-        Stack.__init__(self, mem, start, size, ptr, grows=1, incwrite=False)
+    def __init__(self, mem, start, size):
+        Stack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
     # functions to allow memory mapped registers
     def rd_s0(self):
@@ -734,8 +729,8 @@ class DataStack(Stack):
 
 class ReturnStack(Stack):
     """A stack for high level forth call/return addresses"""
-    def __init__(self, mem, start, size, ptr):
-        Stack.__init__(self, mem, start, size, ptr, grows=-1, incwrite=False)
+    def __init__(self, mem, start, size):
+        Stack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
 
     # functions to allow memory mapped registers
     def rd_r0(self):
@@ -896,7 +891,7 @@ class Machine():
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
-            #("STORE",  None,        None,         self.n_store),     # CODE
+            ("STORE",  None,        None,         self.n_store),     # CODE
             #("FETCH",  None,        None,         self.n_fetch),     # CODE
             #("STORE8", None,        None,         self.n_store8),    # CODE
             #("FETCH8", None,        None,         self.n_fetch8),    # CODE

@@ -183,38 +183,46 @@ class Memory():
 
 class Stack():
     """A general purpose stack abstraction to wrap around memory storage"""
-    def __init__(self, storage, start, size, ptr, grows=1, incwrite=True):
+    def __init__(self, storage, start, size, ptr, growdirn=1, incwrite=True):
+        #TODO: review incwrite
+        #True: increment then write, so ptr points to last used entry
+        #but if you push a 16-bit, this means it needs to point to the last *byte* of that 16 bit
+        #
+        #False: write then increment, so ptr points to first free entry
+        #but if you push a 16-bit, this means it needs to point to first free *byte*
+
         self.storage  = storage
-        self.start = start
-        self.size = size
-        if grows > 0:
-            self.grows = 1
-            self.ptr = start
+        self.start    = start
+        self.size     = size
+        self.ptr      = ptr
+        if growdirn > 0:
+            self.growdirn = 1
         else:
-            self.grows = -1
-            self.ptr = start+size
+            self.growdirn = -1
         self.incwrite = incwrite
 
     def clear(self):
         """Reset the stack to empty"""
-        if self.grows > 0:
+        if self.growdirn > 0:
             self.ptr = self.start
+            #TODO: incwrite strategy, adjust ptr
         else:
             self.ptr = self.start + self.size
+            #TODO: incwrite strategy. adjust ptr
 
     def grow(self, bytes):
         """Expand the stack by a number of bytes"""
-        self.ptr += bytes * self.grows
+        self.ptr += bytes * self.growdirn
 
     def shrink(self, bytes):
         """Shrink the stack by a number of bytes"""
-        self.ptr -= bytes * self.grows
+        self.ptr -= bytes * self.growdirn
 
     def pushn(self, number):
         """Push a 16 bit number onto the stack"""
         b0, b1 = Number.to_bytes(number)
         if self.incwrite: self.grow(2)
-        self.storage[self.ptr]   = b0
+        self.storage[self.ptr]   = b0 #TODO: looks suspect
         self.storage[self.ptr+1] = b1
         if not self.incwrite: self.grow(2)
 
@@ -228,7 +236,7 @@ class Stack():
         """Push a 32 bit double onto the stack"""
         b0, b1, b2, b3 = Double.to_bytes(double)
         if self.incwrite: self.grow(4)
-        self.storage[self.ptr]   = b0
+        self.storage[self.ptr]   = b0 #TODO: looks suspect
         self.storage[self.ptr+1] = b1
         self.storage[self.ptr+2] = b2
         self.storage[self.ptr+3] = b3
@@ -236,11 +244,11 @@ class Stack():
 
     def popn(self):
         """Pop a 16 bit number from the stack"""
-        if self.incwrite: self.grow(2)
-        b0 = self.storage[self.ptr]
+        if not self.incwrite: self.shrink(2)
+        b0 = self.storage[self.ptr] #TODO: looks suspect
         b1 = self.storage[self.ptr+1]
         number = Number.from_bytes((b0, b1))
-        if not self.incwrite: self.grow(2)
+        if self.incwrite: self.shrink(2)
         return number
 
     def popb(self):
@@ -253,7 +261,7 @@ class Stack():
     def popd(self):
         """Pop a 32 bit double from the stack"""
         if not self.incwrite: self.shrink(4)
-        b0 = self.storage[self.ptr]
+        b0 = self.storage[self.ptr] #TODO: looks suspect
         b1 = self.storage[self.ptr+1]
         b2 = self.storage[self.ptr+2]
         b3 = self.storage[self.ptr+3]
@@ -263,22 +271,28 @@ class Stack():
 
     def getn(self, relindex):
         """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        ofs = (relindex*2)*self.grows
-        b0 = self.storage[self.ptr+ofs]
+        # 0 means the 16 bit item at TOS
+        # 1 means the 16 bit item below TOS
+        ofs = (relindex*2)*self.growdirn
+        b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
         b1 = self.storage[self.ptr+ofs+1]
         number = Number.from_bytes((b0, b1))
         return number
 
     def getb(self, relindex):
         """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        ofs = relindex * self.grows
-        byte = self.storage[self.ptr+ofs]
+        # 0 means the 8 bit item at TOS
+        # 1 means the 8 bit item below TOS
+        ofs = relindex * self.growdirn
+        byte = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
         return byte
 
     def getd(self, relindex):
         """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        ofs = (relindex*4)*self.grows
-        b0 = self.storage[self.ptr+ofs]
+        # 0 means the 32 bit item at TOS
+        # 1 means the 32 bit item below TOS
+        ofs = (relindex*4)*self.growdirn
+        b0 = self.storage[self.ptr+ofs] #TODO: incwrite strategy?
         b1 = self.storage[self.ptr+ofs+1]
         b2 = self.storage[self.ptr+ofs+2]
         b3 = self.storage[self.ptr+ofs+3]
@@ -287,21 +301,27 @@ class Stack():
 
     def setn(self, relindex, number):
         """Write to a 16 bit number at a 16 bit position relative to top of stack"""
-        ofs = (relindex*2)*self.grows
+        # 0 means the 16 bit item at TOS
+        # 1 means the 16 bit item below TOS
+        ofs = (relindex*2)*self.growdirn
         b0, b1 = Number.to_bytes(number)
-        self.storage[self.ptr+ofs]   = b0
+        self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
         self.storage[self.ptr+ofs+1] = b1
 
     def setb(self, relindex, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        ofs = relindex*self.grows
-        self.storage[self.ptr+ofs] = byte
+        # 0 means the 8 bit item at TOS
+        # 1 means the 8 bit item below TOS
+        ofs = relindex*self.growdirn
+        self.storage[self.ptr+ofs] = byte #TODO: incwrite strategy?
 
     def setd(self, relindex, double):
         """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
-        ofs = (relindex*4)*self.grows
+        # 0 means the 32 bit item at TOS
+        # 1 means the 32 bit item below TOS
+        ofs = (relindex*4)*self.growdirn
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.storage[self.ptr+ofs]   = b0
+        self.storage[self.ptr+ofs]   = b0 #TODO: incwrite strategy?
         self.storage[self.ptr+ofs+1] = b1
         self.storage[self.ptr+ofs+2] = b2
         self.storage[self.ptr+ofs+3] = b3

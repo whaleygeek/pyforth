@@ -5,6 +5,7 @@
 # by attempting a modern implementation of it.
 
 #TODO looks like dict header is corrupted at the moment (dump output)
+#It's all to do with handling of the DICT ptr increments (its wrong)
 
 #----- DEBUG ------------------------------------------------------------------
 
@@ -419,7 +420,7 @@ class Dictionary(Stack):
     FIELD_COUNT    = 0x1F # 0..31
 
     def __init__(self, storage, start, size, ptr):
-        Stack.__init__(self, storage, start, size, ptr)
+        Stack.__init__(self, storage, start, size, ptr, incwrite=False)
 
         self.last_ffa = self.ptr
         self.pushb(0) # first FFA entry is always zero, to mark end of search chain
@@ -427,7 +428,7 @@ class Dictionary(Stack):
 
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         """Create a new dictionary record"""
-        #Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
+        Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
 
         # truncate name to maximum length
         if len(nf) > 32:
@@ -861,7 +862,7 @@ class Machine():
         self.dispatch = [
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
-            #("NOP",    None,        None,         self.n_nop),       # CODE
+            ("NOP",    None,        None,         self.n_nop),       # CODE
             #("STORE",  None,        None,         self.n_store),     # CODE
             #("FETCH",  None,        None,         self.n_fetch),     # CODE
             #("STORE8", None,        None,         self.n_store8),    # CODE

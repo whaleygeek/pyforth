@@ -1208,8 +1208,10 @@ class Machine():
     def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
+        import sys
         ch = chr(self.ds.popb())
-        self.outs.writech(ch)
+        sys.stdout.write(ch)
+        #sys.stdout.flush()
 
     def n_printtos(self):
         """: n_PRINTTOS ( n --)
@@ -1407,17 +1409,21 @@ class Forth:
 
 #----- RUNNER -----------------------------------------------------------------
 
-def test_star():
+def test_hello():
     f = Forth().boot()
     #f.machine.dict.dump()
 
     # TEST: output a * on stdout
-    f.create_word("STAR", 42, "EMIT")
-    #f.machine.dict.dumpraw()
-    f.execute_word("STAR")
-    #f.machine.ds.dumpraw()
+    msg = "Hello world!\n"
+    pfa = []
+    for ch in msg:
+        pfa.append(ord(ch))
+        pfa.append("EMIT")
+
+    f.create_word("HELLO", *pfa)
+    f.execute_word("HELLO")
 
 if __name__ == "__main__":
-    test_star()
+    test_hello()
 
 # END

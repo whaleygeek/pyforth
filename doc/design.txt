@@ -2,10 +2,22 @@
 
 PLAN
 
-Unconditional branch
-Conditional branch
-Relational operators
+NATIVES
+: 0=   ( n -- ?)  { n=popn; if n==0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
+: NOT  ( ? -- ?)  { f=popn; if n==FORTH_FALSE: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
+: 0<   ( n -- ?)  { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
+: 0>   ( n -- ?)  { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
+: U<   ( u1 u2 -- ?) { u2=popn; u1=popn; u2&=0xFFFF; u1&=0xFFFF; if u1<u2: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
 
+HIGH LEVEL
+(but defined by API calls at this stage)
+
+: =  ( n1 n2 -- ?)    - 0= ;
+: <> ( n1 n2 -- )     - 0= NOT ;
+: <   ( n1 n2 -- ?)   - 0> ;
+: >   ( n1 n2 -- ?)   - 0< ;
+
+----------
 
 
 Defining normal constants

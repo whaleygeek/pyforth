@@ -961,8 +961,8 @@ class Machine():
             #("FETCH8", None,        None,         self.n_fetch8),    # CODE
             #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
             #("ADRUV",  None,        None,         self.n_adruv),     # CODE
-            ("BRANCH", None,        None,         self.n_branch),    # CODE
-            #("0BRANCH",None,        None,         self.n_0branch),   # CODE
+            ("BRANCH",  None,        None,         self.n_branch),    # CODE
+            ("0BRANCH", None,        None,         self.n_0branch),   # CODE
 
             # DICT registers
             #("D0",     self.dict.rd_d0, None,     None),             # CONST
@@ -1282,9 +1282,11 @@ class Machine():
 
         if f == 0:
             abs = (ip + rel) & 0xFFFF # 2's complement
+        else:
+            abs = ip
 
         self.rs.popn()
-        self.rs.pusnh(abs)
+        self.rs.pushn(abs)
 
 
     def n_rblk(self):

@@ -4,13 +4,10 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
-#TODO: Resolve DOLIT (need a DOLITC for char)
-#or check Brodie, how is the following coded:
-#  42 EMIT
-# because the 42 really should be a number, so EMIT should take a number
-# and ignore the high byte??
+#----- CONFIGURATION ----------------------------------------------------------
 
 DISK_FILE_NAME = "forth_disk.bin"
+
 
 #----- DEBUG ------------------------------------------------------------------
 
@@ -802,25 +799,31 @@ class ReturnStack(Stack):
 
 #---- I/O ---------------------------------------------------------------------
 
-#TODO: KeyboardInput
-#class Input():
-#    def __init__(self):
-#        pass
-#
-#    def check(self):
-#        return True
-#
-#    def read(self):
-#        return '*'
+class KeyboardInput():
+    def __init__(self):
+        pass
+
+    def check(self):
+        return True
+
+    def read(self):
+        return '*'
 
 
-#TODO: ScreenOutput
-#class Output():
-#    def __init__(self):
-#        pass
-#
-#    def writech(self, ch):
-#        print(ch)
+class ScreenOutput():
+    def __init__(self):
+        pass
+
+    def writech(self, ch):
+        import sys
+        sys.stdout.write(ch)
+        #import sys
+        #sys.stdout.flush()
+
+    def writen(self, n):
+        print("%d" % n)
+        #import sys
+        #sys.stdout.flush()
 
 
 class Disk():
@@ -850,9 +853,9 @@ class Machine():
     """The inner-interpreter of the lower level/native FORTH words"""
     def __init__(self, parent):
         self.ip     = 0
-        #self.outs   = parent.outs
-        #self.ins   = parent.ins # TODO: Will need this eventually
-        self.disk = parent.disk
+        self.outs   = parent.outs
+        self.ins    = parent.ins
+        self.disk   = parent.disk
 
     def boot(self):
         self.build_ds()       # builds memory abstractions
@@ -1144,7 +1147,6 @@ class Machine():
         { n2=ds_pop; n1=ds_pop; r=n1+n2; flags=zncv; ds_push(r) } ;"""
         n2 = self.ds.popn()
         n1 = self.ds.popn()
-        #print("n1 %x n2 %x" % (n1, n2))
         r = n1 + n2
         flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
@@ -1233,16 +1235,14 @@ class Machine():
     def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
-        import sys
-        ch = chr(self.ds.popn() & 0xFF) # TODO check Brodie
-        sys.stdout.write(ch) # TODO use Output()
-        #sys.stdout.flush()
+        ch = chr(self.ds.popn() & 0xFF)
+        self.outs.writech(ch)
 
     def n_printtos(self):
         """: n_PRINTTOS ( n --)
         { printnum(ds_pop16) } ;"""
         n = self.ds.popn()
-        print("%d" % n) # TODO use Output()
+        self.outs.writen(n)
 
     def n_rdpfa(self):
         """: n_RDPFA   ( a-pfa -- n)
@@ -1357,12 +1357,12 @@ class Machine():
         { ip=rs_pop() } ;"""
         #Debug.trace("exit")
 
-        # If nothing on stack, STOP #TODO need a cleaner way to stop
+        # If nothing on stack, STOP
         if self.rs.getused() >= 2:
             self.ip = self.rs.popn()
             #Debug.trace("popped to IP: %x" % self.ip)
         else:
-            #Debug.trace("Return stack empty, STOPPING ########")
+            #Debug.trace("Return stack empty, STOPPING")
             self.running = False
 
 
@@ -1370,15 +1370,10 @@ class Machine():
 
 class Forth:
     def boot(self):
-        #TODO: Forth or Machine, who owns the streams??
-        #TODO how do ins and outs streams get redirected?
-        #e.g. printer functions redirect outs to printing routines
-        #e.g. input stream can come from a disk block when using LOAD
-        #They are both encapsulated as classes, so they can just be
-        #re-mapped by the appropriate routines, but who are their parent?
-
-        #self.outs = Output()
+        self.outs = ScreenOutput()
+        self.ins  = KeyboardInput()
         self.disk = Disk(DISK_FILE_NAME)
+
         self.machine = Machine(self).boot()
 
         return self
@@ -1411,7 +1406,7 @@ class Forth:
 
         # Now create the dictionary entry
         # CF=DODOES is implied for all high level word definitions
-        #print(plist)
+        #Debug.trace(plist)
         self.machine.dict.create(
             nf=name,
             cf=DODOES,

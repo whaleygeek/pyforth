@@ -4,6 +4,14 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+#TODO: Need to decide how to handle numbers
+#i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
+#what happens if you add 1 to 65535, it should wrap to 0
+#so all the maths *might* need to be done with the Number() class to
+#simulate a true 16 bit machine. Same for Double() and also need
+#a Byte() if there are arithmetic ops for bytes. Might also want a
+#Boolean() to simulate boolean behaviour with a S16, and a way to
+#convert to unsigned for U< for example.
 
 #----- CONFIGURATION ----------------------------------------------------------
 
@@ -852,6 +860,10 @@ class Disk():
 
 class Machine():
     """The inner-interpreter of the lower level/native FORTH words"""
+
+    FALSE = 0x0000
+    TRUE  = 0xFFFF #TODO: or -1 (not the same in python, but same in Forth)
+
     def __init__(self, parent):
         self.ip     = 0
         self.outs   = parent.outs
@@ -950,7 +962,7 @@ class Machine():
             ("/",      None,        None,         self.n_div),       # CODE
             ("MOD",    None,        None,         self.n_mod),       # CODE
 
-            #("0=",     None,        None,        self.n_0eq),        # CODE
+            ("0=",     None,        None,        self.n_0eq),        # CODE
             #("NOT",    None,        None,        self. n_not),       # CODE
             #("0<",     None,        None,        self. n_0lt),       # CODE
             #("0>",     None,        None,        self. n_0gt),       # CODE
@@ -1226,27 +1238,31 @@ class Machine():
     def n_0eq(self):
         """: 0=   ( n -- ?)
         { n=popn; if n==0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        pass
+        n = self.ds.popn()
+        if n==0:
+            self.ds.pushn(Machine.TRUE)
+        else:
+            self.ds.pushn(Machine.FALSE)
 
     def n_not(self):
         """: NOT  ( ? -- ?)
         { f=popn; if n==FORTH_FALSE: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        pass
+        Debug.fail("Not implemented")
 
     def n_0lt(self):
         """: 0<   ( n -- ?)
         { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        pass
+        Debug.fail("Not implemented")
 
     def n_0gt(self):
         """: 0>   ( n -- ?)
         { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        pass
+        Debug.fail("Not implemented")
 
     def n_ult(self):
         """: U<   ( u1 u2 -- ?)
         { u2=popn; u1=popn; u2&=0xFFFF; u1&=0xFFFF; if u1<u2: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        pass
+        Debug.fail("Not implemented")
 
 
     def n_flags(self):

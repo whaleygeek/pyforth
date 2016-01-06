@@ -92,7 +92,7 @@ class TestForth(unittest.TestCase):
 
     def test_30_wblk_rblk(self):
         # wblk ( n a -- )  i.e. blocknum addr
-        #self.f.machine.mem.dump(1024, 16)
+        #self.f.machine.mem.dump(1024, 16) # TODO capture it
 
         self.f.create_word("W", " DOLIT", 0, " DOLIT", 1024, "WBLK") # probably DICT
         self.f.create_word("R", " DOLIT", 0, " DOLIT", 65536-1024, "RBLK")
@@ -101,7 +101,7 @@ class TestForth(unittest.TestCase):
         # rblk ( n a -- )  i.e. blocknum addr
         self.f.execute_word("R")
 
-        #self.f.machine.mem.dump(65536-1024, 16)
+        #self.f.machine.mem.dump(65536-1024, 16) # TODO compare it
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
@@ -120,20 +120,39 @@ class TestForth(unittest.TestCase):
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
 
-    def Xtest_50_0eq(self):
-        pass
+    def test_50_0eq(self):
+        """Test 0= relational operator"""
+        self.f.create_word("RF", " DOLIT", 10, "0=", ".")
+        self.f.execute_word("RF")
 
-    def Xtest_51_not(self):
-        pass
+        self.f.create_word("RT", " DOLIT", 0, "0=", ".")
+        self.f.execute_word("RT")
 
-    def Xtest_52_0lt(self):
-        pass
+    def Xtest_51_not(self): #TODO
+        """Test NOT boolean operator"""
+        self.f.create_word("N")
+        self.f.execute_word("N")
 
-    def Xtest_53_0gt(self):
-        pass
+    def Xtest_52_0lt(self): #TODO
+        """Test 0< relational operator"""
+        self.f.create_word("LF")
+        self.f.execute_word("LF")
+        self.f.create_word("LT")
+        self.f.execute_word("LT")
 
-    def Xtest_54_ult(self):
-        pass
+    def Xtest_53_0gt(self): #TODO
+        """Test 0> relational operator"""
+        self.f.create_word("GF")
+        self.f.execute_word("GF")
+        self.f.create_word("GT")
+        self.f.execute_word("GT")
+
+    def Xtest_54_ult(self): #TODO
+        """Test U< relational operator"""
+        self.f.create_word("UF")
+        self.f.execute_word("UF")
+        self.f.create_word("UT")
+        self.f.execute_word("UT")
 
 
 if __name__ == "__main__":

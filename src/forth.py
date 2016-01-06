@@ -1,4 +1,4 @@
-# forth.py  25/12/2015  D.J.Whale
+# forth.py  25/12/2015  (c) D.J.Whale
 #
 # An experiment to write a minimal FORTH language on top of Python.
 # The main purpose of this is to study the design of the FORTH language
@@ -1416,8 +1416,17 @@ class Forth:
 
 #----- RUNNER -----------------------------------------------------------------
 
+forth = Forth().boot()
+
+def create_word(*args):
+    forth.create_word(*args)
+
+def execute_word(*args):
+    forth.execute_word(*args)
+
 def test_hello():
-    # TEST: output a * on stdout
+    """output a "Hello world!" on stdout"""
+
     msg = "Hello world!\n"
     pfa = []
     for ch in msg:
@@ -1427,17 +1436,7 @@ def test_hello():
     forth.create_word("HELLO", *pfa)
     forth.execute_word("HELLO")
 
-def test_add():
-    # TEST: add two numbers and show result
-    forth.create_word("TESTSUM", 1, 2, "+", ".")
-    #forth.machine.dict.dump()
-    forth.execute_word("TESTSUM")
-
-forth = None
 if __name__ == "__main__":
-    forth = Forth().boot()
-    #forth.machine.dict.dump()
-    #test_hello()
-    test_add()
+    test_hello()
 
 # END

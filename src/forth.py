@@ -949,6 +949,13 @@ class Machine():
             ("*",      None,        None,         self.n_mult),      # CODE
             ("/",      None,        None,         self.n_div),       # CODE
             ("MOD",    None,        None,         self.n_mod),       # CODE
+
+            #("0=",     None,        None,        self.n_0eq),        # CODE
+            #("NOT",    None,        None,        self. n_not),       # CODE
+            #("0<",     None,        None,        self. n_0lt),       # CODE
+            #("0>",     None,        None,        self. n_0gt),       # CODE
+            #("U<",     None,        None,        self. n_ult),       # CODE
+
             #("FLAGS",  None,        None,         self.n_flags),     # CODE
             #("KEY",    None,        None,         self.n_key),       # CODE
             #("KEYQ",   None,        None,         self.n_keyq),      # CODE
@@ -1215,6 +1222,32 @@ class Machine():
         r = n1 % n2
         flags = 0 # TODO: ZNCV
         self.ds.pushn(r)
+
+    def n_0eq(self):
+        """: 0=   ( n -- ?)
+        { n=popn; if n==0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
+        pass
+
+    def n_not(self):
+        """: NOT  ( ? -- ?)
+        { f=popn; if n==FORTH_FALSE: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
+        pass
+
+    def n_0lt(self):
+        """: 0<   ( n -- ?)
+        { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
+        pass
+
+    def n_0gt(self):
+        """: 0>   ( n -- ?)
+        { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
+        pass
+
+    def n_ult(self):
+        """: U<   ( u1 u2 -- ?)
+        { u2=popn; u1=popn; u2&=0xFFFF; u1&=0xFFFF; if u1<u2: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
+        pass
+
 
     def n_flags(self):
         """: n_FLAGS   ( -- )

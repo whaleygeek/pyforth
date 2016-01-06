@@ -120,6 +120,22 @@ class TestForth(unittest.TestCase):
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
 
+    def Xtest_50_0eq(self):
+        pass
+
+    def Xtest_51_not(self):
+        pass
+
+    def Xtest_52_0lt(self):
+        pass
+
+    def Xtest_53_0gt(self):
+        pass
+
+    def Xtest_54_ult(self):
+        pass
+
+
 if __name__ == "__main__":
     unittest.main()
 

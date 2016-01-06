@@ -10,6 +10,8 @@
 # because the 42 really should be a number, so EMIT should take a number
 # and ignore the high byte??
 
+DISK_FILE_NAME = "forth_disk.bin"
+
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
@@ -108,6 +110,13 @@ class Memory():
 
     def __getitem__(self, key):
         return self.bytes[key]
+
+    def dump(self, start, len):
+        """Dump memory to stdout, for debug reasons"""
+        #TODO do a proper 8 or 16 column address-prefixed dump
+        for a in range(start, start+len):
+            print("%4x:%2x" % (a, self.bytes[a]))
+
 
     def region(self, name, spec):
         """Define a new memory region in the memory map"""
@@ -792,9 +801,8 @@ class ReturnStack(Stack):
 
 
 #---- I/O ---------------------------------------------------------------------
-#
-# Interface to keyboard input
 
+#TODO: KeyboardInput
 #class Input():
 #    def __init__(self):
 #        pass
@@ -804,29 +812,36 @@ class ReturnStack(Stack):
 #
 #    def read(self):
 #        return '*'
-# Interface to screen output
 
 
-class Output():
-    def __init__(self):
-        pass
-
-    def writech(self, ch):
-        print(ch)
-
-
-# An interface to reading and writing blocks in a nominated
-# disk file image.
-
-#class Disk():
+#TODO: ScreenOutput
+#class Output():
 #    def __init__(self):
 #        pass
 #
-#    def read(self, diskaddr, mem, memaddr, size):
-#        Debug.unimplemented("disk_rd")
-#
-#    def write(self, diskaddr, mem, memaddr, size);
-#        Debug.unimplemented("disk_wr")
+#    def writech(self, ch):
+#        print(ch)
+
+
+class Disk():
+    """An interface to reading and writing blocks in a nominated binary file"""
+
+    BLOCK_SIZE = 1024
+    def __init__(self, name):
+        self.filename = name
+
+    def read(self, blocknum):
+        f = open(self.filename, "rb")
+        f.seek(Disk.BLOCK_SIZE * blocknum)
+        buf = f.read(Disk.BLOCK_SIZE)
+        f.close()
+        return buf
+
+    def write(self, blocknum, bytes):
+        f = open(self.filename, "wb")
+        f.seek(Disk.BLOCK_SIZE * blocknum)
+        f.write(bytes) # must be string or buffer, not list
+        f.close()
 
 
 #----- FORTH MACHINE INNER INTERPRETER ----------------------------------------
@@ -835,14 +850,15 @@ class Machine():
     """The inner-interpreter of the lower level/native FORTH words"""
     def __init__(self, parent):
         self.ip     = 0
-        self.outs   = parent.outs
+        #self.outs   = parent.outs
         #self.ins   = parent.ins # TODO: Will need this eventually
+        self.disk = parent.disk
 
     def boot(self):
         self.build_ds()       # builds memory abstractions
         self.build_dispatch() # builds magic routine/register dispatch table
         self.build_native()   # puts native routines/registers into DICT
-        self.running = True
+        self.running = False
         return self
 
     def build_ds(self):
@@ -908,38 +924,40 @@ class Machine():
         #16 bit memory access (preferred)
         #in which case, we need to know that it *is* a 16 bit read, and generate a 'bus error' like thing
         #if it is not.
+
         self.dispatch = [
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
+            ("EMIT",   None,        None,         self.n_emit),      # CODE
+            (".",      None,        None,         self.n_printtos),  # CODE
+            ("SWAP",   None,        None,         self.ds.swap),     # CODE
+            ("DUP",    None,        None,         self.ds.dup),      # CODE
+            ("OVER",   None,        None,         self.ds.over),     # CODE
+            ("ROT",    None,        None,         self.ds.rot),      # CODE
+            ("DROP",   None,        None,         self.ds.drop),     # CODE
+            ("+",      None,        None,         self.n_add),       # CODE
+            ("-",      None,        None,         self.n_sub),       # CODE
+            ("AND",    None,        None,         self.n_and),       # CODE
+            ("OR",     None,        None,         self.n_or),        # CODE
+            ("XOR",    None,        None,         self.n_xor),       # CODE
+            ("*",      None,        None,         self.n_mult),      # CODE
+            ("/",      None,        None,         self.n_div),       # CODE
+            ("MOD",    None,        None,         self.n_mod),       # CODE
+            #("FLAGS",  None,        None,         self.n_flags),     # CODE
+            #("KEY",    None,        None,         self.n_key),       # CODE
+            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
+            ("RBLK",   None,        None,         self.n_rblk),      # CODE
+            ("WBLK",   None,        None,         self.n_wblk),      # CODE
+
             #("STORE",  None,        None,         self.n_store),     # CODE
             #("FETCH",  None,        None,         self.n_fetch),     # CODE
             #("STORE8", None,        None,         self.n_store8),    # CODE
             #("FETCH8", None,        None,         self.n_fetch8),    # CODE
-            ("+",      None,        None,         self.n_add),       # CODE
-            #("-",      None,        None,         self.n_sub),       # CODE
-            #("AND",    None,        None,         self.n_and),       # CODE
-            #("OR",     None,        None,         self.n_or),        # CODE
-            #("XOR",    None,        None,         self.n_xor),       # CODE
-            #("*",      None,        None,         self.n_mult),      # CODE
-            #("/",      None,        None,         self.n_div),       # CODE
-            #("MOD",    None,        None,         self.n_mod),       # CODE
-            #("FLAGS",  None,        None,         self.n_flags),     # CODE
-            #("SWAP",   None,        None,         self.ds.swap),     # CODE
-            #("DUP",    None,        None,         self.ds.dup),      # CODE
-            #("OVER",   None,        None,         self.ds.over),     # CODE
-            #("ROT",    None,        None,         self.ds.rot),      # CODE
-            #("DROP",   None,        None,         self.ds.drop),     # CODE
-            #("KEY",    None,        None,         self.n_key),       # CODE
-            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
-            ("EMIT",   None,        None,         self.n_emit),      # CODE
             #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
             #("ADRUV",  None,        None,         self.n_adruv),     # CODE
             #("BRANCH", None,        None,         self.n_branch),    # CODE
             #("0BRANCH",None,        None,         self.n_0branch),   # CODE
-            #("RBLK",   None,        None,         self.n_rblk),      # CODE
-            #("WBLK",   None,        None,         self.n_wblk),      # CODE
-            (".",      None,        None,         self.n_printtos),  # CODE
 
             # DICT registers
             #("D0",     self.dict.rd_d0, None,     None),             # CONST
@@ -977,13 +995,13 @@ class Machine():
             # Not registered in dictionary, this is flagged by first char of name=space
             # But this table can still be searched for addresses for internal use.
             (" DODOES",    None,   None,   self.n_dodoes),
-            ("EXECUTE",    None,   None,   self.n_execute),
+            (" DOLIT",     None,   None,   self.n_dolit),
             #(" DOCOL")
             #(" DOCON",    None,   None,   self.n_docon),
             #(" DOVAR",    None,   None,   self.n_dovar),
-            (" DOLIT",    None,   None,   self.n_dolit),
-            ("EXIT",     None,   None,   self.n_exit),
-            #(" NEXT")
+
+            ("EXECUTE",    None,   None,   self.n_execute),
+            ("EXIT",       None,   None,   self.n_exit),
             #(" QUIT")
             #(" BYE")
         ]
@@ -1217,14 +1235,14 @@ class Machine():
         { putch(ds_pop8) } ;"""
         import sys
         ch = chr(self.ds.popn() & 0xFF) # TODO check Brodie
-        sys.stdout.write(ch)
+        sys.stdout.write(ch) # TODO use Output()
         #sys.stdout.flush()
 
     def n_printtos(self):
         """: n_PRINTTOS ( n --)
         { printnum(ds_pop16) } ;"""
         n = self.ds.popn()
-        print("%d" % n)
+        print("%d" % n) # TODO use Output()
 
     def n_rdpfa(self):
         """: n_RDPFA   ( a-pfa -- n)
@@ -1265,19 +1283,29 @@ class Machine():
     def n_rblk(self):
         """: n_RBLK  ( n a -- )
         { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;"""
-        a = self.ds.popn()
-        n = self.ds.popn()
-        #TODO: b = self.disk.read(1024*n, self.mem, a, 1024)
-        Debug.unimplemented("n_rblk")
+        addr = self.ds.popn()
+        blocknum = self.ds.popn()
+
+        bytes = self.disk.read(blocknum)
+        if len(bytes) != Disk.BLOCK_SIZE:
+            Debug.fail("Malformed disk response buffer")
+
+        for b in bytes:
+            self.mem.writeb(addr, ord(b))
+            addr += 1
 
     def n_wblk(self):
         """: n_WBLK  ( n a -- )
         { a=ds_pop; n=ds_pop; disk_wr(1024*b, mem, a, 1024) } ;"""
-        a = self.ds.popn()
-        n = self.ds.popn()
-        #TODO: self.disk.write(1024*n, self.mem, a, 1024)
-        Debug.unimplemented("n_wblk")
+        addr = self.ds.popn()
+        blocknum = self.ds.popn()
 
+        bytes = ""
+        for i in range(Disk.BLOCK_SIZE):
+            bytes += chr(self.mem.readb(addr))
+            addr += 1
+
+        self.disk.write(blocknum, bytes)
 
     #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
 
@@ -1285,7 +1313,7 @@ class Machine():
         """EXECUTE a high level address"""
         # ( pfa -- )
         #Debug.trace("EXECUTE")
-        pfa = self.ds.popn() ###TODO: WRONG ADDR HERE?
+        pfa = self.ds.popn()
         #Debug.trace(" pfa:%x" % pfa)
         # Don't assume DODOES, just in case it is a low level word!
         cfa = self.dict.pfa2cfa(pfa)
@@ -1342,15 +1370,17 @@ class Machine():
 
 class Forth:
     def boot(self):
-        self.outs = Output() #TODO: Forth or Machine, who owns the streams??
-
-        self.machine = Machine(self).boot()
-
+        #TODO: Forth or Machine, who owns the streams??
         #TODO how do ins and outs streams get redirected?
         #e.g. printer functions redirect outs to printing routines
         #e.g. input stream can come from a disk block when using LOAD
         #They are both encapsulated as classes, so they can just be
         #re-mapped by the appropriate routines, but who are their parent?
+
+        #self.outs = Output()
+        self.disk = Disk(DISK_FILE_NAME)
+        self.machine = Machine(self).boot()
+
         return self
 
 
@@ -1402,7 +1432,11 @@ class Forth:
         exec_ffa = self.machine.dict.find("EXECUTE")
         exec_cfa = self.machine.dict.ffa2cfa(exec_ffa)
         exec_cf  = self.machine.mem.readn(exec_cfa)
+        self.machine.running = True
         self.machine.call(exec_cf)
+
+        import sys
+        sys.stdout.flush()
 
 
     #word parser      - parses a word from an input stream

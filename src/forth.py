@@ -4,6 +4,7 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+
 #----- CONFIGURATION ----------------------------------------------------------
 
 DISK_FILE_NAME = "forth_disk.bin"
@@ -404,65 +405,65 @@ class Stack():
 
 #----- VARS -------------------------------------------------------------------
 
-class Vars(Stack):
-    """A generic variable region abstraction"""
-    def __init__(self, storage, start, size):
-        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
-
-    def create(self, size=2):
-        """Create a new constant or variable of the given size in bytes"""
-        addr = self.ptr
-        self.pushn(0)
-        # A variable is just an address in a managed region, so reading and
-        # writing is just done directly via memory using this address.
-        return addr
-
-
-class SysVars(Vars):
-    #TODO: not sure yet what system variables are used for
-    def __init__(self, storage, start, size):
-        Vars.__init__(self, storage, start, size)
-
-    # functions used to implement memory mapped registers
-    def rd_sv0(self):
-        """Read the SysVars start address"""
-        return self.start
-
-    def rd_svz(self):
-        """Read the SysVars size in bytes"""
-        return self.size
-
-    def rd_svp(self):
-        """Read the SysVars current pointer"""
-        return self.ptr
-
-    def wr_svp(self, number):
-        """Write to the SysVars current pointer"""
-        self.ptr = number
+#class Vars(Stack):
+#    """A generic variable region abstraction"""
+#    def __init__(self, storage, start, size):
+#        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
+#
+#    def create(self, size=2):
+#        """Create a new constant or variable of the given size in bytes"""
+#        addr = self.ptr
+#        self.pushn(0)
+#        # A variable is just an address in a managed region, so reading and
+#        # writing is just done directly via memory using this address.
+#        return addr
 
 
-class UserVars(Vars):
-    #TODO: should be one copy per user task.
-    #e.g. BASE
-    def __init__(self, storage, start, size):
-        Vars.__init__(self, storage, start, size)
+#class SysVars(Vars):
+#    #TODO: not sure yet what system variables are used for
+#    def __init__(self, storage, start, size):
+#        Vars.__init__(self, storage, start, size)
 
-    # functions used to implement memory mapped registers
-    def rd_uv0(self):
-        """Read the UserVars start address"""
-        return self.start
+#    # functions used to implement memory mapped registers
+#    def rd_sv0(self):
+#        """Read the SysVars start address"""
+#        return self.start
+#
+#    def rd_svz(self):
+#        """Read the SysVars size in bytes"""
+#        return self.size
+#
+#    def rd_svp(self):
+#        """Read the SysVars current pointer"""
+#        return self.ptr
+#
+#    def wr_svp(self, number):
+#        """Write to the SysVars current pointer"""
+#        self.ptr = number
 
-    def rd_uvz(self):
-        """Read the UserVars size in bytes"""
-        return self.size
 
-    def rd_uvp(self):
-        """Read the UserVars pointer"""
-        return self.ptr
-
-    def wr_uvp(self, number):
-        """Write to the UserVars pointer"""
-        self.ptr = number
+#class UserVars(Vars):
+#    #TODO: should be one copy per user task.
+#    #e.g. BASE
+#    def __init__(self, storage, start, size):
+#        Vars.__init__(self, storage, start, size)
+#
+#    # functions used to implement memory mapped registers
+#    def rd_uv0(self):
+#        """Read the UserVars start address"""
+#        return self.start
+#
+#    def rd_uvz(self):
+#        """Read the UserVars size in bytes"""
+#        return self.size
+#
+#    def rd_uvp(self):
+#        """Read the UserVars pointer"""
+#        return self.ptr
+#
+#    def wr_uvp(self, number):
+#        """Write to the UserVars pointer"""
+#        self.ptr = number
 
 
 #----- DICTIONARY -------------------------------------------------------------
@@ -869,21 +870,21 @@ class Machine():
 
         MEM_SIZE  = 65536
         #          base,             dirn/size
-        SV_MEM   = (0,               +1024      )
-        EL_MEM   = (1024,            +0         )
+        #SV_MEM   = (0,               +1024      )
+        #EL_MEM   = (1024,            +0         )
         DICT_MEM = (1024,            +1024      )
-        PAD_MEM  = (2048,            +80        )
+        #PAD_MEM  = (2048,            +80        )
         DS_MEM   = (8192,            -1024      ) # grows downwards
-        TIB_MEM  = (8192,            +80        )
+        #TIB_MEM  = (8192,            +80        )
         RS_MEM   = (16384,           -1024      ) # grows downwards
-        UV_MEM   = (16384,           +1024      )
-        BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+        #UV_MEM   = (16384,           +1024      )
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
         self.mem = Memory(mem)
 
         #   init sysvars
-        svstart, svsize = self.mem.region("SV", SV_MEM)
-        self.sv = SysVars(self.mem, svstart, svsize)
+        #svstart, svsize = self.mem.region("SV", SV_MEM)
+        #self.sv = SysVars(self.mem, svstart, svsize)
 
         #   init elective space??
         #elstart, elsize  = self.region("EL", at=, EV_MEM)

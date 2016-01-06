@@ -2,44 +2,45 @@
 
 PLAN
 
------ MINIMUM BOOT TEST -------------------------------------------------------
+Unconditional branch
+Conditional branch
+Relational operators
 
-Need to define a single test case that exercises the boot and an execute
 
-- manually define a word in the dict using code
-- manually EXECUTE that word
 
-manually define a thread as a word in the dictionary like this:
-emitting a character is more basic than 1+1
-: HELLO 42 EMIT ;
+Defining normal constants
 
-Definition needs to be done by hand:
-FF  0,0,0,5
-NF  STAR
-PAD 0
-LF  prev_ffa
-CF  getIndex(" DODOES")
-PF  ffa2cfa(find(("DOLIT"))
-    42
-    ffa2cfa(find("EMIT"))
-    getIndex(" NEXT")
+Defining normal variables (perhaps merge the SysVars and UserVars into one for now
+to simplify the model)
 
-i.e. print a star.
+Memory mapping constants and variables (specifically IP and H) to pave the way
+for compilation.
 
-- hand-define STAR in dict
-- implement EXECUTE # find word in dict, FFA2CFA, IP=PFA, call it's CFA
-- implement DODOES  # adds 2 to IP, push IP to RS, call CFA pointed to by IP-2
-                    # DODOES probably terminates when RS is empty and it tries to pop again.
-- implement DOLIT   # pushes next number in thread on stack, advances IP
-- implement EXIT    # pops RS into IP and does NEXT (basically returning to DODOES loop)
-                    # i.e. NEXT is probably just top of while loop in DODOES
-\
-- write run() routine to "EXECUTE STAR"
+Loop primitives (BRANCH and 0BRANCH) - manual method for coding the PFA relatives
+for now, solve the resolution of branch targets when closer to high level
 
-- Run it and see if we get '*' on stdout.
+Relational operators (to generate flags for use in branch)
+
+Outer loop constructs.
+
+Input stream redirection (so we can implement LOAD to get code from a saved
+disk block) - although don't really need this until we write the interpreter.
+
+Write the outer interpreter with interactive mode
+(perhaps do this sooner, as it gives us a good proper test interface a bit
+like the python shell does). Really want this to be in high level, so we
+need unconditional branching in order to do this.
+
+Some of the API seeded words could be re-defined symbolically later when the interpreter/
+compiler is booted.
+
 
 
 ------ DEFINING MORE HIGH LEVEL WORDS -----------------------------------------
+
+Probably do this using the API to simulate the back end (inner loop) work that
+would happen as a result of : definitions.
+
 
 Next to do is probably to come up with a mechanism to define a load of words
 in a file (this might mean we need the parser and compiler written next)
@@ -70,23 +71,12 @@ Those immediate words run code at compile time, rather than deferring the code t
 
 -------------------------------------------------------------------------------
 
-- map all stack pointers and other useful constants into memory
-- finish the dictionary accessor abstraction
-- seed the dictionary with words for all the const/var/natives we need.
-
-- write a unit test suite in Python
-
-- implement and test python native dispatch mechanism
-  - jsr to a CFA just looks up the CFA value in a dispatch table
-  - this table dispatches to the function
-
 - investigate and write/test creational words, so we can seed the dictionary
 
 : n_CREATE   ( -- )                 { } ;     / root of all creation words, creates a new dict entry
 : n_DOCOL   ( -- )                  { } ;     / colon definition, define a new high level word
 : n_DOCON   ( -- )                  { } ;     / create a new constant value
 : n_DOVAR   ( -- )                  { } ;     / create a new uservar in usertable
-: n_DOLIT   ( -- )                  { } ;     / compile a literal at HERE?
 
 
 - seed the dictionary with definitions for system constants

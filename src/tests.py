@@ -128,29 +128,41 @@ class TestForth(unittest.TestCase):
         self.f.create_word("RT", " DOLIT", 0, "0=", ".")
         self.f.execute_word("RT")
 
-    def Xtest_51_not(self): #TODO
+    def test_51_not(self):
         """Test NOT boolean operator"""
-        self.f.create_word("N")
-        self.f.execute_word("N")
+        self.f.create_word("NF", " DOLIT", 0, "NOT", ".")
+        self.f.execute_word("NF")
 
-    def Xtest_52_0lt(self): #TODO
+        self.f.create_word("NT", " DOLIT", 1, "NOT", ".")
+        self.f.execute_word("NT")
+
+    def test_52_0lt(self):
         """Test 0< relational operator"""
-        self.f.create_word("LF")
+        print("HERE")
+        self.f.create_word("LF", " DOLIT", 0, "0<", ".")
         self.f.execute_word("LF")
-        self.f.create_word("LT")
+
+        #TODO: This fails due to incorrect handling of -1 in Machine
+        #it comes out as 0xFFFF which is not less than 0.
+        #This should be a SIGNED COMPARISON
+        self.f.create_word("LT", " DOLIT", -1, "0<", ".")
         self.f.execute_word("LT")
 
     def Xtest_53_0gt(self): #TODO
         """Test 0> relational operator"""
+        #TODO: needs a SIGNED COMPARISON
         self.f.create_word("GF")
         self.f.execute_word("GF")
+
         self.f.create_word("GT")
         self.f.execute_word("GT")
 
     def Xtest_54_ult(self): #TODO
         """Test U< relational operator"""
+        #TODO: needs an UNSIGNED COMPARISON
         self.f.create_word("UF")
         self.f.execute_word("UF")
+
         self.f.create_word("UT")
         self.f.execute_word("UT")
 

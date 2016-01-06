@@ -5,13 +5,16 @@
 # by attempting a modern implementation of it.
 
 #TODO: Need to decide how to handle numbers
-#i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
-#what happens if you add 1 to 65535, it should wrap to 0
-#so all the maths *might* need to be done with the Number() class to
-#simulate a true 16 bit machine. Same for Double() and also need
-#a Byte() if there are arithmetic ops for bytes. Might also want a
-#Boolean() to simulate boolean behaviour with a S16, and a way to
-#convert to unsigned for U< for example.
+# (The test harness now exposes this problem)
+
+# i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
+# what happens if you add 1 to 65535, it should wrap to 0
+# so all the maths *might* need to be done with the Number() class to
+# simulate a true 16 bit machine. Same for Double() and also need
+# a Byte() if there are arithmetic ops for bytes. Might also want a
+# Boolean() to simulate boolean behaviour with a S16, and a way to
+# convert to unsigned for U< for example.
+
 
 #----- CONFIGURATION ----------------------------------------------------------
 
@@ -963,8 +966,8 @@ class Machine():
             ("MOD",    None,        None,         self.n_mod),       # CODE
 
             ("0=",     None,        None,        self.n_0eq),        # CODE
-            #("NOT",    None,        None,        self. n_not),       # CODE
-            #("0<",     None,        None,        self. n_0lt),       # CODE
+            ("NOT",    None,        None,        self. n_not),       # CODE
+            ("0<",     None,        None,        self. n_0lt),       # CODE
             #("0>",     None,        None,        self. n_0gt),       # CODE
             #("U<",     None,        None,        self. n_ult),       # CODE
 
@@ -1247,22 +1250,36 @@ class Machine():
     def n_not(self):
         """: NOT  ( ? -- ?)
         { f=popn; if n==FORTH_FALSE: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        Debug.fail("Not implemented")
+        f=self.ds.popn()
+        if f==Machine.FALSE:
+            self.ds.pushn(Machine.TRUE)
+        else:
+            self.ds.pushn(Machine.FALSE)
 
     def n_0lt(self):
         """: 0<   ( n -- ?)
         { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        Debug.fail("Not implemented")
+        n = self.ds.popn()
+        #TODO: Needs a SIGNED COMPARISON
+        print("lt:%x" % n)
+        if n<0:
+            self.ds.pushn(Machine.TRUE)
+            print("TRUE")
+        else:
+            self.ds.pushn(Machine.FALSE)
+            print("FALSE")
 
     def n_0gt(self):
         """: 0>   ( n -- ?)
         { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
         Debug.fail("Not implemented")
+        #TODO: Needs a SIGNED COMPARISON
 
     def n_ult(self):
         """: U<   ( u1 u2 -- ?)
         { u2=popn; u1=popn; u2&=0xFFFF; u1&=0xFFFF; if u1<u2: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
         Debug.fail("Not implemented")
+        #TODO: Needs an UNSIGNED COMPARISON
 
 
     def n_flags(self):

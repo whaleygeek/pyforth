@@ -15,6 +15,8 @@
 # Boolean() to simulate boolean behaviour with a S16, and a way to
 # convert to unsigned for U< for example.
 
+# Might just & 0xFFFF in all maths operations?
+
 
 #----- CONFIGURATION ----------------------------------------------------------
 
@@ -558,6 +560,13 @@ class Dictionary(Stack):
         self.last_ffa = self.defining_ffa
         self.defining_ffa = None
 
+    def readname(self, addr, count):
+        buf = ""
+        for i in range(count):
+            buf += chr(self.storage.readb(addr))
+            addr += 1
+        return buf
+
     def dump(self):
         """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
         print("DICTIONARY")
@@ -568,7 +577,6 @@ class Dictionary(Stack):
         if self.defining_ffa != None:
             print("defining_ffa:%x" % self.defining_ffa)
 
-
         ffa = self.last_ffa
         while True:
             ptr = ffa
@@ -578,7 +586,7 @@ class Dictionary(Stack):
 
             print("-" * 40)
             #### FF - Flags Field
-            buf = "FF: "
+            buf = "FF: %x " % ffa
             if ff & Dictionary.FLAG_IMMEDIATE: buf += "immediate "
             if ff & Dictionary.FLAG_DEFINING:  buf += "defining "
             if ff & Dictionary.FLAG_UNUSED:    buf += "unused "
@@ -588,27 +596,40 @@ class Dictionary(Stack):
             ptr += 1
 
             #### NF - Name Field
-            buf = ""
-            for i in range(count):
-                buf += chr(self.storage.readb(ptr))
-                ptr += 1
-            print("NF: %s" % buf)
+            nfa = ptr
+            nf = self.readname(nfa, count)
+            print("NF: %x %s" % (nfa, nf))
+            ptr += count
 
             #### LF - Link Field
-            lf = self.storage.readn(ptr)
-            print("LF: %x" % lf)
+            lfa = ptr
+            lf = self.storage.readn(lfa)
+            prev_nf = self.readname(lf+1, self.storage.readb(lf) & Dictionary.FIELD_COUNT)
+            print("LF: %x=%x -> %s" % (lfa, lf, prev_nf))
             ptr += 2
 
             #### CF - Code Field
-            cf = self.storage.readn(ptr)
-            print("CF: %x" % cf)
+            cfa = ptr
+            cf = self.storage.readn(cfa)
+            #TODO: cf_name comes from machine.dispatch
+            print("CF: %x=%x" % (cfa, cf))
             ptr += 2
 
             #### PF - Parameter Field
             #TODO:Need to know how to sense the end of this?
             #There is no length byte, so depends on CF value
             #could look for ptr matching prev ptr, close enough, but not guaranteed
-            print("PF: (here TODO)")
+            pfa = ptr
+            # dump first one for now
+            pf = self.storage.readn(pfa)
+            #note, this is the CFA of the item. How do we back-step to it's NF?
+            #-2 is the LF
+            #but before that is arbitrary ascii chars, and a single FF field which
+            #might actually be a printable ascii char, so it's ambiguous.
+            #Can't assume LF's are sequential, when vocabularies in use.
+            #TODO: could always store a zero after FF (PAD) then we would be able to
+            #backscan for start of string.
+            print("PF: %x=%x" % (pfa, pf))
 
             # Move to prev
             ffa = self.prev(ffa)
@@ -968,7 +989,7 @@ class Machine():
             ("0=",     None,        None,        self.n_0eq),        # CODE
             ("NOT",    None,        None,        self. n_not),       # CODE
             ("0<",     None,        None,        self. n_0lt),       # CODE
-            #("0>",     None,        None,        self. n_0gt),       # CODE
+            ("0>",     None,        None,        self. n_0gt),       # CODE
             #("U<",     None,        None,        self. n_ult),       # CODE
 
             #("FLAGS",  None,        None,         self.n_flags),     # CODE
@@ -1261,19 +1282,20 @@ class Machine():
         { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
         n = self.ds.popn()
         #TODO: Needs a SIGNED COMPARISON
-        print("lt:%x" % n)
         if n<0:
             self.ds.pushn(Machine.TRUE)
-            print("TRUE")
         else:
             self.ds.pushn(Machine.FALSE)
-            print("FALSE")
 
     def n_0gt(self):
         """: 0>   ( n -- ?)
         { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) } ;"""
-        Debug.fail("Not implemented")
         #TODO: Needs a SIGNED COMPARISON
+        n = self.ds.popn()
+        if n>0:
+            self.ds.pushn(Machine.TRUE)
+        else:
+            self.ds.pushn(Machine.FALSE)
 
     def n_ult(self):
         """: U<   ( u1 u2 -- ?)
@@ -1446,6 +1468,9 @@ class Machine():
             self.running = False
 
 
+
+
+
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
 
 class Forth:
@@ -1453,9 +1478,10 @@ class Forth:
         self.outs = ScreenOutput()
         self.ins  = KeyboardInput()
         self.disk = Disk(DISK_FILE_NAME)
-
         self.machine = Machine(self).boot()
+        self.synthesise()
 
+        #self.machine.dict.dump()
         return self
 
 
@@ -1519,6 +1545,23 @@ class Forth:
     #assembler        - compiles new inline assembly code into the dictionary
     #editor           - text editor
     #language         - outer layers of language support
+
+    def synthesise(self):
+        """Synthesise some high level words, in absence of a compiler and interpreter.
+        Note, in a later release, these may be programmed in using the compiler."""
+
+        # : =  ( n1 n2 -- ?)    - 0= ;
+        self.create_word("=", "-", "0=")
+
+        # : <> ( n1 n2 -- )     - 0= NOT ;
+        self.create_word("<>", "-", "0=", "NOT")
+
+        # : <   ( n1 n2 -- ?)   - 0> ;
+        self.create_word("<", "-", "0>")
+
+        # : >   ( n1 n2 -- ?)   - 0< ;
+        self.create_word(">", "-", "0<")
+
 
 
 #----- RUNNER -----------------------------------------------------------------

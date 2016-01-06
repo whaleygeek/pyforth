@@ -2,20 +2,10 @@
 
 PLAN
 
-NATIVES
-: 0=   ( n -- ?)  { n=popn; if n==0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
-: NOT  ( ? -- ?)  { f=popn; if n==FORTH_FALSE: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
-: 0<   ( n -- ?)  { n=popn; if n<0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
-: 0>   ( n -- ?)  { n=popn; if n>0: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
-: U<   ( u1 u2 -- ?) { u2=popn; u1=popn; u2&=0xFFFF; u1&=0xFFFF; if u1<u2: pushn(FORTH_TRUE) else: pushn(FORTH_FALSE) }
+Signed/Unsigned on ALU ops.
 
-HIGH LEVEL
-(but defined by API calls at this stage)
-
-: =  ( n1 n2 -- ?)    - 0= ;
-: <> ( n1 n2 -- )     - 0= NOT ;
-: <   ( n1 n2 -- ?)   - 0> ;
-: >   ( n1 n2 -- ?)   - 0< ;
+Look in this file for HERE marker, and see if we can now define
+all of these high level words based on what we have defined.
 
 ----------
 
@@ -27,11 +17,6 @@ to simplify the model)
 
 Memory mapping constants and variables (specifically IP and H) to pave the way
 for compilation.
-
-Loop primitives (BRANCH and 0BRANCH) - manual method for coding the PFA relatives
-for now, solve the resolution of branch targets when closer to high level
-
-Relational operators (to generate flags for use in branch)
 
 Outer loop constructs.
 
@@ -46,18 +31,6 @@ need unconditional branching in order to do this.
 Some of the API seeded words could be re-defined symbolically later when the interpreter/
 compiler is booted.
 
-
-
------- DEFINING MORE HIGH LEVEL WORDS -----------------------------------------
-
-Probably do this using the API to simulate the back end (inner loop) work that
-would happen as a result of : definitions.
-
-
-Next to do is probably to come up with a mechanism to define a load of words
-in a file (this might mean we need the parser and compiler written next)
-Or is there a simple python way we could do this, without just writing
-another parser?
 
 
 ------ DODOES -----------------------------------------------------------------
@@ -137,17 +110,6 @@ Those immediate words run code at compile time, rather than deferring the code t
 : 0BRANCH                            /ADD CODE 'n_BRANCH0' branch if TOS=0, using relative offset following
 : RBLK  ( n a -- )                   /ADD CODE 'n_RBLK'    Load 1K disk block n into memory at addr (see MMSForth)
 : WBLK  ( n a -- )                   /ADD CODE 'n_WBLK'    Save 1K memory from addr to disk block n (see MMSForth)
-
-
-
---------------------------------------------------------------------------------
-PLAN 2
-
-- look at restriction that CFA always points to machine code.
-  This might make it impossible to boot a minimal machine that allows all other words
-  to be defined as high level words synthesised.
-  Re-read BRODIE CH 11 (extending the compiler)
-
 
 
 ===== CORE DATA STRUCTURES ====================================================
@@ -480,6 +442,8 @@ These instructions will be hand-generated into the dictionary by the platform la
 
 
 ----- SYNTHESISABLE WORDS INTERFACE SPEC --------------------------------------
+
+#### HERE ####
 
 The rest of the words will be defined in terms of other words (high level forth words
 that are synthesised). They may be replaced by native versions later to improve performance

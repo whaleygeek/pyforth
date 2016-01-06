@@ -863,6 +863,7 @@ class Machine():
         self.build_dispatch() # builds magic routine/register dispatch table
         self.build_native()   # puts native routines/registers into DICT
         self.running = False
+        self.limit = None     # how many times round DODOES before early terminate?
         return self
 
     def build_ds(self):
@@ -960,7 +961,7 @@ class Machine():
             #("FETCH8", None,        None,         self.n_fetch8),    # CODE
             #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
             #("ADRUV",  None,        None,         self.n_adruv),     # CODE
-            #("BRANCH", None,        None,         self.n_branch),    # CODE
+            ("BRANCH", None,        None,         self.n_branch),    # CODE
             #("0BRANCH",None,        None,         self.n_0branch),   # CODE
 
             # DICT registers
@@ -1263,23 +1264,28 @@ class Machine():
 
     def n_branch(self):
         """: n_BRANCH   ( -- )
-        { rel=mem[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
-        ip = self.ip
-        rel = self.mem[ip]
-        ip += 2
-        abs = ip - rel
-        self.ip = abs
+        { rel=memn[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
+        ip = self.ip #points to BRANCH
+        ip += 2 # point to rel
+        rel = self.mem.readn(ip)
+        abs = (ip + rel) & 0xFFFF # 2's complement
+        self.rs.popn()
+        self.rs.pushn(abs)
 
     def n_0branch(self):
         """: n_0BRANCH   ( ? -- )
         { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;"""
         f = self.ds.popn()
-        ip = self.ip
-        rel = self.mem[ip]
-        if f==0:
-            self.ip = ip-rel
-        else:
-            self.ip += 2
+        ip = self.ip #points to 0BRANCH
+        ip += 2 # point to rel
+        rel = self.mem.readn(ip)
+
+        if f == 0:
+            abs = (ip + rel) & 0xFFFF # 2's complement
+
+        self.rs.popn()
+        self.rs.pusnh(abs)
+
 
     def n_rblk(self):
         """: n_RBLK  ( n a -- )
@@ -1330,6 +1336,11 @@ class Machine():
         while self.running:
             #NEXT
             #Debug.trace("NEXT")
+            if self.limit != None:
+                self.limit -= 1
+                if self.limit <= 0:
+                    self.running = False
+                    break
             # ip points to the cfa of the word to execute
             #Debug.trace(" fetch from ip:%x" % self.ip)
             cfa = self.mem.readn(self.ip)
@@ -1389,7 +1400,7 @@ class Forth:
 
         # Build the PF entries (all should contain CFAs)
         plist  = []
-        DOLIT  = self.machine.dict.ffa2cfa(self.machine.dict.find(" DOLIT"))
+        #DOLIT  = self.machine.dict.ffa2cfa(self.machine.dict.find(" DOLIT"))
         DODOES = self.machine.getIndex(" DODOES")
 
         for word in args:
@@ -1399,8 +1410,6 @@ class Forth:
                 cfa = self.machine.dict.ffa2cfa(ffa)
                 plist.append(cfa)
             elif type(word) == int:
-                # It's a number, so insert a DOLIT
-                plist.append(DOLIT)
                 plist.append(word)
         exit_cfa = self.machine.dict.ffa2cfa(self.machine.dict.find("EXIT"))
         plist.append(exit_cfa)

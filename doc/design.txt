@@ -1,72 +1,68 @@
 / design.txt  30/12/2015  D.J.Whale
 
-PLAN see ####HERE#### - buffer handling for 'WORD'
+PLAN
+- specify high level words, in groups
+  - spec for constant create
+  - spec for variable create
+  - spec for memory mapped constants
+  - spec for memory mapped variables
 
------ SPECIFICATION
+- write design for each group of words
+  - design for constant create
+  - design for variable create
+  - design for memory mapped constants
+  - design for memory mapped variables
+  - design for WORD
 
-Define all the high level words
-- It's looking like IF ELSE THEN is critical to the implementation of a number of
-high level words, and it's got some complex semantics in terms of resolving two
-different forward jump targets. It's synthesisable using 0BRANCH, but need to
-think carefully through the jump target resolution, as it needs to be used
-as an immediate word (not compiled in, but actually executed??)
+- implement each group of words one group at a time, TDD them from specs and designs
+  - implement constants
+  - pre-seed dict with system constants
+  - implement variables
+  - implement memory mapped variables
+  - write code to create TIB buffer in memory
+  - pre seed dict and vars with system variables
+  - write code for reading a line into TIB
+  - write code for WORD
 
-These could be synthesised with 0BRANCH and some hard coded targets in the
-first pass while working at this lower API level
-
-i.e., could re-code all these using 0BRANCH with hand calculated jump targets
-
-
-
------ IMPLEMENTATION
-
-Signed/Unsigned on ALU ops.
-
-Defining normal constants
-
-Defining normal variables (perhaps merge the SysVars and UserVars into one for now
-to simplify the model)
-
-Memory mapping constants and variables (specifically IP and H) to pave the way
-for compilation.
-
-Outer loop constructs.
-
-Input stream redirection (so we can implement LOAD to get code from a saved
-disk block) - although don't really need this until we write the interpreter.
-
-Write the outer interpreter with interactive mode
-(perhaps do this sooner, as it gives us a good proper test interface a bit
-like the python shell does). Really want this to be in high level, so we
-need unconditional branching in order to do this.
-
-Some of the API seeded words could be re-defined symbolically later when the interpreter/
-compiler is booted.
-
-
+  - test that we can parse a word from IN
 
 ================================================================================
 
-MORE NATIVES REQUIRED:
+NATIVES REQUIRED
+n_ABORT   ( -- )                     clear DS and quit to interpreter loop
+n_RDPFA   ( -- a)                    read value at PFA and push on DS. Used to read const or varaddr
+n_STORE   ( n a -- )                 write n to a
+n_FETCH   ( a -- n)                  read a to get n
 
-: BASE   ( -- a)                     /P190 n_ADRVAR number base
-: FLAGS  ( -- n)                     /ADD  n_RDPFA  Address of flags variable
-: BB0      ( -- a)                   /ADD  n_ADRVAR address of first byte of block buffers
+n_STORE8   ( b a -- )                write b to byte a
+n_FETCH8   ( a -- b)                 read byte b from a
+n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is it count preceeded??
+
+DICT WRAPPERS FOR NATIVES
+: ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
+: C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
+: !   ( n a -- )                     /P190 n_STORE   store single number into addr
+: @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
+: C!   ( b a -- )                    /P190 n_STORE8  store 8 bit value
+: C@   ( a -- b)                     /P190 n_FETCH8  fetch 8 bit value
+: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+
+VARS/CONSTS REQUIRED
+: TIB   ( -- a)                      /P221 n_RDPFA  Address of start of text input buffer
 : UV0   ( -- a)                      /ADD  n_RDPFA  Address of start of user vars
-: >IN   ( -- a)                      /P254 n_ADRVAR present char offset in input stream
-: PAD   ( -- a)                      /P221 n_ADRVAR addr of scratch area start
-: TIB   ( -- a)                      /P221 n_ADRVAR Address of start of text input buffer
-: BINDEX ( -- a)                     /ADD  n_ADRVAR array of block buffer index info (0 not loaded)
-: BLK   ( -- a)                      /P254 n_ADRVAR number of storage block being interpreted as input stream (0 means IN)
+: >IN   ( -- a)                      /P254 n_RDPFA  present char offset in input stream
+: PAD   ( -- a)                      /P221 n_RDPFA  Address of scratch area start, note it regularly moves!
+: COUNT   ( -- a)                    /P243 n_RDPFA  Address of var containing count of last parsed length
+: BLK   ( -- a)                      /P254 n_RDPFA  number of storage block being interpreted as input stream (0 means IN)
 
-: ABORT   ( -- )                     /P221 n_DODOES Clear DS and then quit
-: (LOADED) ( n b ? -- )              /ADD  n_DODOES block buffer loaded or unloaded?
+VARS/CONSTS
+\ : BASE   ( -- a)                     /P190 n_RDPFA  Address of number base variable
+\ : FLAGS  ( -- n)                     /ADD  n_RDPFA  Address of flags variable
+\ : BINDEX   ( -- a)                   /ADD  n_RDPFA  array of block buffer index info (0=>not loaded)
+\ : BB0   ( -- a)                      /ADD  n_RDPFA  Address of first byte of block buffers
 
-: NUMBER   ( a -- d)                 /P254 n_DODOES using (any) base, convert string at a, to binary value
 
-
-
------ HIGH LEVEL WORDS - BEHAVIOUR SPEC ---------------------------------------
+----- HIGH LEVEL WORDS - DESIGN -----------------------------------------------
 
 ---- CONST
 
@@ -112,10 +108,97 @@ MORE NATIVES REQUIRED:
 : 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
 : 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
+: SPACES   ( n -- )
+    \ target loop
+        DUP   ( n n)
+        0=   ( n ?)
+        0BRANCH  7 ( exit)   ( n)
+        SPACE EMIT
+        1 -   ( n-1)
+        BRANCH -9 ( loop)
+    \ exit
+    DROP ;
+
+: TYPE   ( a # -- )
+    \ loop ( a #)
+        DUP   ( a # #)
+        0=  ( a # ?)
+        0BRANCH 11 ( exit)  ( a #)
+        SWAP   ( # a)
+        DUP   ( # a a)
+        C@    ( # a c)
+        EMIT   ( # a)
+        1 +   ( # a+1)
+        SWAP   ( a+1 #)
+        1 -   ( a+1 #-1)
+        BRANCH -14 ( loop)
+    \ exit ( a #)
+    DROP DROP ( )
 
 ===============================================================================
 
------ INPUT STREAM PROCESSING SPEC
+----- CONSTANT SPEC
+constants go in the PFA of the DICT entry
+a way to define constants (CONSTANT word)
+a CFA way to read constant values from PFA
+
+----- CONSTANT DESIGN
+
+Parser version:
+  : CONSTANT word ;
+
+Non parser version, i.e. calling via API direct
+  dict.create("name", " RDPFA", 26)
+
+n_RDPFA - just pushes address of variable on DS, so you can read or write it.
+
+
+----- VARIABLE SPEC
+variables have their own storage space
+DICT entry contains address of the variable
+a way to allocate space for a variable
+difference between sysvars and uservars?
+are we going to support multiprogramming of uservars yet?
+
+
+----- VARIABLE DESIGN
+
+Parser version:
+  VARIABLE word - defines a new variable
+
+Non parser version, i.e. calling via API direct
+  addr = uv.create(26) # 26 is the value to store there. Size is 16 bit by default.
+  dict.create("name", " RDPFA", addr)
+
+n_RDPFA - just pushes address of variable on DS, so you can read or write it.
+
+
+----- memory mapped constant spec
+Just seed the DICT with constants based on the values of system constants,
+at boot time.
+
+----- memory mapped variable spec
+Address mapped into low memory, when read/written, causes change of system variable.
+DICT wrapped entries that point to these vars, loaded by boot code
+Are they sysvars or uservars?
+
+----- memory mapped variable design
+Notes already elsewhere in this doc?
+Reading 2*U8 or 1*U16 issue?? (commented in code)
+atomicity issue? (commented in code)
+
+===============================================================================
+
+----- input buffer
+
+: EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
+: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect (implies base+pointer)
+: IN>
+: TIB
+
+===============================================================================
+
+----- WORD SPEC
 
 : WORD   ( c -- a)
 
@@ -142,6 +225,80 @@ WORD invokes BLOCK to guarantee that the block of interest is actually loaded
 into a buffer.
 
 
+
+---- WORD DESIGN
+
+#### Need support for constants TIB and variables COUNT, >IN, BLK
+#### Need TIB buffer to be allocated in memory
+
+#### Need an input stream processor that reads characters from stdin up to newline
+# into an 80 character TIB and adjusts the >IN pointer to the start.
+
+#### Need a way to kick off the interpreter loop
+# read a line to buffer
+# process the whole line (INTERPRET?)
+# loop back
+
+# The processing of the inner loops is the same, perhaps refactor
+# it out into a helper that just processes based on an arbitrary set of pointers?
+# remember that IN> consumes a char by reading it and advancing pointer.
+# could pass address of consume routine on DS of course (a callback!)
+
+# probably also worth factoring out writing to the PAD buffer into a helper,
+# as that is a common routine that may be used elsewhere in other words.
+
+# does the IN> return a magic number if nothing to consume (e.g. 0?)
+# that might simplify the code. Remember it is just a variable, so perhaps
+# there is a space for a general purpose "consume next char until end of buffer"
+# word, where the in ptr address and the end buffer address are passed in?
+# can then pass in addresses relevant to TIB or BLK accordingly.
+
+: WORD \ word ( c -- a)
+    0 COUNT !
+    \ store separator char somewhere
+    \ create pointer into PAD buffer, init to 1 (skip over count byte)
+    TIB 0BRANCH blk
+        \ targettibskiploop
+            \ if no chars left in TIB, BRANCH exit
+            \ consume next char from TIB (IN>)
+        \ if char matches separator, BRANCH tibskiploop
+        \ target tibcopyloop
+            \ if no chars left in TIB, BRANCH exit
+            \ consume next char from TIB (IN>)
+            \ copy char to next PAD buffer
+            \ inc PAD ptr
+            \ inc COUNT
+            \ if char is separator, BRANCH exit
+        BRANCH tibcopyloop
+    \ target blk
+        \ target blkskiploop
+            \ if no chars left in BLK, branch exit
+            \ consume next char from block
+        \ if char matches separator, BRANCH blkskiploop
+        \ target blkcopyloop
+            \ if no chars left in block, BRANCH exit
+            \ consume next char in block
+            \ copy char to next PAD buffer
+            \ inc PAD ptr
+            \ inc COUNT
+            \ if char is separator, BRANCH exit
+        BRANCH blkcopyloop
+    \ target exit
+    \ copy COUNT into first byte of PAD buffer
+    \ push address of PAD buffer on stack
+    ;
+
+: COUNT ( variable)
+
+: >IN ( variable)
+
+: TIB ( constant, address of text input buffer)
+
+: BLK ( variable)
+
+: PAD ( variable, start address of temporary buffer)
+
+
 ===============================================================================
 
 
@@ -150,15 +307,19 @@ into a buffer.
 
 : INTERPRET   ( -- )                 /P286 n_DODOES text interpret input stream until exhausted
 
------ CONDITIONS
-#### Need parser
+===============================================================================
 
-: IF xxx ( ? -- )                    /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
-  ELSE yyy                           / use 0BRANCH to write this
-  THEN zzz
+----- CONDITIONS
+#### Need parser for branch targets
+# probably some stacking here to allow nesting?
+# think this is compile only?
+: IF words ( ? -- )                    /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
+  ELSE words                           / use 0BRANCH to write this
+  THEN ;
 
 ----- LOOPS
-### Need parser
+### Need parser for branch targets
+# probably some stacking here to allow nesting?
 : I ( -- n)                          /P207 n_RDPFA loop counter
 : J ( -- n)                          /P207 n_RDPFA loop counter
 : DO ... LOOP   DO:                  /P131 n_DODOES Finite loop
@@ -171,17 +332,20 @@ into a buffer.
 : BEGIN ... UNTIL   UNTIL: ( ? -- )  /P131 DODOES Indefinite loop exits when ? true
 : BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 DODOES Indefinite loop always executes xxx
 
+
 #### Gets hard from here downwards ********************************************
 # Need to build up some more support in proper loops and proper conditions
 # and possibly using a parser first,
 to make all of this 'real algorithmic code' easier to bootstrap
 
-#### Need loops
-: SPACES   ( n -- )                  /P26  n_DODOES Blank spaces #### need LOOP
-: TYPE   ( a # -- )                  /P254 n_DODOES transmits # chars starting at addr
-: >TYPE   ( a # -- )                 /P254 n_DODOES output string moved to PAD before output
-: EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
-: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect (implies base+pointer)
+Those that need loops could probably be bootstrapped using the BRANCH and 0BRANCH
+with the various comparisons, and rewritten later when proper parsing and compiling
+and IF/LOOP target resolution is working. Counted loops would help, although
+could maintain the count on TOS for a naive initial implementation.
+
+
+
+
 
 #### Needs input parser
 : ASCII   ( -- c)                    /P161 n_DODOES Next input char into ascii equivalent
@@ -226,9 +390,15 @@ to make all of this 'real algorithmic code' easier to bootstrap
 : ERASE   ( a u -- )                 /P190 n_DODOES zeros n bytes of memory
 : DUMP   ( a u -- )                  /P190 n_DODOES display u bytes of memory
 
+: >TYPE   ( a # -- )                 \ P254 n_DODOES output string moved to PAD before output
+\ probably uses CMOVE??
+
+
 ----- DISK I/O
 
 : BLOCK   ( u -- a)                  /P254 n_DODOES 1024 * BB0 + ;
+: (LOADED) ( n b ? -- )              /ADD  n_DODOES  block buffer loaded or unloaded?
+
 
 #### Needs loops
 : TRIAD   ( n -- )                   /P77  n_DODOES Displays 3 blocks

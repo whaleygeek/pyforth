@@ -5,6 +5,21 @@ PLAN
 ----- SPECIFICATION
 
 Define all the high level words
+- It's looking like IF ELSE THEN is critical to the implementation of a number of
+high level words, and it's got some complex semantics in terms of resolving two
+different forward jump targets. It's synthesisable using 0BRANCH, but need to
+think carefully through the jump target resolution, as it needs to be used
+as an immediate word (not compiled in, but actually executed??)
+
+These could be synthesised with 0BRANCH and some hard coded targets in the
+first pass while working at this lower API level
+
+i.e., could re-code all these using 0BRANCH with hand calculated jump targets
+
+TODO: Looking at how this comes out, think it would be better for branch targets to
+always be computed in cell numbers, not in bytes (as you never want to jump
+mid way through a cell). This means a *2 inside the 0BRANCH code, and recoding
+the tests.
 
 
 ----- IMPLEMENTATION
@@ -38,9 +53,6 @@ compiler is booted.
 
 MORE NATIVES REQUIRED:
 
------ CONSTANTS/VARIABLES
-: FALSE   ( -- 0)                    /P190 n_RDPFA   false (0)    : FALSE 0 ;
-: TRUE   ( -- -1)                    /P190 n_RDPFA   true (-1)    : TRUE 0 1 - ;
 : UV0   ( -- a)                      /ADD  n_RDPFA   Address of start of user vars
 : BASE   ( -- a)                     /P190 n_ADRVAR number base
 : FLAGS  ( -- n)                     /ADD  n_RDPFA   Address of flags variable
@@ -50,63 +62,53 @@ This can be synthesised when NUMBER parser is written
 
 ----- HIGH LEVEL WORDS - BEHAVIOUR SPEC ---------------------------------------
 
+---- CONST
+
+: FALSE   ( -- 0)                    0 ;
+: TRUE   ( -- -1)                    -1 ;
+
+----- CONDITIONS
+#### This is quite critical to a number of definitions.
+#### But to write it, we need good parser support
+#### as it needs to understand two different forward jump targets
+#### and be able to resolve those.
+
+: IF xxx ( ? -- )                    /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
+  ELSE yyy                           / use 0BRANCH to write this
+  THEN zzz
+
+
 ----- ALU
 : /MOD   ( n1 n2 -- n-rem n-quot)    /P49  n_DODOES Divides, remainder and quotient
-: */   ( n1 n2 n3 -- result)         /P113 n_DODOES Multply then divide, 32bit intermediate
-: */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 n_DODOES Multiply then divide, double length intermediate
-: 1+   ( n -- n+1)                   /P113 n_DODOES Add one
-: 1-   ( n -- n-1)                   /P113 n_DODOES Subtract one
-: 2+   ( n -- n+2)                   /P113 n_DODOES Add two
-: 2-   ( n -- n-2)                   /P113 n_DODOES Subtract two
-: 2*   ( n -- n*2)                   /P113 n_DODOES Multiply by two
-: 2/   ( n -- n/2)                   /P113 n_DODOES Divide by two
-: ABS   ( n -- |n|)                  /P113 n_DODOES Absolute value
-: NEGATE   ( n -- -n)                /P113 n_DODOES Change the sign
-: MIN   ( n1 n2 -- min)              /P113 n_DODOES Minimum
-: MAX   ( n1 n2 -- max)              /P113 n_DODOES Maximum
-: C?   ( -- ?)                       /ADD  n_DODOES query C flag in FLAGS var
-: V?   ( -- ?)                       /ADD  n_DODOES query V flag in FLAGS var
-: Z?   ( -- ?)                       /ADD  n_DODOES query Z flag in FLAGS var
-: P?   ( -- ?)                       /ADD  n_DODOES query P flag in FLAGS var
+: 1+   ( n -- n+1)                   1 + ;
+: 1-   ( n -- n-1)                   1 - ;
+: 2+   ( n -- n+2)                   2 + ;
+: 2-   ( n -- n-2)                   2 - ;
+: 2*   ( n -- n*2)                   2 * ;
+: 2/   ( n -- n/2)                   2 / ;
+: NEGATE   ( n -- -n)                -1 * ;
+: ABS   ( n -- |n|)                  DUP 0< IF NEGATE THEN ;
+                                     DUP 0< 0BRANCH 2 NEGATE ;
+: MIN   ( n1 n2 -- min)              OVER OVER < NOT IF SWAP THEN DROP ;
 
------ ALU/multiply
-: UM*   ( u1 u2 -- ud)               /P161 n_DODOES multiply 16 bit, 32 bit result
-: UM/MOD   ( ud u1 -- u2 u3)         /P161 n_DODOES divide mod 16 bit, 32 bit result
-: M*   ( n1 n2 -- d-prod)            /P161 n_DODOES multiply 16 bit, 32 bit result
-: M+   ( d n -- d-sum)               /P161 n_DODOES 32bit add to 16 bit 32 bit result
-: M/   ( d n -- n-quot)              /P161 n_DODOES 32bit divide 16 bit, 32 bit result
-: M*/   ( d n u -- d)                /P161 n_DODOES mult 32 bit number by 16 bit, 32 bit result
+: MAX   ( n1 n2 -- max)              OVER OVER > NOT IF SWAP THEN DROP ;
 
------ ALU/DOUBLES
-: 0.  ( -- 0 0)                      /P190 n_RDPFA  double length const 0 (0 0)
-: D+   ( d1 d2 -- dsum)              /P161 n_DODOES adds 32 bit (synth if carry?)
-: D-   ( d1 d2 -- d-diff)            /P161 n_DODOES subtracts 32 bit (synth if carry?)
-: D0=   ( d -- ?)                    /P161 n_DODOES true if zero
-: D=   ( d1 d2 -- ?)                 /P161 n_DODOES equality check
-: D<   ( d1 d2 -- ?)                 /P161 n_DODOES true if less
-: DU<   (ud1 ud2 -- ?)               /P161 n_DODOES true if unsigned less
-: DNEGATE   ( d -- -d)               /P161 n_DODOES negates 32 bit
-: DABS   ( d -- |d|)                 /P161 n_DODOES absolute of 32 bit
-: DMAX   ( d1 d2 -- d-max)           /P161 n_DODOES max of 32 bit
-: DMIN   ( d1 d2 -- d-min)           /P161 n_DODOES min of 32 bit
 
 ----- STACK OPS
 : >R   ( n -- )                      RP @ 1 + DUP ROT ! RP ! ;
 : R>   ( -- n)                       RP DUP @ @ SWAP 1 - RP ! ;
 : R@   ( -- n)                       RP @ @ ;
-: SP@   ( -- a)                      /P221 n_RDPFA (sp-fetch) Address of top data stack item)
-: ?DUP   ( n -- n n) or ( 0 -- 0)    /P92  n_DODOES Duplicates only if n is nonzero
-: 2SWAP   ( d1 d2 -- d2 d1)          /P49  n_DODOES Reverses top two pairs of numbers
-: 2DUP   ( d -- d d)                 /P49  n_DODOES Duplicates top pair of numbers
-: 2OVER   ( d1 d2 -- d1 d2 d1)       /P49  n_DODOES Duplicates top pairs of numbers
-: 2DROP   ( d --)                    /P49  n_DODOES Discards top pair of numbers
+: SP@   ( -- a)                      SP @ ;
+: ?DUP   ( n -- n n or 0 -- 0)       DUP IF ELSE DUP THEN ;
+: 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
+: 2DUP   ( d -- d d)                 OVER OVER ;
+: 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
+: 2DROP   ( d --)                    DROP DROP ;
+
 
 ----- LOOPS
 : I ( -- n)                          /P207 n_RDPFA loop counter
 : J ( -- n)                          /P207 n_RDPFA loop counter
-: IF xxx   IF: ( ? -- )              /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
-  ELSE yyy
-  THEN zzz
 : DO ... LOOP   DO:                  /P131 n_DODOES Finite loop
                   ( limit index -- )
                 LOOP:  ( -- )
@@ -247,6 +249,34 @@ This can be synthesised when NUMBER parser is written
          xxx:  ( -- a)
 : ; ( -- )                           /ADD  n_DODOES end of definition (compile exit, so ' EXIT)
 : ' xxx   ( -- a)                    /P221 n_DODOES find dict address of xxx
+
+----- ALU/DOUBLES
+: C?   ( -- ?)                       /ADD  n_DODOES query C flag in FLAGS var
+: V?   ( -- ?)                       /ADD  n_DODOES query V flag in FLAGS var
+: Z?   ( -- ?)                       /ADD  n_DODOES query Z flag in FLAGS var
+: P?   ( -- ?)                       /ADD  n_DODOES query P flag in FLAGS var
+: 0.  ( -- 0 0)                      0 0 ;
+: D+   ( d1 d2 -- dsum)              /P161 n_DODOES adds 32 bit (synth if carry?)
+: D-   ( d1 d2 -- d-diff)            /P161 n_DODOES subtracts 32 bit (synth if carry?)
+: D0=   ( d -- ?)                    /P161 n_DODOES true if zero
+: D=   ( d1 d2 -- ?)                 /P161 n_DODOES equality check
+: D<   ( d1 d2 -- ?)                 /P161 n_DODOES true if less
+: DU<   (ud1 ud2 -- ?)               /P161 n_DODOES true if unsigned less
+: DNEGATE   ( d -- -d)               /P161 n_DODOES negates 32 bit
+: DABS   ( d -- |d|)                 /P161 n_DODOES absolute of 32 bit
+: DMAX   ( d1 d2 -- d-max)           /P161 n_DODOES max of 32 bit
+: DMIN   ( d1 d2 -- d-min)           /P161 n_DODOES min of 32 bit
+
+----- NATIVES: ALU/multiply/divide
+: */   ( n1 n2 n3 -- result)         /P113 n_DODOES Multply then divide, 32bit intermediate
+: */MOD   ( n1 n2 n3 -- n-rem n-result)   /P113 n_DODOES Multiply then divide, double length intermediate
+: UM*   ( u1 u2 -- ud)               /P161 n_DODOES multiply 16 bit, 32 bit result
+: UM/MOD   ( ud u1 -- u2 u3)         /P161 n_DODOES divide mod 16 bit, 32 bit result
+: M*   ( n1 n2 -- d-prod)            /P161 n_DODOES multiply 16 bit, 32 bit result
+: M+   ( d n -- d-sum)               /P161 n_DODOES 32bit add to 16 bit 32 bit result
+: M/   ( d n -- n-quot)              /P161 n_DODOES 32bit divide 16 bit, 32 bit result
+: M*/   ( d n u -- d)                /P161 n_DODOES mult 32 bit number by 16 bit, 32 bit result
+
 
 ----- VOCAB
 : FORTH   ( -- )                     /P221 n_DODOES Make forth context vocab

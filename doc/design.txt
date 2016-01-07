@@ -1,6 +1,6 @@
 / design.txt  30/12/2015  D.J.Whale
 
-PLAN
+PLAN see ####HERE#### - buffer handling for 'WORD'
 
 ----- SPECIFICATION
 
@@ -16,10 +16,6 @@ first pass while working at this lower API level
 
 i.e., could re-code all these using 0BRANCH with hand calculated jump targets
 
-TODO: Looking at how this comes out, think it would be better for branch targets to
-always be computed in cell numbers, not in bytes (as you never want to jump
-mid way through a cell). This means a *2 inside the 0BRANCH code, and recoding
-the tests.
 
 
 ----- IMPLEMENTATION
@@ -53,12 +49,22 @@ compiler is booted.
 
 MORE NATIVES REQUIRED:
 
-: UV0   ( -- a)                      /ADD  n_RDPFA   Address of start of user vars
 : BASE   ( -- a)                     /P190 n_ADRVAR number base
-: FLAGS  ( -- n)                     /ADD  n_RDPFA   Address of flags variable
+: FLAGS  ( -- n)                     /ADD  n_RDPFA  Address of flags variable
+: BB0      ( -- a)                   /ADD  n_ADRVAR address of first byte of block buffers
+: UV0   ( -- a)                      /ADD  n_RDPFA  Address of start of user vars
+: >IN   ( -- a)                      /P254 n_ADRVAR present char offset in input stream
+: PAD   ( -- a)                      /P221 n_ADRVAR addr of scratch area start
+: TIB   ( -- a)                      /P221 n_ADRVAR Address of start of text input buffer
+: BINDEX ( -- a)                     /ADD  n_ADRVAR array of block buffer index info (0 not loaded)
+: BLK   ( -- a)                      /P254 n_ADRVAR number of storage block being interpreted as input stream (0 means IN)
 
-This can be synthesised when NUMBER parser is written
-: 2   ( -- 2)                        /ADD  n_RDPFA   const 2 (for simple shifts/multiplies)
+: ABORT   ( -- )                     /P221 n_DODOES Clear DS and then quit
+: (LOADED) ( n b ? -- )              /ADD  n_DODOES block buffer loaded or unloaded?
+
+: NUMBER   ( a -- d)                 /P254 n_DODOES using (any) base, convert string at a, to binary value
+
+
 
 ----- HIGH LEVEL WORDS - BEHAVIOUR SPEC ---------------------------------------
 
@@ -67,19 +73,8 @@ This can be synthesised when NUMBER parser is written
 : FALSE   ( -- 0)                    0 ;
 : TRUE   ( -- -1)                    -1 ;
 
------ CONDITIONS
-#### This is quite critical to a number of definitions.
-#### But to write it, we need good parser support
-#### as it needs to understand two different forward jump targets
-#### and be able to resolve those.
-
-: IF xxx ( ? -- )                    /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
-  ELSE yyy                           / use 0BRANCH to write this
-  THEN zzz
-
-
 ----- ALU
-: /MOD   ( n1 n2 -- n-rem n-quot)    /P49  n_DODOES Divides, remainder and quotient
+: /MOD   ( n1 n2 -- n-rem n-quot)    DUP DUP / ROT ROT MOD SWAP ;
 : 1+   ( n -- n+1)                   1 + ;
 : 1-   ( n -- n-1)                   1 - ;
 : 2+   ( n -- n+2)                   2 + ;
@@ -87,26 +82,100 @@ This can be synthesised when NUMBER parser is written
 : 2*   ( n -- n*2)                   2 * ;
 : 2/   ( n -- n/2)                   2 / ;
 : NEGATE   ( n -- -n)                -1 * ;
-: ABS   ( n -- |n|)                  DUP 0< IF NEGATE THEN ;
-                                     DUP 0< 0BRANCH 2 NEGATE ;
-: MIN   ( n1 n2 -- min)              OVER OVER < NOT IF SWAP THEN DROP ;
-
-: MAX   ( n1 n2 -- max)              OVER OVER > NOT IF SWAP THEN DROP ;
-
+: ABS   ( n -- |n|)                  DUP 0< 0BRANCH 2 NEGATE ;
+: MIN   ( n1 n2 -- min)              OVER OVER < NOT 0BRANCH 2 SWAP DROP ;
+: MAX   ( n1 n2 -- max)              OVER OVER > NOT 0BRANCH 2 SWAP DROP ;
 
 ----- STACK OPS
+: NIP   ( n1 n2 -- n2)               SWAP DROP ;
+: TUCK  ( n1 n2 -- n2 n1 n2)         SWAP OVER ;
 : >R   ( n -- )                      RP @ 1 + DUP ROT ! RP ! ;
 : R>   ( -- n)                       RP DUP @ @ SWAP 1 - RP ! ;
 : R@   ( -- n)                       RP @ @ ;
 : SP@   ( -- a)                      SP @ ;
-: ?DUP   ( n -- n n or 0 -- 0)       DUP IF ELSE DUP THEN ;
+: ?DUP   ( n -- n n or 0 -- 0)       DUP 0BRANCH 2 DUP ;
 : 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
 : 2DUP   ( d -- d d)                 OVER OVER ;
 : 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
 : 2DROP   ( d --)                    DROP DROP ;
 
+----- GENERAL I/O
+: HEX   ( -- )                       16 BASE ! ;
+: OCTAL   ( -- )                     8 BASE ! ;
+: DECIMAL   ( -- )                   10 BASE ! ;
+: CR   ( -- )                        13 EMIT ;
+: SPACE   ( -- )                     32 EMIT ;
+: PAGE   ( -- )                      12 EMIT ;
+
+---- SIMPLE MEMORY OPS
+: +!   ( n a -- )                    DUP @ ROT + ! ;
+: 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
+: 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
+
+
+===============================================================================
+
+
+----- PARSING
+### Need input stream redirection architecture in place
+# need an input buffer that stores a whole line (e.g. up to 80 chars)
+# this needs a start address, an active length, and a pointer to the next char to process
+
+# note, if using LOAD to load and interpret a disk block, how would that work?
+# presumably the disk block is loaded into a buffer, then the line pointer address is pointed
+# at the start of the block, then the interpreter runs. So, stream redirection
+# is just about being able to change the current address pointer for the
+# interpreter buffer.
+
+# do we need to copy chars? Probably not, but it depends on how the length of the word
+# is signalled to the caller - if the address is on the stack, where is the count?
+# if the count byte preceeds the word in the buffer, can't do this because if word
+# is at first byte in buffer, nowhere to put the count byte (unless you reserve
+# one character at start of buffer for this, but in-place modification of
+# block buffers on LOAD could be dangerous.
+
+####HERE#### Check Brodie to see if there is any knowledge on the WORD parser,
+# how it uses the buffer, what it returns and how the count is communicated.
+
+
+
+: WORD   ( c -- a)                   /P254 n_DODOES read 1 word from input stream (presumably into PAD?)
+
+# does this assume a whole line is already in the IN buffer? Yes
+# can words span lines - no, newline (and therefore end of buffer) terminates word
+# can we arrange for the 'most full buffer' to always have a newline at end? Not sure.
+
+# skip whitespace
+#   look at present input stream pointer
+#   until end of buffer, skip spaces tabs and newlines at start
+#   if end of buffer (must be newline? what if newline before seen a word?)
+# once seen non whitespace, capture word chars
+#   if space tab or newline, at end of word
+#   munch next character into pad and advance pointer and count
+#   loop back
+# got a word
+#   push start address of word on DS
+#   note, how is the length of string known, is it count byte preceeded or zero terminated?
+#   note, this doesn't need to copy chars to pad, all it needs to do is to get the
+#   address of the start
+
+===============================================================================
+
+
+: ( xxx)   ( -- )                    /P26  n_DODOES Comment, terminated by )
+: \                                  comment to end of line being parsed
+
+: INTERPRET   ( -- )                 /P286 n_DODOES text interpret input stream until exhausted
+
+----- CONDITIONS
+#### Need parser
+
+: IF xxx ( ? -- )                    /P92  n_DODOES If non zero, executes xxx, otherwise yyy, continues with zzz
+  ELSE yyy                           / use 0BRANCH to write this
+  THEN zzz
 
 ----- LOOPS
+### Need parser
 : I ( -- n)                          /P207 n_RDPFA loop counter
 : J ( -- n)                          /P207 n_RDPFA loop counter
 : DO ... LOOP   DO:                  /P131 n_DODOES Finite loop
@@ -119,36 +188,37 @@ This can be synthesised when NUMBER parser is written
 : BEGIN ... UNTIL   UNTIL: ( ? -- )  /P131 DODOES Indefinite loop exits when ? true
 : BEGIN xxx WHILE yyy REPEAT   WHILE:  ( ? -- )   /P131 DODOES Indefinite loop always executes xxx
 
------ GENERAL I/O
-: HEX   ( -- )                       /P161 n_DODOES Base 16
-: OCTAL   ( -- )                     /P161 n_DODOES Base 8
-: DECIMAL   ( -- )                   /P161 n_DODOES Base 10
-: CR   ( -- )                        /P26  n_DODOES Output a carriage return/line feed
-: SPACES   ( n -- )                  /P26  n_DODOES Blank spaces
-: SPACE   ( -- )                     /P26  n_DODOES One space
-: ." xxx"   ( -- )                   /P26  n_DODOES Displays the character string xxx. The " character terminates the string
-: .   ( n -- )                       /P26  n_DODOES Display number followed by a space
-: .( text)   ( -- )                  /P77  n_DODOES Display text
-: D.   ( d -- )                      /P161 n_DODOES print 32 bit number and 1 space
-: ?   ( a -- )                       /P190 n_DODOES prints contents of addr followed by 1 space
-: U.   ( u -- )                      /P161 n_DODOES Print unsigned number and space
-: PAGE   ( -- )                      /P131 n_DODOES Clears display and resets to left top
-: ASCII   ( -- c)                    /P161 n_DODOES Next input char into ascii equivalent
+#### Gets hard from here downwards ********************************************
+# Need to build up some more support in proper loops and proper conditions
+# and possibly using a parser first,
+to make all of this 'real algorithmic code' easier to bootstrap
+
+#### Need loops
+: SPACES   ( n -- )                  /P26  n_DODOES Blank spaces #### need LOOP
 : TYPE   ( a # -- )                  /P254 n_DODOES transmits # chars starting at addr
 : >TYPE   ( a # -- )                 /P254 n_DODOES output string moved to PAD before output
-: >IN   ( -- a)                      /P254 ADRVAR present char offset in input stream
-: PAD   ( -- a)                      /P221 ADRVAR addr of scratch area start
-: TIB   ( -- a)                      /P221 ADRVAR Address of start of text input buffer
 : EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
-: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
+: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect (implies base+pointer)
+
+#### Needs input parser
+: ASCII   ( -- c)                    /P161 n_DODOES Next input char into ascii equivalent
 
 ----- STRING PROCESSING
+#### Needs loops
 : COUNT   ( a -- a+1 #)              /P254 n_DODOES convert counted string into TYPE expected format
 : -TRAILING   (a #1 -- a #2)         /P254 n_DODOES eliminates trailing blanks from string
 : -TEXT   ( a1 # a2 -- ?)            /P254 n_DODOES compare strings
 : -MATCH   ( d # s # -- a ?)         /P254 n_DODOES search for string
+: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 n_DODOES string to binary value
 
------ PRINT FORMATTING
+----- OUTPUT CONVERSION AND FORMATTING
+#### Needs loops and conditions
+: ?   ( a -- )                       /P190 n_DODOES prints contents of addr followed by 1 space
+: .( text)   ( -- )                  /P77  n_DODOES Display text
+: ." xxx"   ( -- )                   /P26  n_DODOES Displays the character string xxx. The " character terminates the string
+: .   ( n -- )                       /P26  n_DODOES Display number followed by a space
+: D.   ( d -- )                      /P161 n_DODOES print 32 bit number and 1 space
+: U.   ( u -- )                      /P161 n_DODOES Print unsigned number and space
 : <#                                 /P161 n_DODOES Begin number conversion
 : #                                  /P161 n_DODOES Convert one digit into output char string
 : #S                                 /P161 n_DODOES Convert until result is zero
@@ -164,6 +234,7 @@ This can be synthesised when NUMBER parser is written
 : D.R   ( d width -- )               /P161 n_DODOES print 32 bit number right justified
 
 ----- MEMORY OPS
+#### Needs loops
 : BLANK   ( a # -- )                 /P254 n_DODOES fills with ascii 0
 : MOVE   ( a1 a2 # -- )              /P254 n_DODOES copy region of memory
 : CMOVE   ( a1 a2 # -- )             /P254 n_DODOES copy char region of memory
@@ -171,20 +242,17 @@ This can be synthesised when NUMBER parser is written
 : FILL   ( a u b -- )                /P190 n_DODOES fills u bytes of memory
 : ERASE   ( a u -- )                 /P190 n_DODOES zeros n bytes of memory
 : DUMP   ( a u -- )                  /P190 n_DODOES display u bytes of memory
-: +!   ( n a -- )                    /P190 n_DODOES add single len number to contents of addr
-: 2!   ( d a -- )                    /P190 n_DODOES store double length number
-: 2@   ( a -- d)                     /P190 n_DODOES return double length contents
 
 ----- DISK I/O
-: BINDEX ( -- a)                     /ADD  ADRVAR array of block buffer index info (0 not loaded)
-: BLK   ( -- a)                      /P254 ADRVAR number of storage block being interpreted as input stream (0 means IN)
-: (LOADED) ( n b ? -- )              /ADD  n_DODOES block buffer loaded or unloaded
+
+: BLOCK   ( u -- a)                  /P254 n_DODOES 1024 * BB0 + ;
+
+#### Needs loops
 : TRIAD   ( n -- )                   /P77  n_DODOES Displays 3 blocks
 : SHOW   ( lo hi -- )                /P77  n_DODOES Lists in triad form
 : INDEX   ( lo hi -- )               /P77  n_DODOES Displays comment lines only
 : LIST   ( n -- )                    /P77  n_DODOES Lists a disk block
 : THRU   ( lo hi -- )                /P77  n_DODOES Loads all blocks inclusive
-: BLOCK   ( u -- a)                  /P254 n_DODOES Address of first byte in block
 : BUFFER   ( u -- a)                 /P254 n_DODOES like block, not necc read from mass storage
 : LOAD   ( n -- )                    /P77  n_DODOES Loads a disk block (compiles or executes) assume (LOAD)
 : FLUSH   ( -- )                     /P77  n_DODOES Writes all updated disk buffers to disk, and unassigns
@@ -196,20 +264,11 @@ This can be synthesised when NUMBER parser is written
 : EMPTY-BUFFERS   ( -- )             /P254 n_DODOES marks all buffers empty without saving
 
 ----- EXECUTING
-: INTERPRET   ( -- )                 /P286 n_DODOES text interpret input stream until exhausted
-: (EXECUTE)   ( a -- )               /ADD  n_DODOES  execute from address (IP !)
-: ABORT   ( -- )                     /P221 n_DODOES Clear DS and then quit
-: ABORT" xxx"   ( ? -- )             /P92  n_DODOES If flag true, shows last word and text, clears user stacks, back to terminal.
-: @EXECUTE   ( a -- )                /P221 n_DODOES executes dict entry pfa pointed to by contents of a, nothing if zero
-: QUIT   ( -- )                      /P221 n_DODOES clear RS, back to monitor
-: EXECUTE   ( a -- )                 /P221 n_DODOES executes dict entry pfa on stack
 
------ PARSING
-: WORD   ( c -- a)                   /P254 n_DODOES read 1 word from input stream
-: CONVERT   ( ud1 a1 -- ud2 a2)      /P254 n_DODOES string to binary value
-: NUMBER   ( a -- d)                 /P254 n_DODOES using base, convert to binary value
-: / ( -- )                           /???  n_DODOES comment until next CR
-: ( xxx)   ( -- )                    /P26  n_DODOES Comment, terminated by )
+: QUIT   ( -- )                      /P221 n_DODOES clear RS, back to monitor
+: (EXECUTE)   ( a -- )               /ADD  n_DODOES execute from address (IP !)
+: @EXECUTE   ( a -- )                /P221 n_DODOES executes dict entry pfa pointed to by contents of a, nothing if zero
+: ABORT" xxx"   ( ? -- )             /P92  n_DODOES If flag true, shows last word and text, clears user stacks, back to terminal.
 
 ----- CREATIONAL
 : CONSTANT xxx   ( n -- )            /P190 n_DODOES create constant with a value
@@ -237,7 +296,6 @@ This can be synthesised when NUMBER parser is written
 : ]   ( -- )                         /P286 n_DODOES enters compile mode
 : COMPILE xxx   ( -- )               /P286 n_DODOES compile a word
 : [COMPILE] xxx   ( -- )             /P286 n_DODOES immediate word gets compiled
-: HERE   ( -- a)                     /P213 n_DODOES  put value of H (next free dict addr) onto TOS
 : FORGET name   ( -- )               /P77  n_DODOES Removes all dict entries up to and including this one
 : ALLOT   ( n -- )                   /P190 n_DODOES adds n bytes to parameter field of most recently defined word
 : ,   ( n -- )                       /P190 n_DODOES compiles n into next available cell in dict
@@ -276,7 +334,6 @@ This can be synthesised when NUMBER parser is written
 : M+   ( d n -- d-sum)               /P161 n_DODOES 32bit add to 16 bit 32 bit result
 : M/   ( d n -- n-quot)              /P161 n_DODOES 32bit divide 16 bit, 32 bit result
 : M*/   ( d n u -- d)                /P161 n_DODOES mult 32 bit number by 16 bit, 32 bit result
-
 
 ----- VOCAB
 : FORTH   ( -- )                     /P221 n_DODOES Make forth context vocab
@@ -729,7 +786,7 @@ once an initial language port is completed)
 : V?   ( -- ?)                       /ADD  n_DODOES query V flag in FLAGS var
 : Z?   ( -- ?)                       /ADD  n_DODOES query Z flag in FLAGS var
 : P?   ( -- ?)                       /ADD  n_DODOES query P flag in FLAGS var
-: / ( -- )                           /???  n_DODOES comment until next CR
+: \ ( -- )                           /???  n_DODOES comment until next CR
 : SP@   ( -- a)                      /P221 n_RDPFA (sp-fetch) Address of top data stack item)
 : HERE   ( -- a)                     /P221 n_RDPFA Next available dictionary location (H @)
 : IP ( -- n )                        /P204 n_RDPFA interpreter pointer

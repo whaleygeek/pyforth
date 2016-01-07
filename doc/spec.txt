@@ -16,6 +16,16 @@ ANSI X3.215-1994
 Portable forth environment (PFE)
 http://pfe.sourceforge.net/pfe-manual/index.html
 
+The OLPC (one laptop per child) project used FORTH, because it uses OpenFIRMWARE
+which is written using FORTH.
+
+http://wiki.laptop.org/go/Category:Forth
+
+e.g. the boot script:
+http://dev.laptop.org/pub/firmware/scripts/olpc.fth
+
+
+
 DECISIONS
   Byte order is unspecified by the standard. Implementing big-endian.
 

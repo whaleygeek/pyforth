@@ -115,49 +115,32 @@ MORE NATIVES REQUIRED:
 
 ===============================================================================
 
+----- INPUT STREAM PROCESSING SPEC
 
------ PARSING
-### Need input stream redirection architecture in place
-# need an input buffer that stores a whole line (e.g. up to 80 chars)
-# this needs a start address, an active length, and a pointer to the next char to process
+: WORD   ( c -- a)
 
-# note, if using LOAD to load and interpret a disk block, how would that work?
-# presumably the disk block is loaded into a buffer, then the line pointer address is pointed
-# at the start of the block, then the interpreter runs. So, stream redirection
-# is just about being able to change the current address pointer for the
-# interpreter buffer.
+Character on stack indicates the terminator, at end, a is address of word scanned in.
+ignores initial occurences of the separatar char
+Moves it to a "temporary buffer of it's own"
+count is in first byte preceeding it.
+moves the blank at the end also, but does not include it in the count.
+Note that the temporary buffer is overwritten very quickly, so you should store
+it more permanently as quickly as possible.
+WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
+the user pressed RETURN
 
-# do we need to copy chars? Probably not, but it depends on how the length of the word
-# is signalled to the caller - if the address is on the stack, where is the count?
-# if the count byte preceeds the word in the buffer, can't do this because if word
-# is at first byte in buffer, nowhere to put the count byte (unless you reserve
-# one character at start of buffer for this, but in-place modification of
-# block buffers on LOAD could be dangerous.
+COUNT converts address of counted string, to stack (a #)
 
-####HERE#### Check Brodie to see if there is any knowledge on the WORD parser,
-# how it uses the buffer, what it returns and how the count is communicated.
+>IN "into input" is a relative offset into the input stream buffer.
+TIB is the text input buffer used for keyboard input.
 
+BLK is a flag and a pointer. If it is zero, then there is no block being loaded,
+and WORD will scan the input stream. If it is non zero, then input will be scanned
+from the block number indicated in BLK. This is how input redirection occurs.
 
+WORD invokes BLOCK to guarantee that the block of interest is actually loaded
+into a buffer.
 
-: WORD   ( c -- a)                   /P254 n_DODOES read 1 word from input stream (presumably into PAD?)
-
-# does this assume a whole line is already in the IN buffer? Yes
-# can words span lines - no, newline (and therefore end of buffer) terminates word
-# can we arrange for the 'most full buffer' to always have a newline at end? Not sure.
-
-# skip whitespace
-#   look at present input stream pointer
-#   until end of buffer, skip spaces tabs and newlines at start
-#   if end of buffer (must be newline? what if newline before seen a word?)
-# once seen non whitespace, capture word chars
-#   if space tab or newline, at end of word
-#   munch next character into pad and advance pointer and count
-#   loop back
-# got a word
-#   push start address of word on DS
-#   note, how is the length of string known, is it count byte preceeded or zero terminated?
-#   note, this doesn't need to copy chars to pad, all it needs to do is to get the
-#   address of the start
 
 ===============================================================================
 

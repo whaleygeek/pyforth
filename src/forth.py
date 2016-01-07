@@ -1355,18 +1355,18 @@ class Machine():
         { rel=memn[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
         ip = self.ip #points to BRANCH
         ip += 2 # point to rel
-        rel = self.mem.readn(ip)
+        rel = 2 * self.mem.readn(ip) # each cell is two bytes
         abs = (ip + rel) & 0xFFFF # 2's complement
         self.rs.popn()
         self.rs.pushn(abs)
 
     def n_0branch(self):
         """: n_0BRANCH   ( ? -- )
-        { f=ds_pop; r=mem[ip]; if f==0:ip=ip-r else: ip+=2 } ;"""
+        { f=ds_pop; r=mem[ip]; if f==0:ip=ip+(2*r) else: ip+=2 } ;"""
         f = self.ds.popn()
         ip = self.ip #points to 0BRANCH
         ip += 2 # point to rel
-        rel = self.mem.readn(ip)
+        rel = 2 * self.mem.readn(ip) # each cell is two bytes
 
         if f == 0:
             abs = (ip + rel) & 0xFFFF # 2's complement

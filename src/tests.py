@@ -105,18 +105,19 @@ class TestForth(unittest.TestCase):
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
-        self.f.create_word("B", " DOLIT", 42, "EMIT", "BRANCH", -8)
-        self.f.machine.limit = 20 # limit to 20 times round DODOES
+        self.f.create_word("B", " DOLIT", 42, "EMIT", "BRANCH", -4)
+        self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
 
     def test_41_0branch_taken(self):
         """Test conditional branch always taken"""
-        self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 1, "0BRANCH", -10)
+        self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 1, "0BRANCH", -6)
+        self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
 
     def test_42_0branch_nottaken(self):
         """Test conditional branch always not taken"""
-        self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 0, "0BRANCH", -12)
+        self.f.create_word("B", " DOLIT", 44, "EMIT", " DOLIT", 0, "0BRANCH", -6)
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
 
@@ -138,7 +139,6 @@ class TestForth(unittest.TestCase):
 
     def test_52_0lt(self):
         """Test 0< relational operator"""
-        print("HERE")
         self.f.create_word("LF", " DOLIT", 0, "0<", ".")
         self.f.execute_word("LF")
 

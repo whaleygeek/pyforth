@@ -1002,6 +1002,8 @@ class Machine():
 
         MEM_SIZE  = 65536
         #          base,             dirn/size
+        #TODO: reserve native routine address space
+        #TODO: reserve memory mapped register address space
         #SV_MEM   = (0,               +1024      )
         #EL_MEM   = (1024,            +0         )
         DICT_MEM = (1024,            +1024      )
@@ -1013,6 +1015,12 @@ class Machine():
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
         self.mem = Memory(mem)
+
+        #TODO: Reserve some space for native call addresses
+
+        #TODO: Reserve space for memory mapped registers
+        #and register a handler with an appropriate table that maps all the
+        #read and write routines
 
         #   init sysvars
         #svstart, svsize = self.mem.region("SV", SV_MEM)

@@ -214,11 +214,8 @@ class IndexedBuffer(Buffer):
             growdirn = -1
 
         if ptrtype == None:
-            ptrtype = Stack.FIRSTFREE
+            ptrtype = IndexedBuffer.FIRSTFREE
 
-        self.storage  = storage
-        self.start    = start
-        self.size     = size
         self.growdirn = growdirn
         self.ptrtype  = ptrtype
 
@@ -229,13 +226,13 @@ class IndexedBuffer(Buffer):
         last = self.start+self.size-1
 
         if self.growdirn > 0: # growdirn +ve
-            if self.ptrtype == Stack.FIRSTFREE:
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
                 self.ptr = self.start
             else: # LASTUSED
                 self.ptr = self.start-1
 
         else: # growdirn -ve
-            if self.ptrtype == Stack.FIRSTFREE:
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
                 self.ptr = last
             else: #LASTUSED
                 self.ptr = last+1
@@ -245,7 +242,7 @@ class IndexedBuffer(Buffer):
         return self.ptr
 
     def back(self, bytes):
-        self.ptr += bytes * self.growdirn
+        self.ptr -= bytes * self.growdirn
         return self.ptr
 
     def addr(self, rel, size):
@@ -253,12 +250,12 @@ class IndexedBuffer(Buffer):
         #rel should reference the relative distance in bytes back from TOS (0 is TOS for all data sizes)
 
         if self.growdirn > 0: # +ve growth
-            if self.ptrtype == Stack.FIRSTFREE:
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
                 return self.ptr - rel - size
             else: # LASTUSED
                 return self.ptr - rel - (size-1)
         else: # -ve growth
-            if self.ptrtype == Stack.FIRSTFREE:
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
                 return self.ptr + rel + 1
             else: #LASTUSED
                 return self.ptr + rel
@@ -278,7 +275,7 @@ class IndexedBuffer(Buffer):
         size = len(bytes)
         ptr = self.addr(rel, size)
         for b in bytes:
-            self.storage[ptr] = b
+            self.bytes[ptr] = b ####HERE#####
             ptr += 1
 
     def read(self, rel, size):
@@ -286,7 +283,7 @@ class IndexedBuffer(Buffer):
         bytes = []
         ptr = self.addr(rel, size)
         for i in range(size):
-            b = self.storage[ptr]
+            b = self.bytes[ptr]
             bytes.append(b)
             ptr += 1
         return bytes
@@ -618,8 +615,8 @@ class Dictionary(Stack):
         if self.defining_ffa == None:
             raise RuntimeError("Trying to finish an already finished dict defn at:%d", self.last_ffa)
 
-        ff = self.storage.readb(self.defining_ffa)
-        self.storage.writeb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
+        ff = self.bytes.readb(self.defining_ffa)
+        self.bytes.writeb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
         # advance end pointer
         self.last_ffa = self.defining_ffa
         self.defining_ffa = None
@@ -627,7 +624,7 @@ class Dictionary(Stack):
     def readname(self, addr, count):
         buf = ""
         for i in range(count):
-            buf += chr(self.storage.readb(addr))
+            buf += chr(self.bytes.readb(addr))
             addr += 1
         return buf
 
@@ -644,7 +641,7 @@ class Dictionary(Stack):
         ffa = self.last_ffa
         while True:
             ptr = ffa
-            ff = self.storage.readb(ptr)
+            ff = self.bytes.readb(ptr)
             if ff == 0:
                 return # FINISHED
 
@@ -667,14 +664,14 @@ class Dictionary(Stack):
 
             #### LF - Link Field
             lfa = ptr
-            lf = self.storage.readn(lfa)
-            prev_nf = self.readname(lf+1, self.storage.readb(lf) & Dictionary.FIELD_COUNT)
+            lf = self.bytes.readn(lfa)
+            prev_nf = self.readname(lf+1, self.bytes.readb(lf) & Dictionary.FIELD_COUNT)
             print("LF: %x=%x -> %s" % (lfa, lf, prev_nf))
             ptr += 2
 
             #### CF - Code Field
             cfa = ptr
-            cf = self.storage.readn(cfa)
+            cf = self.bytes.readn(cfa)
             #TODO: cf_name comes from machine.dispatch
             print("CF: %x=%x" % (cfa, cf))
             ptr += 2
@@ -685,7 +682,7 @@ class Dictionary(Stack):
             #could look for ptr matching prev ptr, close enough, but not guaranteed
             pfa = ptr
             # dump first one for now
-            pf = self.storage.readn(pfa)
+            pf = self.bytes.readn(pfa)
             #note, this is the CFA of the item. How do we back-step to it's NF?
             #-2 is the LF
             #but before that is arbitrary ascii chars, and a single FF field which
@@ -719,7 +716,7 @@ class Dictionary(Stack):
         if ffa_addr==None:
             ffa_addr = self.last_ffa
         lfa = self.ffa2lfa(ffa_addr)
-        lf = self.storage.readn(lfa)
+        lf = self.bytes.readn(lfa)
         return lf
 
     def nfa(self, ffa):
@@ -728,7 +725,7 @@ class Dictionary(Stack):
 
     def lfa(self, nfa):
         """relative skip from nfa to lfa"""
-        ff = self.storage.readb(nfa)
+        ff = self.bytes.readb(nfa)
         count = ff & ~ Dictionary.FIELD_COUNT # now the count
         lfa = nfa + count + (count%2) # optional PAD
         return lfa
@@ -752,7 +749,7 @@ class Dictionary(Stack):
         """relative skip from ffa to lfa"""
         if ffa == None:
             ffa = self.last_ffa
-        ff = self.storage.readb(ffa)
+        ff = self.bytes.readb(ffa)
         count = ff & Dictionary.FIELD_COUNT # now the count
         lfa = ffa + count + 1
         return lfa
@@ -777,7 +774,7 @@ class Dictionary(Stack):
 
         while True:
             # check if FFA is zero
-            ff = self.storage.readb(ffa)
+            ff = self.bytes.readb(ffa)
             if ff == 0:
                 raise RuntimeError("Could not find word in dict:%s", name)
             # check if still defining
@@ -787,7 +784,7 @@ class Dictionary(Stack):
                 count = ff & Dictionary.FIELD_COUNT
                 this_name = ""
                 for i in range(count):
-                    this_name += chr(self.storage.readb(nfa+i))
+                    this_name += chr(self.bytes.readb(nfa+i))
                 if this_name == name:
                     return ffa # FOUND
 
@@ -832,6 +829,7 @@ class DataStack(ForthStack):
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
+    #TODO: refactor up into ForthStack
     # functions to allow memory mapped registers
     def rd_s0(self):
         """Read the DataStack start address"""
@@ -855,6 +853,7 @@ class ReturnStack(ForthStack):
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
 
+    #TODO: refactor up into ForthStack
     # functions to allow memory mapped registers
     def rd_r0(self):
         """Read the ReturnStack start address"""

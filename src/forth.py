@@ -97,7 +97,6 @@ class Buffer():
         self.bytes   = storage
         self.start   = start
         self.size    = size
-        self.ptr     = start
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
@@ -245,7 +244,7 @@ class IndexedBuffer(Buffer):
         self.ptr -= bytes * self.growdirn
         return self.ptr
 
-    def addr(self, rel, size):
+    def absaddr(self, rel, size):
         """Work out correct start address of a rel byte index starting at this position, relative to TOS"""
         #rel should reference the relative distance in bytes back from TOS (0 is TOS for all data sizes)
 
@@ -273,15 +272,15 @@ class IndexedBuffer(Buffer):
     def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
         size = len(bytes)
-        ptr = self.addr(rel, size)
+        ptr = self.absaddr(rel, size)
         for b in bytes:
-            self.bytes[ptr] = b ####HERE#####
+            self.bytes[ptr] = b
             ptr += 1
 
     def read(self, rel, size):
         """Read a list of bytes, at a specific byte index from TOS"""
         bytes = []
-        ptr = self.addr(rel, size)
+        ptr = self.absaddr(rel, size)
         for i in range(size):
             b = self.bytes[ptr]
             bytes.append(b)
@@ -325,6 +324,51 @@ class IndexedBuffer(Buffer):
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
+#----- PAD --------------------------------------------------------------------
+
+#class Pad(IndexedBuffer): # Note this is dynamically positioned relative to some other structure
+#what other value does this class add? Is it the dynamic moving nature?
+#i.e. it's pointer is always relative to some pointer of some other Buffer
+#Perhaps it's a general concept, a BrotherBuffer?? RelativeBuffer?
+#    def __init__(self, storage, start, size):
+#       #TODO need a brother Buffer, for the pointer to be relative to.
+#        IndexedBuffer.__init__(self, storage, start, size)
+#
+#   get/set pointer (knit up to a brother buffer and it's pointer)
+
+
+#----- BLOCK BUFFERS ----------------------------------------------------------
+
+class BlockBuffers(Buffer):
+    def __init__(self, storage, start, size, numbuffers, buffersize):
+        Buffer.__init__(storage, start, size)
+        #TODO: surely this is related to 'size'?
+        self.numbuffers = numbuffers
+        self.buffersize = buffersize
+        #TODO: dirty/clean flags, 1 for each buffer
+        #TODO: which block is in which buffer, number for each buffer
+
+    def is_dirty(self, bufidx):
+        pass
+
+    def is_clean(self, bufidx):
+        pass
+
+    def set_dirty(self, bufidx):
+        pass
+
+    def set_clean(self, bufidx):
+        pass
+
+    def loadinto(self, bufidx, blockidx):
+        # block 0 means not loaded
+        # Note that FORTH does not allow block 0 to be loaded.
+        # this is usually ok, as it's usually a boot track on native systems.
+        pass
+
+    def holds(self, bufidx):
+        pass
+
 
 #----- STACK ------------------------------------------------------------------
 
@@ -362,6 +406,7 @@ class Stack(IndexedBuffer):
         size = len(bytes)
         self.grow(size)
         self.write(rel=0, bytes=bytes)
+        return self.absaddr(self.TOS, size)
 
     def pop(self, size):
         """Pop a list of bytes of required size"""
@@ -371,17 +416,17 @@ class Stack(IndexedBuffer):
 
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
-        self.push((byte, ))
+        return self.push((byte, ))
 
     def pushn(self, number):
         """Push a 16 bit number onto the stack"""
         b0, b1 = Number.to_bytes(number)
-        self.push((b0, b1))
+        return self.push((b0, b1))
 
     def pushd(self, double):
         """Push a 32 bit double onto the stack"""
         b0, b1, b2, b3 = Double.to_bytes(double)
-        self.push((b0, b1, b2, b3))
+        return self.push((b0, b1, b2, b3))
 
     def popb(self):
         """Pop an 8 bit byte from the stack"""
@@ -445,46 +490,6 @@ class ForthStack(Stack):
 
 
 
-class BlockBuffers(Buffer):
-    def __init__(self, storage, start, size, numbuffers, buffersize):
-        Buffer.__init__(storage, start, size)
-        #TODO: surely this is related to 'size'?
-        self.numbuffers = numbuffers
-        self.buffersize = buffersize
-        #TODO: dirty/clean flags, 1 for each buffer
-        #TODO: which block is in which buffer, number for each buffer
-
-    def is_dirty(self, bufidx):
-        pass
-
-    def is_clean(self, bufidx):
-        pass
-
-    def set_dirty(self, bufidx):
-        pass
-
-    def set_clean(self, bufidx):
-        pass
-
-    def loadinto(self, bufidx, blockidx):
-        # block 0 means not loaded
-        # Note that FORTH does not allow block 0 to be loaded.
-        # this is usually ok, as it's usually a boot track on native systems.
-        pass
-
-    def holds(self, bufidx):
-        pass
-
-
-#class Pad(IndexedBuffer): # Note this is dynamically positioned relative to some other structure
-#what other value does this class add? Is it the dynamic moving nature?
-#i.e. it's pointer is always relative to some pointer of some other Buffer
-#Perhaps it's a general concept, a BrotherBuffer?? RelativeBuffer?
-#    def __init__(self, storage, start, size):
-#       #TODO need a brother Buffer, for the pointer to be relative to.
-#        IndexedBuffer.__init__(self, storage, start, size)
-#
-#   get/set pointer (knit up to a brother buffer and it's pointer)
 #----- VARS -------------------------------------------------------------------
 
 class Vars(Stack):
@@ -630,13 +635,11 @@ class Dictionary(Stack):
 
     def dump(self):
         """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
-        print("DICTIONARY")
-        print("start:       %x" % self.start)
-        print("size:        %x" % self.size)
-        print("ptr:         %x" % self.ptr)
-        print("last_ffa:    %x" % self.last_ffa)
+        print("\nDICTIONARY")
+        buf = "start:%x size:%x ptr:%x last_ffa:%x" % (self.start, self.size, self.ptr, self.last_ffa)
         if self.defining_ffa != None:
-            print("defining_ffa:%x" % self.defining_ffa)
+            buf += " defining_ffa:%x" % self.defining_ffa
+        print(buf)
 
         ffa = self.last_ffa
         while True:
@@ -645,35 +648,38 @@ class Dictionary(Stack):
             if ff == 0:
                 return # FINISHED
 
-            print("-" * 40)
+            #print("-" * 40)
             #### FF - Flags Field
-            buf = "FF: %x " % ffa
-            if ff & Dictionary.FLAG_IMMEDIATE: buf += "immediate "
-            if ff & Dictionary.FLAG_DEFINING:  buf += "defining "
-            if ff & Dictionary.FLAG_UNUSED:    buf += "unused "
+            ff_buf = "ff:%x " % ffa
+            if ff & Dictionary.FLAG_IMMEDIATE: buf += "im "
+            if ff & Dictionary.FLAG_DEFINING:  buf += "def "
+            if ff & Dictionary.FLAG_UNUSED:    buf += "un "
             count = ff & Dictionary.FIELD_COUNT
-            buf += "sz:" + str(count)
-            print(buf)
+            ff_buf += "sz:" + str(count)
+            #print(ff_buf)
             ptr += 1
 
             #### NF - Name Field
             nfa = ptr
             nf = self.readname(nfa, count)
-            print("NF: %x %s" % (nfa, nf))
+            nf_buf = "nf:%x (%s)" % (nfa, nf)
+            #print(nf_buf)
             ptr += count
 
             #### LF - Link Field
             lfa = ptr
             lf = self.bytes.readn(lfa)
             prev_nf = self.readname(lf+1, self.bytes.readb(lf) & Dictionary.FIELD_COUNT)
-            print("LF: %x=%x -> %s" % (lfa, lf, prev_nf))
+            lf_buf = "lf:%x=%x->(%s)" % (lfa, lf, prev_nf)
+            #print(lf_buf)
             ptr += 2
 
             #### CF - Code Field
             cfa = ptr
             cf = self.bytes.readn(cfa)
             #TODO: cf_name comes from machine.dispatch
-            print("CF: %x=%x" % (cfa, cf))
+            cf_buf = "cf:%x=%x" % (cfa, cf)
+            #print(cf_buf)
             ptr += 2
 
             #### PF - Parameter Field
@@ -690,8 +696,11 @@ class Dictionary(Stack):
             #Can't assume LF's are sequential, when vocabularies in use.
             #TODO: could always store a zero after FF (PAD) then we would be able to
             #backscan for start of string.
-            print("PF: %x=%x" % (pfa, pf))
+            pf_buf = "pf:%x=%x" % (pfa, pf)
+            #print(pf_buf)
 
+            # Print a single line dump of dict record
+            print(ff_buf + " " + nf_buf + " " + lf_buf + " " + cf_buf + " " + pf_buf)
             # Move to prev
             ffa = self.prev(ffa)
 
@@ -954,7 +963,7 @@ class Machine():
         DICT_MEM = (1024,            +1024      )
         #PAD_MEM  = (2048,            +80        )
         DS_MEM   = (8192,            -1024      ) # grows downwards
-        #TIB_MEM  = (8192,            +80        )
+        TIB_MEM  = (8192,            +80        )
         RS_MEM   = (16384,           -1024      ) # grows downwards
         UV_MEM   = (16384,           +1024      )
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
@@ -982,8 +991,8 @@ class Machine():
         self.ds = DataStack(self.mem, self.dsstart, self.dssize)
 
         #   init text input buffer
-        #tibstart, tibsize = self.mem.region("TIB", TIB_MEM)
-        #self.tib = IndexedBuffer(self.mem, tibstart, tibsize)
+        self.tibstart, self.tibsize = self.mem.region("TIB", TIB_MEM)
+        self.tib = IndexedBuffer(self.mem, self.tibstart, self.tibsize)
 
         #   init return stack
         self.rsstart, self.rssize = self.mem.region("RS", RS_MEM)
@@ -1578,12 +1587,12 @@ class Forth:
         )
         #self.machine.dict.dumpraw()
 
-    def create_var(self, name, size, init=0):
+    def create_var(self, name, size=2, init=0):
         """Create a variable with a given 16 bit default value"""
         if size!=2:
             raise RuntimeError("var size != 2 not yet supported")
 
-        addr=self.uv.pushn(init)
+        addr=self.machine.uv.pushn(init)
         RDPFA = self.machine.getIndex(" RDPFA")
 
         # Now create the dictionary entry
@@ -1630,14 +1639,14 @@ class Forth:
 
         #TODO tibstart, tibsize, padsize, bbstart
 
-        #: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
-        self.create_const("PAD", self.machine.uvstart)
+        #: PAD   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
+        #self.create_const("PAD", self.machine.uvstart)
 
         #: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
-        #self.create_const("TIB", self.tibstart)
+        self.create_const("TIB", self.machine.tibstart)
 
         #: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
-        #self.create_const("TIBZ", self.tibsize)
+        self.create_const("TIBZ", self.machine.tibsize)
 
         #: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
         #self.create_const("PADZ", self.padsize)
@@ -1649,7 +1658,7 @@ class Forth:
         # VARIABLES -----------------------------------------------------------
 
         # : >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
-        #self.create_var("IN>", 2)
+        self.create_var("IN>")
 
         # : COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
         #self.create_var("COUNT", 2)

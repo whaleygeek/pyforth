@@ -179,6 +179,8 @@ class TestForth(unittest.TestCase):
         self.f.create_word("UT")
         self.f.execute_word("UT")
 
+    #def test_99_dumpdict(self):
+    #    self.f.machine.dict.dump()
 
 if __name__ == "__main__":
     unittest.main()

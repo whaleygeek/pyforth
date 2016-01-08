@@ -28,23 +28,12 @@ PLAN
 
 ================================================================================
 
-NATIVES REQUIRED
-n_ABORT   ( -- )                     clear DS and quit to interpreter loop
-n_RDPFA   ( -- a)                    read value at PFA and push on DS. Used to read const or varaddr
-n_STORE   ( n a -- )                 write n to a
-n_FETCH   ( a -- n)                  read a to get n
+NATIVES STILL REQUIRED
 
-n_STORE8   ( b a -- )                write b to byte a
-n_FETCH8   ( a -- b)                 read byte b from a
 n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is it count preceeded??
 
 DICT WRAPPERS FOR NATIVES
 : ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
-: C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
-: !   ( n a -- )                     /P190 n_STORE   store single number into addr
-: @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
-: C!   ( b a -- )                    /P190 n_STORE8  store 8 bit value
-: C@   ( a -- b)                     /P190 n_FETCH8  fetch 8 bit value
 : NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
 
 VARS/CONSTS REQUIRED
@@ -63,6 +52,22 @@ VARS/CONSTS
 
 
 ----- HIGH LEVEL WORDS - DESIGN -----------------------------------------------
+
+NATIVES (done)
+n_ABORT   ( -- )                     clear DS and quit to interpreter loop
+n_RDPFA   ( -- a)                    read value at PFA and push on DS. Used to read const or varaddr
+n_STORE   ( n a -- )                 write n to a
+n_FETCH   ( a -- n)                  read a to get n
+n_STORE8   ( b a -- )                write b to byte a
+n_FETCH8   ( a -- b)                 read byte b from a
+
+DICT wrappers (done)
+: C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
+: !   ( n a -- )                     /P190 n_STORE   store single number into addr
+: @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
+: C!   ( b a -- )                    /P190 n_STORE8  store 8 bit value
+: C@   ( a -- b)                     /P190 n_FETCH8  fetch 8 bit value
+
 
 ---- CONST
 

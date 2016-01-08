@@ -970,6 +970,11 @@ class Machine():
             #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
             ("NOP",    None,        None,         self.n_nop),       # CODE
+            ("ABORT",  None,        None,         self.n_abort),     # CODE
+            ("!",      None,        None,         self.n_store),     # CODE
+            ("@",      None,        None,         self.n_fetch),     # CODE
+            ("C!",     None,        None,         self.n_store8),    # CODE
+            ("C@",     None,        None,         self.n_fetch8),    # CODE
             ("EMIT",   None,        None,         self.n_emit),      # CODE
             (".",      None,        None,         self.n_printtos),  # CODE
             ("SWAP",   None,        None,         self.ds.swap),     # CODE
@@ -985,7 +990,6 @@ class Machine():
             ("*",      None,        None,         self.n_mult),      # CODE
             ("/",      None,        None,         self.n_div),       # CODE
             ("MOD",    None,        None,         self.n_mod),       # CODE
-
             ("0=",     None,        None,        self.n_0eq),        # CODE
             ("NOT",    None,        None,        self. n_not),       # CODE
             ("0<",     None,        None,        self. n_0lt),       # CODE
@@ -998,12 +1002,6 @@ class Machine():
             ("RBLK",   None,        None,         self.n_rblk),      # CODE
             ("WBLK",   None,        None,         self.n_wblk),      # CODE
 
-            #("STORE",  None,        None,         self.n_store),     # CODE
-            #("FETCH",  None,        None,         self.n_fetch),     # CODE
-            #("STORE8", None,        None,         self.n_store8),    # CODE
-            #("FETCH8", None,        None,         self.n_fetch8),    # CODE
-            #("RDPFA",  None,        None,         self.n_rdpfa),     # CODE
-            #("ADRUV",  None,        None,         self.n_adruv),     # CODE
             ("BRANCH",  None,        None,         self.n_branch),    # CODE
             ("0BRANCH", None,        None,         self.n_0branch),   # CODE
 
@@ -1030,6 +1028,10 @@ class Machine():
 
             # MISC
             #("IP",    self.rd_ip, self.wr_ip, None),               # VAR
+
+            # Runtime support routines
+            (" RDPFA",     None,        None,         self.n_rdpfa),     # CODE
+            #(" ADRUV",  None,        None,         self.n_adruv),     # CODE
 
             # Compiler support routines that can be called by high-level forth
             #("DOES>"),
@@ -1136,6 +1138,12 @@ class Machine():
         """Do nothing"""
         pass
 
+    def n_abort(self):
+        """Empty RS and DS and finish"""
+        self.ds.clear()
+        self.rs.clear()
+        self.running = False
+
     def n_docon(self):
         """Reads the 16 bit constant pointed to by PFA and pushes onto DS"""
         #TODO: The PFA of the current word needs to be accessible implicitly somewhere
@@ -1158,34 +1166,29 @@ class Machine():
         """: n_STORE   ( n a -- )
         { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;"""
         a = self.ds.popn()
-        n0 = self.ds.popb()
-        n1 = self.ds.popb()
-        self.mem[a] = n0
-        self.mem[a+1] = n1
+        n = self.ds.popn()
+        self.mem.writen(a, n)
 
     def n_fetch(self):
         """: n_FETCH  ( a -- n)
         { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
         a = self.ds.popn()
-        n0 = self.mem[a]
-        n1 = self.mem[a+1]
-        self.ds.pushb(n0)
-        self.ds.pushb(n1)
+        n = self.mem.readn(a)
+        self.ds.pushn(n)
 
     def n_store8(self):
         """: n_STORE8  ( b a -- )
         { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
         b = self.ds.popb()
-        self.mem[a] = b
+        self.mem.writeb(a, b)
 
     def n_fetch8(self):
         """: n_FETCH8   ( a -- b)
         { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
-        b = self.mem[a]
+        b = self.mem.readb(a)
         self.ds.pushb(b)
-        pass
 
     def n_add(self):
         """: n_ADD   ( n1 n2 -- n-sum)
@@ -1338,14 +1341,14 @@ class Machine():
         """: n_RDPFA   ( a-pfa -- n)
         { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;"""
         pfa = self.ds.popn()
-        r = self.mem[pfa]
+        r = self.mem.readn(pfa)
         self.ds.pushn(r)
 
     def n_adruv(self):
         """: n_ADRUV   ( a-pfa -- a)
         { pfa=ds_pop; rel=mem[pfa]; a=uservars+rel; ds_push(a) } ;"""
         pfa = self.ds.popn()
-        rel = self.mem[pfa]
+        rel = self.mem.readn(pfa)
         uservars = 0 # TODO: per-task offset to uservars
         a = uservars + rel
         self.ds.pushn(a)

@@ -91,21 +91,13 @@ class Double(DoubleBigEndian):pass
 #----- BUFFER -----------------------------------------------------------------
 
 class Buffer():
-    def __init__(self, storage, start, size):
+    def __init__(self, storage, start=0, size=None):
+        if size==None:
+            size = len(storage)-start
         self.bytes   = storage
         self.start   = start
         self.size    = size
         self.ptr     = start
-        #TODO ptr semantics same as stack? (which way it moves, what it points to?)
-        #i.e. is buffer just a stack that is regularly cleared and randomly indexed?
-        #or is Stack a Buffer?
-        #Memory() does not have a pointer but Stack() does.
-        #some of the other buffers have pointers.
-        #but Stack has other operations.
-
-        #So, perhaps Buffer() is the array access part,
-        #IndexedBuffer() manages the pointers
-        #and Stack() manages the additional operations and stack concept?
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
@@ -161,67 +153,11 @@ class Buffer():
 MEMSIZE = 65536
 mem = [0 for i in range(MEMSIZE)]
 
-#TODO is Memory a specialisation of a Buffer, with the added region management
-
-class Memory(): #TODO: Subclass Buffer
+class Memory(Buffer):
     def __init__(self, storage, size=None):
-        #BUFFER
-        if size == None:
-            size = len(storage)
-        self.size = size
-        self.bytes = storage
-        #MEMORY
+        Buffer.__init__(self, storage, start=0, size=size)
         self.map = []
 
-    #----- BUFFER
-    def readn(self, addr): #TODO: Buffer
-        """Read a cell sized 2 byte variable"""
-        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1]))
-        return value
-
-    def readb(self, addr): #TODO: Buffer
-        """Read a 1 byte variable"""
-        value = self.bytes[addr]
-        return value
-
-    def readd(self, addr): #TODO: Buffer
-        """Read a double length variable (4 byte, 32 bits)"""
-        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1], self.bytes[addr+2], self.bytes[addr+3]))
-        return value
-
-    def writen(self, addr, value): #TODO: Buffer
-        """Write a cell sized 2 byte variable"""
-        b0, b1 = Number.to_bytes(value)
-        self.bytes[addr]   = b0
-        self.bytes[addr+1] = b1
-
-    def writeb(self, addr, value): #TODO: Buffer
-        """Write a 1 byte variable"""
-        low = (value & 0xFF)
-        self.bytes[addr] = low
-
-    def writed(self, addr, value): #TODO: Buffer
-        """Write a double length variable (4 byte, 32 bits)"""
-        b0, b1, b2, b3 = Double.to_bytes(value)
-        self.bytes[addr]   = b0
-        self.bytes[addr+1] = b1
-        self.bytes[addr+2] = b2
-        self.bytes[addr+3] = b3
-
-    def __setitem__(self, key, value): #TODO: Buffer
-        self.bytes[key] = value
-
-    def __getitem__(self, key): #TODO: Buffer
-        return self.bytes[key]
-
-    def dump(self, start, len): #TODO: Buffer
-        """Dump memory to stdout, for debug reasons"""
-        #TODO do a proper 8 or 16 column address-prefixed dump
-        for a in range(start, start+len):
-            print("%4x:%2x" % (a, self.bytes[a]))
-
-
-    #----- MEMORY
     def region(self, name, spec): # Memory
         """Define a new memory region in the memory map"""
         # spec=(base, dirn/size)
@@ -265,88 +201,12 @@ class Memory(): #TODO: Subclass Buffer
 #----- INDEXED BUFFER ---------------------------------------------------------
 
 class IndexedBuffer(Buffer):
-    def __init__(self, storage, start, size):
-        Buffer.__init__(self, storage, start, size)
-
-    def getrel(self):
-        """Get the pointer relative to buffer start"""
-        pass #TODO:
-
-    def getused(self):
-        pass #TODO:
-
-    def getfree(self):
-        pass #TODO:
-
-    def fwd(self, bytes):
-        pass #TODO:
-
-    def back(self, bytes):
-        pass #TODO:
-
-    def appendn(self, number):
-        pass #TODO:
-
-    def appendb(self, number):
-        pass #TODO:
-
-
-class BlockBuffers(Buffer):
-    def __init__(self, storage, start, size, numbuffers, buffersize):
-        Buffer.__init__(storage, start, size)
-        #TODO: surely this is related to 'size'?
-        self.numbuffers = numbuffers
-        self.buffersize = buffersize
-        #TODO: dirty/clean flags, 1 for each buffer
-        #TODO: which block is in which buffer, number for each buffer
-
-    def is_dirty(self, bufidx):
-        pass
-
-    def is_clean(self, bufidx):
-        pass
-
-    def set_dirty(self, bufidx):
-        pass
-
-    def set_clean(self, bufidx):
-        pass
-
-    def loadinto(self, bufidx, blockidx):
-        # block 0 means not loaded
-        # Note that FORTH does not allow block 0 to be loaded.
-        # this is usually ok, as it's usually a boot track on native systems.
-        pass
-
-    def holds(self, bufidx):
-        pass
-
-
-#class Pad(IndexedBuffer): # Note this is dynamically positioned relative to some other structure
-#what other value does this class add? Is it the dynamic moving nature?
-#i.e. it's pointer is always relative to some pointer of some other Buffer
-#Perhaps it's a general concept, a BrotherBuffer?? RelativeBuffer?
-#    def __init__(self, storage, start, size):
-#       #TODO need a brother Buffer, for the pointer to be relative to.
-#        IndexedBuffer.__init__(self, storage, start, size)
-#
-#   get/set pointer (knit up to a brother buffer and it's pointer)
-
-
-#----- STACK ------------------------------------------------------------------
-
-class Stack(): #TODO Subclass IndexedBuffer
-    """A general purpose stack abstraction to wrap around memory storage"""
-    # bytes are always stored in the provided order, in increasing memory locations
-
     # Pointer strategies
-    #IndexedBuffer
     FIRSTFREE = False # ptr points to first free byte
     LASTUSED  = True  # ptr points to last used byte
-    # Stack
-    TOS = 0 # TOP OF STACK INDEX
 
     def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
+        Buffer.__init__(self, storage, start, size)
         # IndexedBuffer
         if growdirn > 0: # growdirn +ve
             growdirn = 1
@@ -364,11 +224,7 @@ class Stack(): #TODO Subclass IndexedBuffer
 
         self.reset()
 
-
-    #----- TODO: Move to IndexedBuffer
-    #The move is to allow TIB and PAD to share the pointer maths,
-    #without the additional stack concept words being present.
-    def reset(self): #TODO: IndexedBuffer
+    def reset(self):
         """Reset the stack to empty"""
         last = self.start+self.size-1
 
@@ -384,17 +240,15 @@ class Stack(): #TODO Subclass IndexedBuffer
             else: #LASTUSED
                 self.ptr = last+1
 
-    def grow(self, bytes): #TODO: IndexedBuffer
-        """Expand the stack by a number of bytes"""
+    def fwd(self, bytes):
         self.ptr += bytes * self.growdirn
         return self.ptr
 
-    def shrink(self, bytes): #TODO: IndexedBuffer
-        """Shrink the stack by a number of bytes"""
-        self.ptr -= bytes * self.growdirn
+    def back(self, bytes):
+        self.ptr += bytes * self.growdirn
         return self.ptr
 
-    def addr(self, rel, size): #TODO: IndexedBuffer
+    def addr(self, rel, size):
         """Work out correct start address of a rel byte index starting at this position, relative to TOS"""
         #rel should reference the relative distance in bytes back from TOS (0 is TOS for all data sizes)
 
@@ -409,14 +263,17 @@ class Stack(): #TODO Subclass IndexedBuffer
             else: #LASTUSED
                 return self.ptr + rel
 
-    def getused(self): #TODO: IndexedBuffer
+    def getused(self):
         """Get the number of bytes used on the stack"""
         if self.growdirn > 0: # +ve growth
             return self.ptr - self.start
         else: # -ve growth
             return (self.start+self.size-1) - self.ptr
 
-    def write(self, rel, bytes): #TODO: IndexedBuffer
+    def getfree(self):
+        pass #TODO:
+
+    def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
         size = len(bytes)
         ptr = self.addr(rel, size)
@@ -424,7 +281,7 @@ class Stack(): #TODO Subclass IndexedBuffer
             self.storage[ptr] = b
             ptr += 1
 
-    def read(self, rel, size): #TODO: IndexedBuffer
+    def read(self, rel, size):
         """Read a list of bytes, at a specific byte index from TOS"""
         bytes = []
         ptr = self.addr(rel, size)
@@ -434,7 +291,62 @@ class Stack(): #TODO Subclass IndexedBuffer
             ptr += 1
         return bytes
 
-    #----- STACK
+    def appendn(self, number):
+        pass #TODO: call write
+
+    def appendb(self, number):
+        pass #TODO: call write
+
+    def setb(self, index, byte):
+        """Write to an 8 bit number at an 8 bit position relative to top of stack"""
+        self.write(rel=index, bytes=(byte,))
+
+    def setn(self, index, number):
+        """Write to a 16 bit number at a 16 bit position relative to top of stack"""
+        b0, b1 = Number.to_bytes(number)
+        self.write(rel=index*2, bytes=(b0, b1))
+
+    def setd(self, index, double):
+        """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
+        b0, b1, b2, b3 = Double.to_bytes(double)
+        self.write(rel=index*4, bytes=(b0, b1, b2, b3))
+
+    def getb(self, index):
+        """Get an 8 bit number at an 8 bit position relative to top of stack"""
+        bytes = self.read(rel=index, size=1)
+        return bytes[0]
+
+    def getn(self, index):
+        """Get a 16 bit number at a 16-bit position relative to top of stack"""
+        b0, b1 = self.read(rel=index*2, size=2)
+        number = Number.from_bytes((b0, b1))
+        return number
+
+    def getd(self, index):
+        """Get a 32 bit number at a 32 bit position relative to top of stack"""
+        b0, b1, b2, b3 = self.read(rel=index*4, size=4)
+        double = Double.from_bytes((b0, b1, b2, b3))
+        return double
+
+
+#----- STACK ------------------------------------------------------------------
+
+class Stack(IndexedBuffer):
+    """A general purpose stack abstraction to wrap around memory storage"""
+    # bytes are always stored in the provided order, in increasing memory locations
+
+    TOS = 0 # TOP OF STACK INDEX
+
+    def __init__(self, storage, start, size, growdirn, ptrtype):
+        IndexedBuffer.__init__(self, storage, start, size, growdirn, ptrtype)
+
+    def grow(self, bytes):
+        """Expand the stack by a number of bytes"""
+        self.fwd(bytes)
+
+    def shrink(self, bytes):
+        """Shrink the stack by a number of bytes"""
+        self.back(bytes)
 
     def dumpraw(self):
         if self.growdirn != 1:
@@ -491,36 +403,10 @@ class Stack(): #TODO Subclass IndexedBuffer
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
 
-    def setb(self, index, byte):
-        """Write to an 8 bit number at an 8 bit position relative to top of stack"""
-        self.write(rel=index, bytes=(byte,))
 
-    def setn(self, index, number):
-        """Write to a 16 bit number at a 16 bit position relative to top of stack"""
-        b0, b1 = Number.to_bytes(number)
-        self.write(rel=index*2, bytes=(b0, b1))
-
-    def setd(self, index, double):
-        """Write to a 32 bit number at a 32 bit position relative to stop of stack"""
-        b0, b1, b2, b3 = Double.to_bytes(double)
-        self.write(rel=index*4, bytes=(b0, b1, b2, b3))
-
-    def getb(self, index):
-        """Get an 8 bit number at an 8 bit position relative to top of stack"""
-        bytes = self.read(rel=index, size=1)
-        return bytes[0]
-
-    def getn(self, index):
-        """Get a 16 bit number at a 16-bit position relative to top of stack"""
-        b0, b1 = self.read(rel=index*2, size=2)
-        number = Number.from_bytes((b0, b1))
-        return number
-
-    def getd(self, index):
-        """Get a 32 bit number at a 32 bit position relative to top of stack"""
-        b0, b1, b2, b3 = self.read(rel=index*4, size=4)
-        double = Double.from_bytes((b0, b1, b2, b3))
-        return double
+class ForthStack(Stack):
+    def __init__(self, storage, start, size, growdirn, ptrtype):
+        Stack.__init__(self, storage, start, size, growdirn, ptrtype)
 
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
@@ -552,10 +438,56 @@ class Stack(): #TODO Subclass IndexedBuffer
         """Forth drop top number on stack"""
         self.popn()
 
-    #TODO:NIP
-    #TODO:TUCK
+    def nip(self):
+        pass #TODO:NIP removes item under TOS
+
+    def tuck(self):
+        pass #TODO:TUCK copies TOS to under what it is on top of
 
 
+
+
+
+class BlockBuffers(Buffer):
+    def __init__(self, storage, start, size, numbuffers, buffersize):
+        Buffer.__init__(storage, start, size)
+        #TODO: surely this is related to 'size'?
+        self.numbuffers = numbuffers
+        self.buffersize = buffersize
+        #TODO: dirty/clean flags, 1 for each buffer
+        #TODO: which block is in which buffer, number for each buffer
+
+    def is_dirty(self, bufidx):
+        pass
+
+    def is_clean(self, bufidx):
+        pass
+
+    def set_dirty(self, bufidx):
+        pass
+
+    def set_clean(self, bufidx):
+        pass
+
+    def loadinto(self, bufidx, blockidx):
+        # block 0 means not loaded
+        # Note that FORTH does not allow block 0 to be loaded.
+        # this is usually ok, as it's usually a boot track on native systems.
+        pass
+
+    def holds(self, bufidx):
+        pass
+
+
+#class Pad(IndexedBuffer): # Note this is dynamically positioned relative to some other structure
+#what other value does this class add? Is it the dynamic moving nature?
+#i.e. it's pointer is always relative to some pointer of some other Buffer
+#Perhaps it's a general concept, a BrotherBuffer?? RelativeBuffer?
+#    def __init__(self, storage, start, size):
+#       #TODO need a brother Buffer, for the pointer to be relative to.
+#        IndexedBuffer.__init__(self, storage, start, size)
+#
+#   get/set pointer (knit up to a brother buffer and it's pointer)
 #----- VARS -------------------------------------------------------------------
 
 class Vars(Stack):
@@ -895,10 +827,10 @@ class Dictionary(Stack):
         self.ptr = number
 
 
-class DataStack(Stack):
+class DataStack(ForthStack):
     """A stack for pushing application data on to """
     def __init__(self, mem, start, size):
-        Stack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
+        ForthStack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
     # functions to allow memory mapped registers
     def rd_s0(self):
@@ -918,10 +850,10 @@ class DataStack(Stack):
         self.ptr = number
 
 
-class ReturnStack(Stack):
+class ReturnStack(ForthStack):
     """A stack for high level forth call/return addresses"""
     def __init__(self, mem, start, size):
-        Stack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
+        ForthStack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
 
     # functions to allow memory mapped registers
     def rd_r0(self):

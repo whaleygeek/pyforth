@@ -291,21 +291,46 @@ class IndexedBuffer(Buffer):
         pass #TODO:
 
 
-#class BlockBuffers(Buffer):
-#Note this also needs structures and operations to manage the buffers
-#such as which block is loaded into which buffer, if it is dirty or clean,
-#marking as dirty or clean.
-# Operations such as save and load are probably elsewhere though.
-#    def __init__(self, storage, start, size):
-#        pass
-#    # addr, read, write, erase
-#    # cache index
+class BlockBuffers(Buffer):
+    def __init__(self, storage, start, size, numbuffers, buffersize):
+        Buffer.__init__(storage, start, size)
+        #TODO: surely this is related to 'size'?
+        self.numbuffers = numbuffers
+        self.buffersize = buffersize
+        #TODO: dirty/clean flags, 1 for each buffer
+        #TODO: which block is in which buffer, number for each buffer
+
+    def is_dirty(self, bufidx):
+        pass
+
+    def is_clean(self, bufidx):
+        pass
+
+    def set_dirty(self, bufidx):
+        pass
+
+    def set_clean(self, bufidx):
+        pass
+
+    def loadinto(self, bufidx, blockidx):
+        # block 0 means not loaded
+        # Note that FORTH does not allow block 0 to be loaded.
+        # this is usually ok, as it's usually a boot track on native systems.
+        pass
+
+    def holds(self, bufidx):
+        pass
 
 
-#class Pad(Buffer): # Note this is dynamically positioned relative to some other structure?
+#class Pad(IndexedBuffer): # Note this is dynamically positioned relative to some other structure
+#what other value does this class add? Is it the dynamic moving nature?
+#i.e. it's pointer is always relative to some pointer of some other Buffer
+#Perhaps it's a general concept, a BrotherBuffer?? RelativeBuffer?
 #    def __init__(self, storage, start, size):
-#        pass
-#    # addr, clear, read, write, advance, retard, reset, move?
+#       #TODO need a brother Buffer, for the pointer to be relative to.
+#        IndexedBuffer.__init__(self, storage, start, size)
+#
+#   get/set pointer (knit up to a brother buffer and it's pointer)
 
 
 #----- STACK ------------------------------------------------------------------

@@ -182,6 +182,13 @@ WRITING
 !
 same issues as above
 
+Another way to do this would be to have a special abstraction that has no
+storage allocated to it at all, that is mapped as a region in Memory
+i.e. a region that has it's own handler.
+Then access to any memory address in that part of the map, instead
+of going to the bytes list, goes to a read() or write() of the handler,
+and it can then lookup things in it's table.
+
 
 ===============================================================================
 

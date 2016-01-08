@@ -91,6 +91,7 @@ class Double(DoubleBigEndian):pass
 #----- BUFFER -----------------------------------------------------------------
 
 class Buffer():
+
     def __init__(self, storage, start=0, size=None):
         if size==None:
             size = len(storage)-start
@@ -98,51 +99,54 @@ class Buffer():
         self.start   = start
         self.size    = size
 
-    def readn(self, addr):
-        """Read a cell sized 2 byte variable"""
-        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1]))
-        return value
-
-    def readb(self, addr):
-        """Read a 1 byte variable"""
-        value = self.bytes[addr]
-        return value
-
-    def readd(self, addr):
-        """Read a double length variable (4 byte, 32 bits)"""
-        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1], self.bytes[addr+2], self.bytes[addr+3]))
-        return value
-
-    def writen(self, addr, value):
-        """Write a cell sized 2 byte variable"""
-        b0, b1 = Number.to_bytes(value)
-        self.bytes[addr]   = b0
-        self.bytes[addr+1] = b1
-
-    def writeb(self, addr, value):
-        """Write a 1 byte variable"""
-        low = (value & 0xFF)
-        self.bytes[addr] = low
-
-    def writed(self, addr, value):
-        """Write a double length variable (4 byte, 32 bits)"""
-        b0, b1, b2, b3 = Double.to_bytes(value)
-        self.bytes[addr]   = b0
-        self.bytes[addr+1] = b1
-        self.bytes[addr+2] = b2
-        self.bytes[addr+3] = b3
-
+    #---- LOW LEVEL (overridable) storage access
     def __setitem__(self, key, value):
         self.bytes[key] = value
 
     def __getitem__(self, key):
         return self.bytes[key]
 
+    #---- HIGH LEVEL storage access (always uses lower level)
+    def readn(self, addr):
+        """Read a cell sized 2 byte variable"""
+        value = Number.from_bytes((self[addr], self[addr+1]))
+        return value
+
+    def readb(self, addr):
+        """Read a 1 byte variable"""
+        value = self[addr]
+        return value
+
+    def readd(self, addr):
+        """Read a double length variable (4 byte, 32 bits)"""
+        value = Number.from_bytes((self[addr], self[addr+1], self[addr+2], self[addr+3]))
+        return value
+
+    def writen(self, addr, value):
+        """Write a cell sized 2 byte variable"""
+        b0, b1 = Number.to_bytes(value)
+        self[addr]   = b0
+        self[addr+1] = b1
+
+    def writeb(self, addr, value):
+        """Write a 1 byte variable"""
+        low = (value & 0xFF)
+        self[addr] = low
+
+    def writed(self, addr, value):
+        """Write a double length variable (4 byte, 32 bits)"""
+        b0, b1, b2, b3 = Double.to_bytes(value)
+        self[addr]   = b0
+        self[addr+1] = b1
+        self[addr+2] = b2
+        self[addr+3] = b3
+
+
     def dump(self, start, len):
         """Dump memory to stdout, for debug reasons"""
         #TODO do a proper 8 or 16 column address-prefixed dump
         for a in range(start, start+len):
-            print("%4x:%2x" % (a, self.bytes[a]))
+            print("%4x:%2x" % (a, self[a]))
 
 
 #----- MEMORY -----------------------------------------------------------------
@@ -157,7 +161,38 @@ class Memory(Buffer):
         Buffer.__init__(self, storage, start=0, size=size)
         self.map = []
 
-    def region(self, name, spec): # Memory
+    #---- LOW LEVEL (override) storage access
+    #this routes via handler if a handler is provided for that region
+    #if there is no handler, it calls back to the Buffer.__setitem__ and Buffer.__getitem__
+    #for default handling
+
+    def __setitem__(self, key, value):
+        handler = self.handlerfor(key)
+        if handler == None:
+            # use default list access
+            self.bytes[key] = value
+        else:
+            # use handler override
+            handler[key] = value
+
+    def __getitem__(self, key):
+        handler = self.handlerfor(key)
+        if handler == None:
+            # use default handler
+            return self.bytes[key]
+        else:
+            # use override handler
+            return handler[key]
+
+    def handlerfor(self, addr):
+        for i in self.map:
+            name, start, size, handler = i
+            if addr >= start and addr <= start+size:
+                #found the region
+                return handler
+        return None # use default handler
+
+    def region(self, name, spec, handler=None):
         """Define a new memory region in the memory map"""
         # spec=(base, dirn/size)
         addr  = spec[0]
@@ -172,29 +207,31 @@ class Memory(Buffer):
 
         # check for overlaps with an existing region
         for i in self.map:
-            iname, istart, isize = i
+            iname, istart, isize, handler = i
             iend = istart + isize-1
             if (start >= istart and start <= iend) or (end >= istart and end <= iend):
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
-        self.map.append((name, start, abs(size)))
+        self.map.append((name, start, abs(size), handler))
         return start, size
 
-    def show_map(self): # Memory
+    def show_map(self):
         """Display the memory map on stdout"""
         print("MEMORY MAP")
         last_end = 0
         for i in self.map:
-            name, start, size = i
+            name, start, size, handler = i
             if start != last_end:
                 uname  = "UNUSED"
                 ustart = last_end
                 uend   = start-1
                 usize  = uend-ustart-1
-                print("%10s %5x %5x %5x" %(uname, ustart, uend, usize))
+                print("%10s %5x %5x %5x %s" %(uname, ustart, uend, usize, str(handler)))
             print("%10s %5x %5x %5x" % (name, start, start+size-1, size))
             last_end = start + size
         #TODO: show any final unused space up to FFFF at end
+
+    #TODO override low level read and write to check the handler
 
 
 #----- INDEXED BUFFER ---------------------------------------------------------
@@ -1149,6 +1186,8 @@ class Machine():
 
     # functions for memory mapped access to registers and routines
 
+    #TODO might move this into a region handler in Memory()
+    #and take it out of the dispatch table completely.
     #TODO: byte or number?
     def rdbyte(self, addr):
         """Look up read address in dispatch table, and dispatch if known"""
@@ -1159,6 +1198,8 @@ class Machine():
                 return rdfn()
         Debug.fail("read from unknown native address: %x" % addr)
 
+    #TODO might move this into a region handler in Memory()
+    #and take it out of the dispatch table completely.
     #TODO: byte or number?
     def wrbyte(self, addr, byte):
         """Look up write address in dispatch table, and dispatch if known"""

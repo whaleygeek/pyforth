@@ -481,13 +481,20 @@ class ForthStack(Stack):
         self.popn()
 
     def nip(self):
-        pass #TODO:NIP removes item under TOS
+        """Remove item just under TOS"""
+        # ( n1 n2 -- n2)
+        n = self.getn(0)
+        self.setn(1, n)
+        self.popn()
 
     def tuck(self):
-        pass #TODO:TUCK copies TOS to under what it is on top of
-
-
-
+        """TUCK copies TOS to under what it is on top of"""
+        # ( n2 n1 -- n1 n2 n1)
+        n1 = self.getn(0)
+        n2 = self.getn(1)
+        self.setn(1, n1)
+        self.setn(0, n2)
+        self.pushn(n1)
 
 
 #----- VARS -------------------------------------------------------------------
@@ -1219,12 +1226,16 @@ class Machine():
         a = self.ds.popn()
         n = self.ds.popn()
         self.mem.writen(a, n)
+        #TODO: problem, this will not honour the memory mapped registers,
+        #it accesses the memory list directly
 
     def n_fetch(self):
         """: n_FETCH  ( a -- n)
         { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
         a = self.ds.popn()
-        n = self.mem.readn(a)
+        n = self.mem.readn(a) #NOTE: underlying code does two 8 bit reads direct from mem
+        #TODO: problem, this will not honour the memory mapped registers
+        #it accesses the memory list directly
         self.ds.pushn(n)
 
     def n_store8(self):
@@ -1233,12 +1244,16 @@ class Machine():
         a = self.ds.popn()
         b = self.ds.popb()
         self.mem.writeb(a, b)
+        #it accesses the memory list directly
+        #TODO: problem, this will not honour the memory mapped registers
 
     def n_fetch8(self):
         """: n_FETCH8   ( a -- b)
         { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
         b = self.mem.readb(a)
+        #TODO: problem, this will not honour the memory mapped registers
+        #it accesses the memory list directly
         self.ds.pushb(b)
 
     def n_add(self):

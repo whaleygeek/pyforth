@@ -1,30 +1,19 @@
 / design.txt  30/12/2015  D.J.Whale
 
 PLAN
-- specify high level words, in groups
-  - spec for constant create
-  - spec for variable create
-  - spec for memory mapped constants
-  - spec for memory mapped variables
+- spec for memory mapped variables
+- design for memory mapped variables
+- implement memory mapped variables
+- write code for reading a line into TIB
+- design for WORD
+- write code for WORD
+- test that we can parse a word from IN
 
-- write design for each group of words
-  - design for constant create
-  - design for variable create
-  - design for memory mapped constants
-  - design for memory mapped variables
-  - design for WORD
+NOTE: At this point it might be possible to right a top level shell that reads in
+a line of words, interprets and executes those words one at a time, and then
+loops back.
 
-- implement each group of words one group at a time, TDD them from specs and designs
-  - implement constants
-  - pre-seed dict with system constants
-  - implement variables
-  - implement memory mapped variables
-  - write code to create TIB buffer in memory
-  - pre seed dict and vars with system variables
-  - write code for reading a line into TIB
-  - write code for WORD
-
-  - test that we can parse a word from IN
+This will be a fast way to run interactive experiments when developing and testing.
 
 
 #TODO: Need to decide how to handle numbers
@@ -138,7 +127,7 @@ DICT wrappers (done)
 # high level words.
 
 : SPACES   ( n -- )
-    \ target loop
+    \ loop
         DUP   ( n n)
         0=   ( n ?)
         0BRANCH  7 ( exit)   ( n)
@@ -149,10 +138,10 @@ DICT wrappers (done)
     DROP ;
 
 : TYPE   ( a # -- )
-    \ loop ( a #)
+    \ loop   ( a #)
         DUP   ( a # #)
-        0=  ( a # ?)
-        0BRANCH 11 ( exit)  ( a #)
+        0=   ( a # ?)
+        0BRANCH 11 ( exit)   ( a #)
         SWAP   ( # a)
         DUP   ( # a a)
         C@    ( # a c)
@@ -160,70 +149,72 @@ DICT wrappers (done)
         1 +   ( # a+1)
         SWAP   ( a+1 #)
         1 -   ( a+1 #-1)
-        BRANCH -14 ( loop)
+        BRANCH -14   ( loop)
     \ exit ( a #)
-    DROP DROP ( )
+    DROP DROP   ( )
 
 ===============================================================================
-
------ CONSTANT SPEC
-constants go in the PFA of the DICT entry
-a way to define constants (CONSTANT word)
-a CFA way to read constant values from PFA
-
------ CONSTANT DESIGN
-
-Parser version:
-  : CONSTANT word ;
-
-Non parser version, i.e. calling via API direct
-  dict.create("constname", " RDPFA", 26)
-
-n_RDPFA - just pushes address of variable on DS, so you can read or write it.
-
-
------ VARIABLE SPEC
-variables have their own storage space
-DICT entry contains address of the variable
-a way to allocate space for a variable
-difference between sysvars and uservars?
-are we going to support multiprogramming of uservars yet?
-
-
------ VARIABLE DESIGN
-
-Parser version:
-  VARIABLE word - defines a new variable
-
-Non parser version, i.e. calling via API direct
-  addr = uv.create(26) # 26 is the value to store there. Size is 16 bit by default.
-  dict.create("name", " RDPFA", addr)
-
-n_RDPFA - just pushes address of variable on DS, so you can read or write it.
-
-
------ memory mapped constant spec
-Just seed the DICT with constants based on the values of system constants,
-at boot time.
 
 ----- memory mapped variable spec
 Address mapped into low memory, when read/written, causes change of system variable.
 DICT wrapped entries that point to these vars, loaded by boot code
-Are they sysvars or uservars?
+These are all uservars at the moment until we investigate sysvars
 
 ----- memory mapped variable design
-Notes already elsewhere in this doc?
-Reading 2*U8 or 1*U16 issue?? (commented in code)
-atomicity issue? (commented in code)
+
+when accessing var, RDPFA gets the PFA and pushes on stack.
+This is the address of the variable magic number stored in uservars space.
+
+READING
+the CF of @ is n_FETCH (which could be fetching from any address, even a non magic one)
+n_FETCH does two 8 bit reads in succession (which is safe), from magicaddr and magicaddr+1
+This means that both addresses must be mapped and routed to different halves of the variable
+
+have marked in n_FETCH, n_STORE, n_FETCH8 and n_STORE8 the problem.
+These routines, in order to work correctly, have to honour the mapped register
+scheme.
+
+perhaps Memory() needs to the indirection for us.
+perhaps we need a 16 bit access mode on memory that does the two atomic reads in a single call?
+It's indicative that rdbyte() and wrbyte() are not called by any code anywhere!!
+
+WRITING
+!
+same issues as above
+
 
 ===============================================================================
 
 ----- input buffer
-
+(todo)
 : EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
 : SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect (implies base+pointer)
+
+(already defined)
 : IN>
 : TIB
+
+---- read/interpret "shell" loop (REPL)
+
+: SHELL
+    \ nextline
+    TIB TIBZ EXPECT                   \ read in a whole line up to CR
+    SPAN 0BRANCH ( nextline) -        \ empty lines are ignored
+
+    \ nextword
+    BL WORD   ( a)                    \ get a word
+    DUP C@    ( a #)                  \ get count at address, if zero, there was no word
+    0= NOT 0BRANCH ( gotword) - ( a)
+    DROP ( )
+    ." Ok"                            \ TODO: not written this word yet (SHOWSTR DOSTR 2Ok)
+    BRANCH ( nextline) -
+
+    \ gotword ( a)
+    \ TODO form the word into a string of correct format (addr and count? add 1 to addr?)
+    \ TODO find address of word in dict, push addr on stack, 0 if not found
+    \ if not found, show word and " Err", skip to end of line, nextline
+    EXECUTE                            \ execute the word whose address info is on the DS
+    BRANCH ( nextword) - ;
 
 ===============================================================================
 
@@ -240,6 +231,11 @@ Note that the temporary buffer is overwritten very quickly, so you should store
 it more permanently as quickly as possible.
 WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
 the user pressed RETURN
+What does it do if there are no words left in the input buffer??
+Presumably a points to a zero (zero chars consumed), but what about any separator chars
+that might have been seen, presumably these were before the word, not after the non existent
+word, so length 0 makes sense.
+
 
 COUNT converts address of counted string, to stack (a #)
 
@@ -1448,6 +1444,45 @@ pfa: [(2LITERAL), 65535, 65535]
 
 
 
+----- CONSTANT SPEC
+constants go in the PFA of the DICT entry
+a way to define constants (CONSTANT word)
+a CFA way to read constant values from PFA
+
+----- CONSTANT DESIGN
+
+Parser version:
+  : CONSTANT word ;
+
+Non parser version, i.e. calling via API direct
+  dict.create("constname", " RDPFA", 26)
+
+n_RDPFA - just pushes address of variable on DS, so you can read or write it.
+
+
+----- VARIABLE SPEC
+variables have their own storage space
+DICT entry contains address of the variable
+a way to allocate space for a variable
+difference between sysvars and uservars?
+are we going to support multiprogramming of uservars yet?
+
+
+----- VARIABLE DESIGN
+
+Parser version:
+  VARIABLE word - defines a new variable
+
+Non parser version, i.e. calling via API direct
+  addr = uv.create(26) # 26 is the value to store there. Size is 16 bit by default.
+  dict.create("name", " RDPFA", addr)
+
+n_RDPFA - just pushes address of variable on DS, so you can read or write it.
+
+
+----- memory mapped constant spec
+Just seed the DICT with constants based on the values of system constants,
+at boot time.
 
 
 

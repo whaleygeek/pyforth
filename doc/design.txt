@@ -26,6 +26,19 @@ PLAN
 
   - test that we can parse a word from IN
 
+
+#TODO: Need to decide how to handle numbers
+# (The test harness now exposes this problem)
+
+# i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
+# what happens if you add 1 to 65535, it should wrap to 0
+# so all the maths *might* need to be done with the Number() class to
+# simulate a true 16 bit machine. Same for Double() and also need
+# a Byte() if there are arithmetic ops for bytes. Might also want a
+# Boolean() to simulate boolean behaviour with a S16, and a way to
+# convert to unsigned for U< for example.
+
+# Might just & 0xFFFF in all maths operations?
 ================================================================================
 
 NATIVES STILL REQUIRED

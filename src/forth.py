@@ -4,19 +4,6 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
-#TODO: Need to decide how to handle numbers
-# (The test harness now exposes this problem)
-
-# i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
-# what happens if you add 1 to 65535, it should wrap to 0
-# so all the maths *might* need to be done with the Number() class to
-# simulate a true 16 bit machine. Same for Double() and also need
-# a Byte() if there are arithmetic ops for bytes. Might also want a
-# Boolean() to simulate boolean behaviour with a S16, and a way to
-# convert to unsigned for U< for example.
-
-# Might just & 0xFFFF in all maths operations?
-
 
 #----- CONFIGURATION ----------------------------------------------------------
 
@@ -101,72 +88,24 @@ class Number(NumberBigEndian):pass
 class Double(DoubleBigEndian):pass
 
 
-#----- MEMORY -----------------------------------------------------------------
-#
-# Access to a block of memory, basically a Python list.
+#----- BUFFER -----------------------------------------------------------------
 
-MEMSIZE = 65536
-mem = [0 for i in range(MEMSIZE)]
+class Buffer():
+    def __init__(self, storage, start, size):
+        self.bytes   = storage
+        self.start   = start
+        self.size    = size
+        self.ptr     = start
+        #TODO ptr semantics same as stack? (which way it moves, what it points to?)
+        #i.e. is buffer just a stack that is regularly cleared and randomly indexed?
+        #or is Stack a Buffer?
+        #Memory() does not have a pointer but Stack() does.
+        #some of the other buffers have pointers.
+        #but Stack has other operations.
 
-class Memory():
-    def __init__(self, storage, size=None):
-        if size == None:
-            size = len(storage)
-        self.size = size
-        self.bytes = storage
-        self.map = []
-
-    def __setitem__(self, key, value):
-        self.bytes[key] = value
-
-    def __getitem__(self, key):
-        return self.bytes[key]
-
-    def dump(self, start, len):
-        """Dump memory to stdout, for debug reasons"""
-        #TODO do a proper 8 or 16 column address-prefixed dump
-        for a in range(start, start+len):
-            print("%4x:%2x" % (a, self.bytes[a]))
-
-
-    def region(self, name, spec):
-        """Define a new memory region in the memory map"""
-        # spec=(base, dirn/size)
-        addr  = spec[0]
-        size  = spec[1]
-        if size < 0:
-            # grows down towards low memory
-            start = addr - -size
-        else:
-            # grows up towards high memory
-            start = addr
-        end = start + size
-
-        # check for overlaps with an existing region
-        for i in self.map:
-            iname, istart, isize = i
-            iend = istart + isize-1
-            if (start >= istart and start <= iend) or (end >= istart and end <= iend):
-                raise ValueError("Region %s overlaps with %s" % (name, iname))
-
-        self.map.append((name, start, abs(size)))
-        return start, size
-
-    def show_map(self):
-        """Display the memory map on stdout"""
-        print("MEMORY MAP")
-        last_end = 0
-        for i in self.map:
-            name, start, size = i
-            if start != last_end:
-                uname  = "UNUSED"
-                ustart = last_end
-                uend   = start-1
-                usize  = uend-ustart-1
-                print("%10s %5x %5x %5x" %(uname, ustart, uend, usize))
-            print("%10s %5x %5x %5x" % (name, start, start+size-1, size))
-            last_end = start + size
-        #TODO: show any final unused space up to FFFF at end
+        #So, perhaps Buffer() is the array access part,
+        #IndexedBuffer() manages the pointers
+        #and Stack() manages the additional operations and stack concept?
 
     def readn(self, addr):
         """Read a cell sized 2 byte variable"""
@@ -202,20 +141,188 @@ class Memory():
         self.bytes[addr+2] = b2
         self.bytes[addr+3] = b3
 
+    def __setitem__(self, key, value):
+        self.bytes[key] = value
+
+    def __getitem__(self, key):
+        return self.bytes[key]
+
+    def dump(self, start, len):
+        """Dump memory to stdout, for debug reasons"""
+        #TODO do a proper 8 or 16 column address-prefixed dump
+        for a in range(start, start+len):
+            print("%4x:%2x" % (a, self.bytes[a]))
+
+
+#----- MEMORY -----------------------------------------------------------------
+#
+# Access to a block of memory, basically a Python list.
+
+MEMSIZE = 65536
+mem = [0 for i in range(MEMSIZE)]
+
+#TODO is Memory a specialisation of a Buffer, with the added region management
+
+class Memory(): #TODO: Subclass Buffer
+    def __init__(self, storage, size=None):
+        #BUFFER
+        if size == None:
+            size = len(storage)
+        self.size = size
+        self.bytes = storage
+        #MEMORY
+        self.map = []
+
+    #----- BUFFER
+    def readn(self, addr): #TODO: Buffer
+        """Read a cell sized 2 byte variable"""
+        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1]))
+        return value
+
+    def readb(self, addr): #TODO: Buffer
+        """Read a 1 byte variable"""
+        value = self.bytes[addr]
+        return value
+
+    def readd(self, addr): #TODO: Buffer
+        """Read a double length variable (4 byte, 32 bits)"""
+        value = Number.from_bytes((self.bytes[addr], self.bytes[addr+1], self.bytes[addr+2], self.bytes[addr+3]))
+        return value
+
+    def writen(self, addr, value): #TODO: Buffer
+        """Write a cell sized 2 byte variable"""
+        b0, b1 = Number.to_bytes(value)
+        self.bytes[addr]   = b0
+        self.bytes[addr+1] = b1
+
+    def writeb(self, addr, value): #TODO: Buffer
+        """Write a 1 byte variable"""
+        low = (value & 0xFF)
+        self.bytes[addr] = low
+
+    def writed(self, addr, value): #TODO: Buffer
+        """Write a double length variable (4 byte, 32 bits)"""
+        b0, b1, b2, b3 = Double.to_bytes(value)
+        self.bytes[addr]   = b0
+        self.bytes[addr+1] = b1
+        self.bytes[addr+2] = b2
+        self.bytes[addr+3] = b3
+
+    def __setitem__(self, key, value): #TODO: Buffer
+        self.bytes[key] = value
+
+    def __getitem__(self, key): #TODO: Buffer
+        return self.bytes[key]
+
+    def dump(self, start, len): #TODO: Buffer
+        """Dump memory to stdout, for debug reasons"""
+        #TODO do a proper 8 or 16 column address-prefixed dump
+        for a in range(start, start+len):
+            print("%4x:%2x" % (a, self.bytes[a]))
+
+
+    #----- MEMORY
+    def region(self, name, spec): # Memory
+        """Define a new memory region in the memory map"""
+        # spec=(base, dirn/size)
+        addr  = spec[0]
+        size  = spec[1]
+        if size < 0:
+            # grows down towards low memory
+            start = addr - -size
+        else:
+            # grows up towards high memory
+            start = addr
+        end = start + size
+
+        # check for overlaps with an existing region
+        for i in self.map:
+            iname, istart, isize = i
+            iend = istart + isize-1
+            if (start >= istart and start <= iend) or (end >= istart and end <= iend):
+                raise ValueError("Region %s overlaps with %s" % (name, iname))
+
+        self.map.append((name, start, abs(size)))
+        return start, size
+
+    def show_map(self): # Memory
+        """Display the memory map on stdout"""
+        print("MEMORY MAP")
+        last_end = 0
+        for i in self.map:
+            name, start, size = i
+            if start != last_end:
+                uname  = "UNUSED"
+                ustart = last_end
+                uend   = start-1
+                usize  = uend-ustart-1
+                print("%10s %5x %5x %5x" %(uname, ustart, uend, usize))
+            print("%10s %5x %5x %5x" % (name, start, start+size-1, size))
+            last_end = start + size
+        #TODO: show any final unused space up to FFFF at end
+
+
+#----- INDEXED BUFFER ---------------------------------------------------------
+
+class IndexedBuffer(Buffer):
+    def __init__(self, storage, start, size):
+        Buffer.__init__(self, storage, start, size)
+
+    def getrel(self):
+        """Get the pointer relative to buffer start"""
+        pass #TODO:
+
+    def getused(self):
+        pass #TODO:
+
+    def getfree(self):
+        pass #TODO:
+
+    def fwd(self, bytes):
+        pass #TODO:
+
+    def back(self, bytes):
+        pass #TODO:
+
+    def appendn(self, number):
+        pass #TODO:
+
+    def appendb(self, number):
+        pass #TODO:
+
+
+#class BlockBuffers(Buffer):
+#Note this also needs structures and operations to manage the buffers
+#such as which block is loaded into which buffer, if it is dirty or clean,
+#marking as dirty or clean.
+# Operations such as save and load are probably elsewhere though.
+#    def __init__(self, storage, start, size):
+#        pass
+#    # addr, read, write, erase
+#    # cache index
+
+
+#class Pad(Buffer): # Note this is dynamically positioned relative to some other structure?
+#    def __init__(self, storage, start, size):
+#        pass
+#    # addr, clear, read, write, advance, retard, reset, move?
+
 
 #----- STACK ------------------------------------------------------------------
 
-class Stack():
+class Stack(): #TODO Subclass IndexedBuffer
     """A general purpose stack abstraction to wrap around memory storage"""
     # bytes are always stored in the provided order, in increasing memory locations
 
     # Pointer strategies
+    #IndexedBuffer
     FIRSTFREE = False # ptr points to first free byte
     LASTUSED  = True  # ptr points to last used byte
+    # Stack
     TOS = 0 # TOP OF STACK INDEX
 
     def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
-
+        # IndexedBuffer
         if growdirn > 0: # growdirn +ve
             growdirn = 1
         else: # growdirn -ve
@@ -232,20 +339,11 @@ class Stack():
 
         self.reset()
 
-    def dumpraw(self):
-        if self.growdirn != 1:
-            raise RuntimeError("negative growth not dumpable yet")
 
-        for addr in range(self.start, self.ptr+1):
-            b = self.storage[addr]
-            if b > 32 and b < 127:
-                ch = chr(b)
-            else:
-                ch = ' '
-            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
-
-    #--------------------------------------------------------------------------
-    def reset(self):
+    #----- TODO: Move to IndexedBuffer
+    #The move is to allow TIB and PAD to share the pointer maths,
+    #without the additional stack concept words being present.
+    def reset(self): #TODO: IndexedBuffer
         """Reset the stack to empty"""
         last = self.start+self.size-1
 
@@ -261,17 +359,17 @@ class Stack():
             else: #LASTUSED
                 self.ptr = last+1
 
-    def grow(self, bytes):
+    def grow(self, bytes): #TODO: IndexedBuffer
         """Expand the stack by a number of bytes"""
         self.ptr += bytes * self.growdirn
         return self.ptr
 
-    def shrink(self, bytes):
+    def shrink(self, bytes): #TODO: IndexedBuffer
         """Shrink the stack by a number of bytes"""
         self.ptr -= bytes * self.growdirn
         return self.ptr
 
-    def addr(self, rel, size):
+    def addr(self, rel, size): #TODO: IndexedBuffer
         """Work out correct start address of a rel byte index starting at this position, relative to TOS"""
         #rel should reference the relative distance in bytes back from TOS (0 is TOS for all data sizes)
 
@@ -286,14 +384,14 @@ class Stack():
             else: #LASTUSED
                 return self.ptr + rel
 
-    def getused(self):
+    def getused(self): #TODO: IndexedBuffer
         """Get the number of bytes used on the stack"""
         if self.growdirn > 0: # +ve growth
             return self.ptr - self.start
         else: # -ve growth
             return (self.start+self.size-1) - self.ptr
 
-    def write(self, rel, bytes):
+    def write(self, rel, bytes): #TODO: IndexedBuffer
         """Write a list of bytes, at a specific byte index from TOS"""
         size = len(bytes)
         ptr = self.addr(rel, size)
@@ -301,7 +399,7 @@ class Stack():
             self.storage[ptr] = b
             ptr += 1
 
-    def read(self, rel, size):
+    def read(self, rel, size): #TODO: IndexedBuffer
         """Read a list of bytes, at a specific byte index from TOS"""
         bytes = []
         ptr = self.addr(rel, size)
@@ -310,6 +408,20 @@ class Stack():
             bytes.append(b)
             ptr += 1
         return bytes
+
+    #----- STACK
+
+    def dumpraw(self):
+        if self.growdirn != 1:
+            raise RuntimeError("negative growth not dumpable yet")
+
+        for addr in range(self.start, self.ptr+1):
+            b = self.storage[addr]
+            if b > 32 and b < 127:
+                ch = chr(b)
+            else:
+                ch = ' '
+            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
     def push(self, bytes):
         """Push a list of bytes"""
@@ -322,7 +434,7 @@ class Stack():
         bytes = self.read(rel=0, size=size)
         self.shrink(size)
         return bytes
-    #--------------------------------------------------------------------------
+
     def pushb(self, byte):
         """Push an 8 bit byte onto the stack"""
         self.push((byte, ))
@@ -384,7 +496,7 @@ class Stack():
         b0, b1, b2, b3 = self.read(rel=index*4, size=4)
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
-    #--------------------------------------------------------------------------
+
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
         n = self.getn(self.TOS)
@@ -414,6 +526,9 @@ class Stack():
     def drop(self): # ( n -- )
         """Forth drop top number on stack"""
         self.popn()
+
+    #TODO:NIP
+    #TODO:TUCK
 
 
 #----- VARS -------------------------------------------------------------------
@@ -801,27 +916,6 @@ class ReturnStack(Stack):
         self.ptr = number
 
 
-#----- BUFFERS ----------------------------------------------------------------
-
-#class TextInputBuffer():
-#    def __init__(self, mem, start, size, ptr, limit):
-#        pass
-#    # addr, erase, read, write, advance, retard
-
-
-#class Pad():
-#    def __init__(self, mem, start, size, ptr, limit):
-#        pass
-#    # addr, clear, read, write, advance, retard, reset, move?
-
-
-#class BlockBuffers():
-#    def __init__(self, mem, start, size, ptr, limit):
-#        pass
-#    # addr, read, write, erase
-#    # cache index
-
-
 #---- I/O ---------------------------------------------------------------------
 
 class KeyboardInput():
@@ -933,7 +1027,7 @@ class Machine():
 
         #   init text input buffer
         #tibstart, tibsize = self.mem.region("TIB", TIB_MEM)
-        #self.tib = TextInputBuffer(self.mem, tibstart, tibsize)
+        #self.tib = IndexedBuffer(self.mem, tibstart, tibsize)
 
         #   init return stack
         self.rsstart, self.rssize = self.mem.region("RS", RS_MEM)
@@ -1298,7 +1392,6 @@ class Machine():
         Debug.fail("Not implemented")
         #TODO: Needs an UNSIGNED COMPARISON
 
-
     def n_flags(self):
         """: n_FLAGS   ( -- )
         # { mem[FLAGS]=flags } ;"""
@@ -1533,7 +1626,7 @@ class Forth:
         """Create a variable with a given 16 bit default value"""
         if size!=2:
             raise RuntimeError("var size != 2 not yet supported")
-        
+
         addr=self.uv.pushn(init)
         RDPFA = self.machine.getIndex(" RDPFA")
 
@@ -1582,7 +1675,7 @@ class Forth:
         #TODO tibstart, tibsize, padsize, bbstart
 
         #: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
-        #self.create_const("PAD", self.uvstart)
+        self.create_const("PAD", self.machine.uvstart)
 
         #: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
         #self.create_const("TIB", self.tibstart)

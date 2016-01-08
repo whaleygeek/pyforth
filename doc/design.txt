@@ -30,25 +30,27 @@ PLAN
 
 NATIVES STILL REQUIRED
 
-n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is it count preceeded??
+n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
 
 DICT WRAPPERS FOR NATIVES
-: ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
 : NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
 
 VARS/CONSTS REQUIRED
-: TIB   ( -- a)                      /P221 n_RDPFA  Address of start of text input buffer
-: UV0   ( -- a)                      /ADD  n_RDPFA  Address of start of user vars
-: >IN   ( -- a)                      /P254 n_RDPFA  present char offset in input stream
-: PAD   ( -- a)                      /P221 n_RDPFA  Address of scratch area start, note it regularly moves!
-: COUNT   ( -- a)                    /P243 n_RDPFA  Address of var containing count of last parsed length
-: BLK   ( -- a)                      /P254 n_RDPFA  number of storage block being interpreted as input stream (0 means IN)
+: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
+: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
+: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
+: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
+: PAD   ( -- a)                      /P221 n_RDPFA  VAR    Address of scratch area start, note it regularly moves!
+: >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
+: COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
+: BLK   ( -- a)                      /P254 n_RDPFA  VAR    number of storage block being interpreted as input stream (0 means IN)
+
 
 VARS/CONSTS
-\ : BASE   ( -- a)                     /P190 n_RDPFA  Address of number base variable
-\ : FLAGS  ( -- n)                     /ADD  n_RDPFA  Address of flags variable
-\ : BINDEX   ( -- a)                   /ADD  n_RDPFA  array of block buffer index info (0=>not loaded)
-\ : BB0   ( -- a)                      /ADD  n_RDPFA  Address of first byte of block buffers
+\ : BASE   ( -- a)                     /P190 n_RDPFA  CONST  Address of number base variable
+\ : FLAGS  ( -- n)                     /ADD  n_RDPFA  CONST  Address of flags variable
+\ : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
+\ : BB0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of first byte of block buffers
 
 
 ----- HIGH LEVEL WORDS - DESIGN -----------------------------------------------
@@ -62,6 +64,7 @@ n_STORE8   ( b a -- )                write b to byte a
 n_FETCH8   ( a -- b)                 read byte b from a
 
 DICT wrappers (done)
+: ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
 : C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
 : !   ( n a -- )                     /P190 n_STORE   store single number into addr
 : @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
@@ -113,6 +116,14 @@ DICT wrappers (done)
 : 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
 : 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
+# NOTE, could write a python fn that does word parsing and then just pass an expanded list
+# to the create_word, so that all this can just be pasted in inside a string, and API defined?
+# numbers would have to be recognised and passed as numbers though.
+# Unless we wrote the n_NUMBER parser, and implemented the 'if it's not defined, try to interpret
+# it as a number" rule in the python loader?
+# could then store all this in a text file and just load it in in one go to synthesise all the
+# high level words.
+
 : SPACES   ( n -- )
     \ target loop
         DUP   ( n n)
@@ -153,7 +164,7 @@ Parser version:
   : CONSTANT word ;
 
 Non parser version, i.e. calling via API direct
-  dict.create("name", " RDPFA", 26)
+  dict.create("constname", " RDPFA", 26)
 
 n_RDPFA - just pushes address of variable on DS, so you can read or write it.
 

@@ -418,18 +418,18 @@ class Stack():
 
 #----- VARS -------------------------------------------------------------------
 
-#class Vars(Stack):
-#    """A generic variable region abstraction"""
-#    def __init__(self, storage, start, size):
-#        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
-#
-#    def create(self, size=2):
-#        """Create a new constant or variable of the given size in bytes"""
-#        addr = self.ptr
-#        self.pushn(0)
-#        # A variable is just an address in a managed region, so reading and
-#        # writing is just done directly via memory using this address.
-#        return addr
+class Vars(Stack):
+    """A generic variable region abstraction"""
+    def __init__(self, storage, start, size):
+        Stack.__init__(self, storage, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
+
+    def create(self, size=2):
+        """Create a new constant or variable of the given size in bytes"""
+        addr = self.ptr
+        self.pushn(0)
+        # A variable is just an address in a managed region, so reading and
+        # writing is just done directly via memory using this address.
+        return addr
 
 
 #class SysVars(Vars):
@@ -455,28 +455,20 @@ class Stack():
 #        self.ptr = number
 
 
-#class UserVars(Vars):
-#    #TODO: should be one copy per user task.
-#    #e.g. BASE
-#    def __init__(self, storage, start, size):
-#        Vars.__init__(self, storage, start, size)
-#
-#    # functions used to implement memory mapped registers
-#    def rd_uv0(self):
-#        """Read the UserVars start address"""
-#        return self.start
-#
-#    def rd_uvz(self):
-#        """Read the UserVars size in bytes"""
-#        return self.size
-#
-#    def rd_uvp(self):
-#        """Read the UserVars pointer"""
-#        return self.ptr
-#
-#    def wr_uvp(self, number):
-#        """Write to the UserVars pointer"""
-#        self.ptr = number
+class UserVars(Vars):
+    #TODO: should be one copy per user task.
+    #e.g. BASE
+    def __init__(self, storage, start, size):
+        Vars.__init__(self, storage, start, size)
+
+    # functions used to implement memory mapped registers
+    def rd_uvp(self):
+        """Read the UserVars pointer"""
+        return self.ptr
+
+    def wr_uvp(self, number):
+        """Write to the UserVars pointer"""
+        self.ptr = number
 
 
 #----- DICTIONARY -------------------------------------------------------------
@@ -914,7 +906,7 @@ class Machine():
         DS_MEM   = (8192,            -1024      ) # grows downwards
         #TIB_MEM  = (8192,            +80        )
         RS_MEM   = (16384,           -1024      ) # grows downwards
-        #UV_MEM   = (16384,           +1024      )
+        UV_MEM   = (16384,           +1024      )
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
 
         self.mem = Memory(mem)
@@ -928,28 +920,28 @@ class Machine():
         #self.el = Elective(self.mem, elstart, elsize)
 
         #   init dictionary
-        dictstart, dictsize = self.mem.region("DICT", DICT_MEM)
-        self.dict = Dictionary(self.mem, dictstart, dictsize)
+        self.dictstart, self.dictsize = self.mem.region("DICT", DICT_MEM)
+        self.dict = Dictionary(self.mem, self.dictstart, self.dictsize)
 
         #   init pad
         #padstart, padsize = self.mem.region("PAD", PAD_MEM)
         #self.pad = Pad(self.mem, padstart, padptr, padsize)
 
         #   init data stack
-        dsstart, dssize = self.mem.region("DS", DS_MEM)
-        self.ds = DataStack(self.mem, dsstart, dssize)
+        self.dsstart, self.dssize = self.mem.region("DS", DS_MEM)
+        self.ds = DataStack(self.mem, self.dsstart, self.dssize)
 
         #   init text input buffer
         #tibstart, tibsize = self.mem.region("TIB", TIB_MEM)
         #self.tib = TextInputBuffer(self.mem, tibstart, tibsize)
 
         #   init return stack
-        rsstart, rssize = self.mem.region("RS", RS_MEM)
-        self.rs = ReturnStack(self.mem, rsstart, rssize)
+        self.rsstart, self.rssize = self.mem.region("RS", RS_MEM)
+        self.rs = ReturnStack(self.mem, self.rsstart, self.rssize)
 
         #   init user variables (BASE, S0,...)
-        #uvstart, uvsize = self.mem.region("UV", UV_MEM)
-        #self.uv = UserVars(self.mem, uvstart, uvsize)
+        self.uvstart, self.uvsize = self.mem.region("UV", UV_MEM)
+        self.uv = UserVars(self.mem, self.uvstart, self.uvsize)
 
         #   init block buffers
         #bbstart, bbsize = self.mem.region("BB", BB_MEM)
@@ -1497,17 +1489,19 @@ class Forth:
 
         # Build the PF entries (all should contain CFAs)
         plist  = []
-        #DOLIT  = self.machine.dict.ffa2cfa(self.machine.dict.find(" DOLIT"))
         DODOES = self.machine.getIndex(" DODOES")
 
         for word in args:
             if type(word) == str:
                 # It's a word, so lookup it's address in DICT
                 ffa = self.machine.dict.find(word)
+                #TODO if not found, should pass to NUMBER to see if it parses,
+                # and then just append it if it does.
                 cfa = self.machine.dict.ffa2cfa(ffa)
                 plist.append(cfa)
             elif type(word) == int:
                 plist.append(word)
+
         exit_cfa = self.machine.dict.ffa2cfa(self.machine.dict.find("EXIT"))
         plist.append(exit_cfa)
 
@@ -1518,6 +1512,36 @@ class Forth:
             nf=name,
             cf=DODOES,
             pf=plist,
+            finish=True
+        )
+        #self.machine.dict.dumpraw()
+
+    def create_const(self, name, number):
+        """Create a constant with a given 16 bit value"""
+        RDPFA = self.machine.getIndex(" RDPFA")
+
+        # Now create the dictionary entry
+        self.machine.dict.create(
+            nf=name,
+            cf=RDPFA,
+            pf=[number],
+            finish=True
+        )
+        #self.machine.dict.dumpraw()
+
+    def create_var(self, name, size, init=0):
+        """Create a variable with a given 16 bit default value"""
+        if size!=2:
+            raise RuntimeError("var size != 2 not yet supported")
+        
+        addr=self.uv.pushn(init)
+        RDPFA = self.machine.getIndex(" RDPFA")
+
+        # Now create the dictionary entry
+        self.machine.dict.create(
+            nf=name,
+            cf=RDPFA,
+            pf=[addr],
             finish=True
         )
         #self.machine.dict.dumpraw()
@@ -1552,6 +1576,60 @@ class Forth:
     def synthesise(self):
         """Synthesise some high level words, in absence of a compiler and interpreter.
         Note, in a later release, these may be programmed in using the compiler."""
+
+        # CONSTANTS -----------------------------------------------------------
+
+        #TODO tibstart, tibsize, padsize, bbstart
+
+        #: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
+        #self.create_const("PAD", self.uvstart)
+
+        #: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
+        #self.create_const("TIB", self.tibstart)
+
+        #: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
+        #self.create_const("TIBZ", self.tibsize)
+
+        #: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
+        #self.create_const("PADZ", self.padsize)
+
+        # : BB0   ( -- a)                      /ADD  n_RDPFA  CONST    Address of first byte of block buffers
+        #self.create_const("BB0", self.bbstart)
+
+
+        # VARIABLES -----------------------------------------------------------
+
+        # : >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
+        #self.create_var("IN>", 2)
+
+        # : COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
+        #self.create_var("COUNT", 2)
+
+        # : BLK   ( -- a)                      /P254 n_RDPFA  VAR    number of storage block being interpreted as input stream (0 means IN)
+        #self.create_var("BLK", 2)
+
+        # : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
+        #self.create_var("BINDEX", 2*2)
+
+        # : BASE   ( -- a)                     /P190 n_RDPFA  VAR    Address of number base variable
+        #self.create_var("BASE", 2, init=10)
+
+
+        # : PAD   ( -- a)                      /P221 n_RDPFA  VAR    Address of scratch area start, note it regularly moves!
+        #TODO this is memory mapped?
+
+        # : FLAGS  ( -- n)                     /ADD  n_RDPFA  VAR    Address of flags variable
+        #TODO this is memory mapped
+
+
+        # CODE WORDS ----------------------------------------------------------
+        # NOTE, could write a python fn that does word parsing and then just pass an expanded list
+        # to the create_word, so that all this can just be pasted in inside a string, and API defined?
+        # numbers would have to be recognised and passed as numbers though.
+        # Unless we wrote the n_NUMBER parser, and implemented the 'if it's not defined, try to interpret
+        # it as a number" rule in the python loader?
+        # could then store all this in a text file and just load it in in one go to synthesise all the
+        # high level words.
 
         # : =  ( n1 n2 -- ?)    - 0= ;
         self.create_word("=", "-", "0=")

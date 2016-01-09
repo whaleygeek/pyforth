@@ -1,16 +1,19 @@
 / design.txt  30/12/2015  D.J.Whale
 
 PLAN
+overall goal, get to the point we can get an interactive REPL booted.
+This will make it easier to test and develop new words.
+
 - write a test to prove we can read and write 16 bits at a time
 (this fails at the moment, because there is no way of the rd_test and wr_test
 identifying the byte index into it's register)
 
 --------------------------------------------------------------------------------
 
-- write code for reading a line into TIB
+- write code for reading a line into TIB (TIB TIBZ EXPECT)
 - design for WORD
 - write code for WORD
-- test that we can parse a word from IN
+- test that we can expect a line and read a WORD from it.
 - try to write a REPL at this point (which will speed up experimental testing)
 
 
@@ -215,18 +218,78 @@ walk of the table and a call to something like this to wrap it:
 
 ===============================================================================
 
------ input buffer
-(todo)
+----- SPEC: line input buffer
+(to write)
 : EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
-: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect (implies base+pointer)
+: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
+: IN>                                consumes next char, advances pointer, leaves char on stack
+: INP                                /add CONST address of var which is pointer to next to consume in TIB
 
 (already defined)
-: IN>
-: TIB
+: TIB                                CONST address of start of TIB (absolute address)
+: TIBZ                               CONST, size of TIB buffer
+
+----- DESIGN: line input buffer
+
+: IN> ( -- c)                       points to next char to be consumed
+    \ if INP at end of buffer, exit with zero, or ABORT? (is the CR written to buffer, or check SPAN?)
+    INP C@ ( c)                     \ read char at current pointer
+    INP @ 1 + INP !                 \ advance INP
+
+
+read a char and append to TIB, advance a pointer or a counter?
+Is there a counter in the first byte in TIB, this could be used as the pointer
+instead of creating another variable. SPAN is this variable, so it could be
+modified live.
+
+Early terminate when TIBZ chars read in.
+
+TODO: takes in address and size on stack, not using them directly
+NOTE: but it does always write to SPAN and clear IN>
+
+could use IN> as a temporary pointer when filling buffer
+IN> is a word, it consumes a char and advances pointer, leaving char on stack
+
+Is the CR written to buffer (even if full) so we can easily know that INP IN> should terminate?
+If so, an 80 char buffer can only hold 79, 1 must be left for the CR worst case.
+
+usage: TIB TIBZ EXPECT
+
+use INP as the write pointer, and SPAN as the counter.
+Then adjust them at the end to be correct for return.
+
+: EXPECT ( a # -- )
+    SPAN ! ( a)                               \ use SPAN as the char counter while in loop
+    DUP   ( a a)                              \ leave user buffer start on stack, for later cleanup
+    INP !   ( a)                              \ set INP to start of user buffer, use as write ptr in loop
+    \ loop
+        KEY   ( a c)                          \ read a char
+        DUP   ( a c c)
+        INP @  ( a c c a)                     \ INP is write pointer
+        C!   ( a c)                           \ write char to buffer
+        INP @ 1 + !   ( a c)                  \ advance write pointer
+        SPAN @ 1 - SPAN !   ( a c)            \ dec counter
+        SPAN @ 0=   ( a c ?)                  \ span=0 means buffer full
+        NOT 0BRANCH ( exit) 5 ( a c)          \ exit early if yes
+        CR ( c c) = ( a ?)                    \ is char a CR?
+        0BRANCH ( loop) -21                   \ go round again if it isn't
+    \ exit ( a)                               \ address on stack is of start of buffer
+    \ INP points to char after last written
+    \ a on stack is start of user buffer
+    \ INP - a is the true SPAN including optional CR
+    DUP ( aTIB aTIB)
+    INP @ ( aTIB aTIB aLASTWR+1)
+    SWAP ( aTIB aLASTWR+1 aTIB)
+    - ( aTIB #read)
+    SPAN ! ( aTIB)                            \ SPAN holds number of chars read in
+    INP !                                     \ INP points to first char to read in buffer
+
+
+===============================================================================
 
 ---- read/interpret "shell" loop (REPL)
 
-: SHELL
+: REPL
     \ nextline
     TIB TIBZ EXPECT                   \ read in a whole line up to CR
     SPAN 0BRANCH ( nextline) -        \ empty lines are ignored

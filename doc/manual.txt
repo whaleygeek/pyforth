@@ -1,0 +1,14 @@
+TODO - this will be a manual/reference of all the words
+for example, stack effects, size of variables (char or word), other side effects
+
+CONSTANTS
+
+
+VARIABLES
+
+
+WORDS
+
+
+
+END.

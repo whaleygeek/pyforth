@@ -184,8 +184,10 @@ class TestForth(unittest.TestCase):
 
     def Xtest_99_nvmem(self):
         # quick test to prove mem handler is working
-        print("%x" % self.f.machine.mem[256])
+        print("NV_MEM test")
+        print("got1=%x" % self.f.machine.mem[256])
         self.f.machine.mem[256] = 1234
+        print("got2=%x" % self.f.machine.mem[256])
 
 
 

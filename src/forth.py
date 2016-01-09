@@ -167,22 +167,22 @@ class Memory(Buffer):
     #for default handling
 
     def __setitem__(self, key, value):
-        handler = self.handlerfor(key)
+        handler, start = self.handlerfor(key)
         if handler == None:
             # use default list access
             self.bytes[key] = value
         else:
             # use handler override
-            handler[key] = value
+            handler[key-start] = value
 
     def __getitem__(self, key):
-        handler = self.handlerfor(key)
+        handler, start = self.handlerfor(key)
         if handler == None:
             # use default handler
             return self.bytes[key]
         else:
             # use override handler
-            return handler[key]
+            return handler[key-start]
 
     def handlerfor(self, addr):
         for i in self.map:
@@ -190,8 +190,8 @@ class Memory(Buffer):
             if addr >= start and addr <= start+size-1:
                 #found the region
                 #print("hander:%s" % str(handler))
-                return handler
-        return None # use default handler
+                return handler, start
+        return None, None # use default handler
 
     def region(self, name, spec, handler=None):
         """Define a new memory region in the memory map"""
@@ -1023,15 +1023,53 @@ class Machine():
 
         # Init Native variables
         class NvMem():
+            def __init__(self, parent):
+                self.map = [
+                    # rd                   wr
+                    (parent.rd_test,       parent.wr_test) # offset 0
+                ]
+
+                # DICT registers
+                #("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
+
+                # DATA STACK registers
+                #("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
+
+                # RETURN STACK registers
+                #("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
+
+                # SYSTEM VARS registers
+                # start and ptr for sys vars (SV0, SVP)
+
+                # USER VARS registers
+                # start and ptr for user vars (UV0, UVP)
+
+                # BLOCK BUFFER registers
+                # start and size for block buffers (BB0, BBZ)
+
+                # MISC
+                #("IP",    self.rd_ip, self.wr_ip, None),               # VAR
+
+
             def __setitem__(self, key, value):
-                print("NV setitem: %s %s" % (str(key), str(value)))
-                #TODO
+                print("NV setitem: %x %x" % (key, value))
+                if key >= len(self.map):
+                    raise RuntimeError("out of range NvMem offset:%x" % key)
+                rd, wr = self.map[key]
+                if wr==None:
+                    raise RuntimeError("NvMem offset %x does not support write function" % key)
+                wr(value)
 
             def __getitem__(self, key):
-                print("NV getitem: %s" % str(key))
-                return 0xAAAA #TODO
+                if key >= len(self.map):
+                    raise RuntimeError("out of range NvMem offset:%x" % key)
+                rd, wr = self.map[key]
+                if rd==None:
+                    raise RuntimeError("NvMem offset %x does not support read function" % key)
+                print("NV getitem: %x" % key)
+                return rd()
 
-        self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=NvMem())
+        self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=NvMem(self))
 
         # Init sysvars
         #svstart, svsize = self.mem.region("SV", SV_MEM)
@@ -1072,79 +1110,50 @@ class Machine():
 
     def build_dispatch(self):
         """Build the dispatch table"""
-        # dispatch table for rdbyte(addr), wrbyte(addr, byte), call(addr)
-        #TODO: as most variables/consts are 16 bits, how are we going to double-map the addresses? H/L?
-        #how will the forth machine access these, using two 8-bit memory accesses, or one
-        #16 bit memory access (preferred)
-        #in which case, we need to know that it *is* a 16 bit read, and generate a 'bus error' like thing
-        #if it is not.
+
+        #TODO put this in a wrapper class in boot() like NvMem() is done for vars
 
         self.dispatch = [
-            #name      readfn,      writefn,      execfunction
             # 'NOP' should always be 0'th item
-            ("NOP",    None,        None,         self.n_nop),       # CODE
-            ("ABORT",  None,        None,         self.n_abort),     # CODE
-            ("!",      None,        None,         self.n_store),     # CODE
-            ("@",      None,        None,         self.n_fetch),     # CODE
-            ("C!",     None,        None,         self.n_store8),    # CODE
-            ("C@",     None,        None,         self.n_fetch8),    # CODE
-            ("EMIT",   None,        None,         self.n_emit),      # CODE
-            (".",      None,        None,         self.n_printtos),  # CODE
-            ("SWAP",   None,        None,         self.ds.swap),     # CODE
-            ("DUP",    None,        None,         self.ds.dup),      # CODE
-            ("OVER",   None,        None,         self.ds.over),     # CODE
-            ("ROT",    None,        None,         self.ds.rot),      # CODE
-            ("DROP",   None,        None,         self.ds.drop),     # CODE
-            ("+",      None,        None,         self.n_add),       # CODE
-            ("-",      None,        None,         self.n_sub),       # CODE
-            ("AND",    None,        None,         self.n_and),       # CODE
-            ("OR",     None,        None,         self.n_or),        # CODE
-            ("XOR",    None,        None,         self.n_xor),       # CODE
-            ("*",      None,        None,         self.n_mult),      # CODE
-            ("/",      None,        None,         self.n_div),       # CODE
-            ("MOD",    None,        None,         self.n_mod),       # CODE
-            ("0=",     None,        None,        self.n_0eq),        # CODE
-            ("NOT",    None,        None,        self. n_not),       # CODE
-            ("0<",     None,        None,        self. n_0lt),       # CODE
-            ("0>",     None,        None,        self. n_0gt),       # CODE
-            #("U<",     None,        None,        self. n_ult),       # CODE
+            ("NOP",    self.n_nop),
+            ("ABORT",  self.n_abort),
+            ("!",      self.n_store),
+            ("@",      self.n_fetch),
+            ("C!",     self.n_store8),
+            ("C@",     self.n_fetch8),
+            ("EMIT",   self.n_emit),
+            (".",      self.n_printtos),
+            ("SWAP",   self.ds.swap),
+            ("DUP",    self.ds.dup),
+            ("OVER",   self.ds.over),
+            ("ROT",    self.ds.rot),
+            ("DROP",   self.ds.drop),
+            ("+",      self.n_add),
+            ("-",      self.n_sub),
+            ("AND",    self.n_and),
+            ("OR",     self.n_or),
+            ("XOR",    self.n_xor),
+            ("*",      self.n_mult),
+            ("/",      self.n_div),
+            ("MOD",    self.n_mod),
+            ("0=",     self.n_0eq),
+            ("NOT",    self. n_not),
+            ("0<",     self. n_0lt),
+            ("0>",     self. n_0gt),
+            #("U<",    self. n_ult),
 
-            #("FLAGS",  None,        None,         self.n_flags),     # CODE
-            #("KEY",    None,        None,         self.n_key),       # CODE
-            #("KEYQ",   None,        None,         self.n_keyq),      # CODE
-            ("RBLK",   None,        None,         self.n_rblk),      # CODE
-            ("WBLK",   None,        None,         self.n_wblk),      # CODE
+            #("FLAGS", self.n_flags),
+            #("KEY",   self.n_key),
+            #("KEYQ",  self.n_keyq),
+            ("RBLK",   self.n_rblk),
+            ("WBLK",   self.n_wblk),
 
-            ("BRANCH",  None,        None,         self.n_branch),    # CODE
-            ("0BRANCH", None,        None,         self.n_0branch),   # CODE
-
-            # DICT registers
-            #("D0",     self.dict.rd_d0, None,     None),             # CONST
-            #("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
-
-            # DATA STACK registers
-            #("S0",     self.ds.rd_s0,  None,      None),             # CONST
-            #("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
-
-            # RETURN STACK registers
-            #("R0",     self.rs.rd_r0,  None,      None),             # CONST
-            #("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
-
-            # SYSTEM VARS registers
-            # start and ptr for sys vars (SV0, SVP)
-
-            # USER VARS registers
-            # start and ptr for user vars (UV0, UVP)
-
-            # BLOCK BUFFER registers
-            # start and size for block buffers (BB0, BBZ)
-
-            # MISC
-            #("IP",    self.rd_ip, self.wr_ip, None),               # VAR
+            ("BRANCH", self.n_branch),
+            ("0BRANCH",self.n_0branch),
 
             # Runtime support routines
-            (" RDPFA",     None,        None,         self.n_rdpfa),     # CODE
-            #(" ADRUV",  None,        None,         self.n_adruv),     # CODE
+            (" RDPFA",     self.n_rdpfa),
+            #(" ADRUV",  self.n_adruv),
 
             # Compiler support routines that can be called by high-level forth
             #("DOES>"),
@@ -1157,14 +1166,14 @@ class Machine():
             # but can be destinations in a CFA.
             # Not registered in dictionary, this is flagged by first char of name=space
             # But this table can still be searched for addresses for internal use.
-            (" DODOES",    None,   None,   self.n_dodoes),
-            (" DOLIT",     None,   None,   self.n_dolit),
+            (" DODOES",    self.n_dodoes),
+            (" DOLIT",     self.n_dolit),
             #(" DOCOL")
-            #(" DOCON",    None,   None,   self.n_docon),
-            #(" DOVAR",    None,   None,   self.n_dovar),
+            #(" DOCON",    self.n_docon),
+            #(" DOVAR",    self.n_dovar),
 
-            ("EXECUTE",    None,   None,   self.n_execute),
-            ("EXIT",       None,   None,   self.n_exit),
+            ("EXECUTE",    self.n_execute),
+            ("EXIT",       self.n_exit),
             #(" QUIT")
             #(" BYE")
         ]
@@ -1175,20 +1184,9 @@ class Machine():
         #iterate through native.index and register all DICT entries for them
         for i in range(len(self.dispatch)):
             n = self.dispatch[i]
-            name, rdfn, wrfn, execfn = n
+            name, execfn = n
             if name != None:
                 # only named items get appended to the DICT
-                # read only (a constant)
-                # write only (not supported??)
-                # read and write (a variable)
-                if rdfn != None and wrfn == None:
-                    DOCON = self.getIndex(" DOCON")
-                    self.dict.create(nf=name, cf=DOCON, pf=[0], finish=True)
-                if rdfn != None and wrfn != None:
-                    DOVAR = self.getIndex(" DOVAR")
-                    self.dict.create(nf=name, cf=DOVAR, pf=[0], finish=True)
-                # other R/W combinations not created in the dict.
-
                 if execfn != None:
                     # It's a native code call, with no parameters
                     self.dict.create(nf=name, cf=i, pf=[], finish=True)
@@ -1202,37 +1200,10 @@ class Machine():
                 return i
         raise RuntimeError("native function not found:%s", name)
 
-    # functions for memory mapped access to registers and routines
-
-    #TODO might move this into a region handler in Memory()
-    #and take it out of the dispatch table completely.
-    #TODO: byte or number?
-    def rdbyte(self, addr):
-        """Look up read address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("reading native byte:%d %s" % (addr, name))
-            if rdfn != None:
-                return rdfn()
-        Debug.fail("read from unknown native address: %x" % addr)
-
-    #TODO might move this into a region handler in Memory()
-    #and take it out of the dispatch table completely.
-    #TODO: byte or number?
-    def wrbyte(self, addr, byte):
-        """Look up write address in dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
-            Debug.trace("writing native byte:%d %s" % (addr, name))
-            if wrfn != None:
-                wrfn(byte)
-                return
-        Debug.fail("write to unknown native address: %x" % addr)
-
     def call(self, addr):
         """Look up the call address in the dispatch table, and dispatch if known"""
         if addr < len(self.dispatch):
-            name, rdfn, wrfn, execfn = self.dispatch[addr]
+            name, execfn = self.dispatch[addr]
             #Debug.trace("calling native fn:%d %s" % (addr, name))
             if execfn != None:
                 execfn()
@@ -1249,6 +1220,17 @@ class Machine():
         """Write to the present high level forth instruction pointer"""
         self.ip = number
 
+    # temporary testing
+    testvalue = 42
+
+    def rd_test(self):
+        print("reading test")
+        return self.testvalue
+
+    # temporary testing
+    def wr_test(self, number):
+        print("write test to:%x" % number)
+        self.testvalue = number
     # functions for native code
 
     def n_nop(self):
@@ -1503,7 +1485,6 @@ class Machine():
         self.rs.popn()
         self.rs.pushn(abs)
 
-
     def n_rblk(self):
         """: n_RBLK  ( n a -- )
         { a=ds_pop; n=ds_pop; b=disk_rd(1024*b, mem, a, 1024) } ;"""
@@ -1595,9 +1576,6 @@ class Machine():
             self.running = False
 
 
-
-
-
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
 
 class Forth:
@@ -1610,7 +1588,6 @@ class Forth:
 
         #self.machine.dict.dump()
         return self
-
 
     # High level forth actions
 
@@ -1696,7 +1673,6 @@ class Forth:
         import sys
         sys.stdout.flush()
 
-
     #word parser      - parses a word from an input stream
     #output formatter - formats numbers etc
     #interpreter      - interprets words on an input stream
@@ -1712,6 +1688,9 @@ class Forth:
         # CONSTANTS -----------------------------------------------------------
 
         #TODO tibstart, tibsize, padsize, bbstart
+        #("D0",     self.dict.rd_d0, None,     None),             # CONST
+        #("S0",     self.ds.rd_s0,  None,      None),             # CONST
+        #("R0",     self.rs.rd_r0,  None,      None),             # CONST
 
         #: PAD   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
         #self.create_const("PAD", self.machine.uvstart)

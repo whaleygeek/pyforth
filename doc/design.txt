@@ -189,6 +189,7 @@ Then access to any memory address in that part of the map, instead
 of going to the bytes list, goes to a read() or write() of the handler,
 and it can then lookup things in it's table.
 
+Done this, and it works.
 
 ===============================================================================
 

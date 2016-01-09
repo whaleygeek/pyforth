@@ -224,7 +224,8 @@ class Memory(Buffer):
 
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
-        self.map.append((name, start, abs(size), handler))
+        size = abs(size)
+        self.map.append((name, start, size, handler))
         return start, size
 
     def show_map(self):
@@ -248,6 +249,16 @@ class Memory(Buffer):
 
 #----- INDEXED BUFFER ---------------------------------------------------------
 
+class IndexedBufferException(Exception):
+    pass #TODO: add reason message
+
+class BufferUnderflow(IndexedBufferException):
+    pass
+
+class BufferOverflow(IndexedBufferException):
+    pass
+
+
 class IndexedBuffer(Buffer):
     """A memory mapped buffer that has an index pointer"""
     # Pointer strategies
@@ -256,6 +267,8 @@ class IndexedBuffer(Buffer):
 
     def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
         Buffer.__init__(self, storage, start, size)
+        if size < 0:
+            raise RuntimeError("must not see -ve size here:%x" % size)
         # IndexedBuffer
         if growdirn > 0: # growdirn +ve
             growdirn = 1
@@ -286,12 +299,55 @@ class IndexedBuffer(Buffer):
             else: #LASTUSED
                 self.ptr = last+1
 
+    def assertPtrValid(self, ptr):
+        #TODO: This is a reason to subclass pointer behaviour,
+        #TODO: all these different checks at runtime is painful!
+
+        if self.ptrtype == IndexedBuffer.FIRSTFREE:
+            if self.growdirn > 0:
+                if ptr > self.start + (self.size): # one extra allowed at right hand side
+                    print("firstfree,+ve-grow,overflow")
+                    raise BufferOverflow
+                elif ptr < self.start:
+                    print("firstfree,+ve-grow,underflow")
+                    raise BufferUnderflow
+            else: # growdirn -ve
+                if ptr < self.start-1: # one extra allowed at left hand side
+                    print("firstfree,-ve-grow,overflow")
+                    raise BufferOverflow
+                elif ptr > self.start + (self.size-1):
+                    print("firstfree,-ve-grow,underflow")
+                    raise BufferUnderflow
+
+        else: # LASTUSED
+            if self.growdirn > 0:
+                if ptr > self.start + (self.size-1): # must not exceed buffer
+                    print("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
+                    raise BufferOverflow
+                elif ptr < (self.start-1): # one extra at left hand side
+                    print("lastused,+ve-grow,underflow")
+                    raise BufferUnderflow
+            else: # growdirn -ve
+                if ptr < self.start:
+                    print("lastused,-ve-grow,overflow")
+                    raise BufferOverflow
+                elif ptr > self.start + (self.size):
+                    print("lastused,-ve-grow,underflow")
+                    raise BufferUnderflow
+
+
     def fwd(self, bytes):
-        self.ptr += bytes * self.growdirn
+        rel = bytes * self.growdirn
+        new = self.ptr + rel
+        self.assertPtrValid(new)
+        self.ptr = new
         return self.ptr
 
     def back(self, bytes):
-        self.ptr -= bytes * self.growdirn
+        rel = bytes * self.growdirn
+        new = self.ptr - rel
+        self.assertPtrValid(new)
+        self.ptr = new
         return self.ptr
 
     def absaddr(self, rel, size):
@@ -710,7 +766,7 @@ class Dictionary(Stack):
 
             #print("-" * 40)
             #### FF - Flags Field
-            ff_buf = "ff:%x " % ffa
+            ff_buf = "ffa:%x " % ffa
             if ff & Dictionary.FLAG_IMMEDIATE: buf += "im "
             if ff & Dictionary.FLAG_DEFINING:  buf += "def "
             if ff & Dictionary.FLAG_UNUSED:    buf += "un "
@@ -722,7 +778,7 @@ class Dictionary(Stack):
             #### NF - Name Field
             nfa = ptr
             nf = self.readname(nfa, count)
-            nf_buf = "nf:%x (%s)" % (nfa, nf)
+            nf_buf = "nfa:%x (%s)" % (nfa, nf)
             #print(nf_buf)
             ptr += count
 
@@ -730,7 +786,7 @@ class Dictionary(Stack):
             lfa = ptr
             lf = self.bytes.readn(lfa)
             prev_nf = self.readname(lf+1, self.bytes.readb(lf) & Dictionary.FIELD_COUNT)
-            lf_buf = "lf:%x=%x->(%s)" % (lfa, lf, prev_nf)
+            lf_buf = "lfa:%x=%x->(%s)" % (lfa, lf, prev_nf)
             #print(lf_buf)
             ptr += 2
 
@@ -738,7 +794,7 @@ class Dictionary(Stack):
             cfa = ptr
             cf = self.bytes.readn(cfa)
             #TODO: cf_name comes from machine.dispatch
-            cf_buf = "cf:%x=%x" % (cfa, cf)
+            cf_buf = "cfa:%x=%x" % (cfa, cf)
             #print(cf_buf)
             ptr += 2
 
@@ -756,7 +812,7 @@ class Dictionary(Stack):
             #Can't assume LF's are sequential, when vocabularies in use.
             #TODO: could always store a zero after FF (PAD) then we would be able to
             #backscan for start of string.
-            pf_buf = "pf:%x=%x" % (pfa, pf)
+            pf_buf = "pfa:%x=%x" % (pfa, pf)
             #print(pf_buf)
 
             # Print a single line dump of dict record
@@ -1000,13 +1056,13 @@ class NvMem():
     #TODO what about 16 bit registers? Need two mappings with a high/low flag
     #passed into the rd/wr routine, so we don't have to have two routines?
 
-    def __init__(self, parent):
+    def __init__(self, parent, start):
         self.map = [
             # name,    rd                   wr                  exec
             #TODO rd_base and rd_size in Buffer base class
             #TODO rd_ptr and wr_ptr in IndexedBuffer base class
             ("TEST",     parent.rd_test,       parent.wr_test), # 0 high byte
-            #(None,       parent.rd_test,       parent.wr_test), # 1 low byte
+            (None,       parent.rd_test,       parent.wr_test), # 1 low byte #TODO: needs an offset to know which byte
             #("IP",       parent.rd_ip,         parent.wr_ip),
             #("H",        parent.dict.rd_h,     parent.dict.wr_h),
             #("SP",       parent.ds.rd_sp,      parent.ds.wr_sp),
@@ -1014,9 +1070,9 @@ class NvMem():
             #("SVP",      parent.sv.rd_svp,     parent.sv.wr_svp),
             #("UVP",      parent.uv.rd_uvp,     parent.uv.wr_uvp),
         ]
-        self.register_in_dict(parent)
+        self.register_in_dict(parent, start)
 
-    def register_in_dict(self, parent):
+    def register_in_dict(self, parent, start):
         """Register any native routines that want a DICT entry"""
 
         RDPFA = parent.getNativeRoutineAddress(" RDPFA")
@@ -1026,23 +1082,25 @@ class NvMem():
             name, rd, wr = n
             if name != None:
                 # only named items get appended to the DICT
-                parent.dict.create(nf=name, cf=RDPFA, pf=[i], finish=True)
+                addr = i + start
+                parent.dict.create(nf=name, cf=RDPFA, pf=[addr], finish=True)
 
     def __setitem__(self, key, value):
         #Debug.trace("NV setitem: %x %x" % (key, value))
         if key >= len(self.map):
-            raise RuntimeError("out of range NvMem offset:%x" % key)
+            raise RuntimeError("set: out of range NvMem offset:%x" % key)
         name, rd, wr = self.map[key]
         if wr==None:
-            raise RuntimeError("NvMem offset %x does not support write function" % key)
+            raise RuntimeError("set: NvMem offset %x does not support write function" % key)
         wr(value)
 
     def __getitem__(self, key):
+        #Debug.trace("NV getitem: %x" % key)
         if key >= len(self.map):
-            raise RuntimeError("out of range NvMem offset:%x" % key)
+            raise RuntimeError("get: out of range NvMem offset:%x" % key)
         name, rd, wr = self.map[key]
         if rd==None:
-            raise RuntimeError("NvMem offset %x does not support read function" % key)
+            raise RuntimeError("get: NvMem offset %x does not support read function" % key)
         #Debug.trace("NV getitem: %x" % key)
         return rd()
 
@@ -1052,21 +1110,21 @@ class NvMem():
 
 class NvRoutine():
     """Provides access to native routines mapped into memory"""
-    def __init__(self, parent):
+    def __init__(self, parent, start):
         self.map = [
-            ("NOP",        parent.n_nop), # must always be first entry
-            ("ABORT",      parent.n_abort),
-            ("!",          parent.n_store),
-            ("@",          parent.n_fetch),
-            ("C!",         parent.n_store8),
-            ("C@",         parent.n_fetch8),
-            ("EMIT",       parent.n_emit),
-            (".",          parent.n_printtos),
-            ("SWAP",       parent.ds.swap),
-            ("DUP",        parent.ds.dup),
-            ("OVER",       parent.ds.over),
-            ("ROT",        parent.ds.rot),
-            ("DROP",       parent.ds.drop),
+            ("NOP",        parent.n_nop),      # 00 must always be first entry
+            ("ABORT",      parent.n_abort),    # 01
+            ("!",          parent.n_store),    # 02
+            ("@",          parent.n_fetch),    # 03
+            ("C!",         parent.n_store8),   # 04
+            ("C@",         parent.n_fetch8),   # 05
+            ("EMIT",       parent.n_emit),     # 06
+            (".",          parent.n_printtos), # 07
+            ("SWAP",       parent.ds.swap),    # 08
+            ("DUP",        parent.ds.dup),     # 09
+            ("OVER",       parent.ds.over),    # 0A
+            ("ROT",        parent.ds.rot),     # 0B
+            ("DROP",       parent.ds.drop),    # 0C
             ("+",          parent.n_add),
             ("-",          parent.n_sub),
             ("AND",        parent.n_and),
@@ -1079,23 +1137,19 @@ class NvRoutine():
             ("NOT",        parent.n_not),
             ("0<",         parent.n_0lt),
             ("0>",         parent.n_0gt),
-            #("U<",         parent.n_ult),
-            #("FLAGS",      parent.n_flags),
-            #("KEY",        parent.n_key),
-            #("KEYQ",       parent.n_keyq),
             ("RBLK",       parent.n_rblk),
             ("WBLK",       parent.n_wblk),
             ("BRANCH",     parent.n_branch),
             ("0BRANCH",    parent.n_0branch),
-            (" RDPFA",     parent.n_rdpfa),
-            #(" ADRUV",     parent.n_adruv),
-            (" DODOES",    parent.n_dodoes),
+            (" RDPFA",     parent.n_rdpfa),     # 1D
+            (" DODOES",    parent.n_dodoes),    # 1E
             (" DOLIT",     parent.n_dolit),
+            ("EXECUTE",    parent.n_execute),
+            ("EXIT",       parent.n_exit),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
             #(" DOVAR",     parent.n_dovar),
-            ("EXECUTE",    parent.n_execute),
-            ("EXIT",       parent.n_exit),
+            #(" ADRUV",     parent.n_adruv),
             #(" QUIT",      parent.n_quit),
             #(" BYE",       parent.n_byte),
             #("DOES>",      parent.n_does),
@@ -1103,11 +1157,15 @@ class NvRoutine():
             #(";",          parent.n_semicolon),
             #("VARIABLE",   parent.n_variable),
             #("CONSTANT",   parent.n_constant),
+            #("U<",         parent.n_ult),
+            #("FLAGS",      parent.n_flags),
+            #("KEY",        parent.n_key),
+            #("KEYQ",       parent.n_keyq),
         ]
         
-        self.register_in_dict(parent)
+        self.register_in_dict(parent, start)
 
-    def register_in_dict(self, parent):
+    def register_in_dict(self, parent, start):
         """Register any native routines that want a DICT entry"""
 
         # iterate through map and register all DICT entries for them
@@ -1118,7 +1176,8 @@ class NvRoutine():
                 # only named items get appended to the DICT
                 if execfn != None:
                     # It's a native code call, with no parameters
-                    parent.dict.create(nf=name, cf=i, pf=[], finish=True)
+                    addr = i + start
+                    parent.dict.create(nf=name, cf=addr, pf=[], finish=True)
 
     def getIndex(self, name):
         """Get the offset index of a native routine."""
@@ -1162,17 +1221,18 @@ class Machine():
     def build_ds(self):
         """Build datastructures in memory"""
         #           base,             dirn/size
-        NR_MEM    = (0,               +256)          # native routines
-        NV_MEM    = (256,             +256)          # native variables
+        NR_MEM   = (0x0000,          +256)     # native routines
+        NV_MEM   = (0x0100,          +256)     # native variables
+        DICT_MEM = (0x0400,          +1024)    # dictionary
+        DS_MEM   = (0x2000,          -1024)    # data stack
+        TIB_MEM  = (0x2000,          +80)      # text input buffer
+        RS_MEM   = (0x4000,          -1024)    # return stack
+        UV_MEM   = (0x4000,          +1024)    # user variables
+
+        #PAD_MEM   = (2048,            +80       )    # pad
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )    # block buffers
         #SV_MEM    = (0,               +1024     )    # system variables
         #EL_MEM    = (1024,            +0        )    # electives
-        DICT_MEM = (1024,            +1024      )    # dictionary
-        #PAD_MEM   = (2048,            +80       )    # pad
-        DS_MEM   = (8192,            -1024      )    # data stack
-        TIB_MEM  = (8192,            +80        )    # text input buffer
-        RS_MEM   = (16384,           -1024      )    # return stack
-        UV_MEM   = (16384,           +1024      )    # user variables
-        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )    # block buffers
 
         self.mem = Memory(mem)
 
@@ -1213,11 +1273,11 @@ class Machine():
         #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
         # Init Native Routines (last so that they can refer to other data structures)
-        self.nr_handler = NvRoutine(self)
+        self.nr_handler = NvRoutine(self, NR_MEM[0])
         self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM, handler=self.nr_handler)
 
         # Init Native Variables (last so they can refer to other data structures)
-        self.nv_handler = NvMem(self)
+        self.nv_handler = NvMem(self, NV_MEM[0])
         self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=self.nv_handler)
 
 
@@ -1293,10 +1353,15 @@ class Machine():
     def n_fetch(self):
         """: n_FETCH  ( a -- n)
         { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
+        #print("###FETCH")
         a = self.ds.popn()
-        n = self.mem.readn(a) #NOTE: underlying code does two 8 bit reads direct from mem
-        #TODO: problem, this will not honour the memory mapped registers
-        #it accesses the memory list directly
+        #print("  addr:%x" % a)
+        n = self.mem.readn(a) #TODO: underlying code does two 8 bit reads direct from mem
+        #TODO: This will cause 'TEST var to increment twice
+        #TODO: need to have an offset passed into the read/write routine for that register
+        #which would then allow variables of any size to be modelled, providing there is an
+        #entry in the NvMem table for each byte.
+        #print("  n:%x" % n)
         self.ds.pushn(n)
 
     def n_store8(self):
@@ -1464,9 +1529,10 @@ class Machine():
         self.outs.writen(n)
 
     def n_rdpfa(self):
-        """: n_RDPFA   ( a-pfa -- n)
-        { pfa=ds_pop; r=mem[pfa]; ds_push(r) } ;"""
-        pfa = self.ds.popn()
+        """: n_RDPFA   ( -- n)
+        { pfa=ip; r=mem[pfa]; ds_push(r) } ;"""
+        #print("ip %x" % self.ip)
+        pfa = self.ip
         r = self.mem.readn(pfa)
         self.ds.pushn(r)
 
@@ -1482,19 +1548,16 @@ class Machine():
     def n_branch(self):
         """: n_BRANCH   ( -- )
         { rel=memn[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
-        ip = self.ip #points to BRANCH
-        ip += 2 # point to rel
+        ip = self.rs.popn() # points to REL
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
         abs = (ip + rel) & 0xFFFF # 2's complement
-        self.rs.popn()
         self.rs.pushn(abs)
 
     def n_0branch(self):
         """: n_0BRANCH   ( ? -- )
         { f=ds_pop; r=mem[ip]; if f==0:ip=ip+(2*r) else: ip+=2 } ;"""
         f = self.ds.popn()
-        ip = self.ip #points to 0BRANCH
-        ip += 2 # point to rel
+        ip = self.rs.popn() # points to REL
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
 
         if f == 0:
@@ -1502,7 +1565,6 @@ class Machine():
         else:
             abs = ip
 
-        self.rs.popn()
         self.rs.pushn(abs)
 
     def n_rblk(self):
@@ -1566,6 +1628,8 @@ class Machine():
             cf = self.mem.readn(cfa)
             #Debug.trace(" cf:%x" % cf)
             self.rs.pushn(self.ip+2)
+            # put something useful in self.ip, i.e. the pfa
+            self.ip = cfa+2 # pfa
             self.call(cf)
             self.ip = self.rs.popn()
 
@@ -1573,7 +1637,6 @@ class Machine():
         """Process an inline 16 bit literal and put it on DS"""
         #: n_DOLIT  ( -- )
         #{ip=rs_pop; n=mem_readn(ip); ds.pushn(n) ip+=2}
-        #Debug.trace("dolit")
         ip = self.rs.popn()
         n = self.mem.readn(ip)
         self.ds.pushn(n)
@@ -1670,7 +1733,7 @@ class Forth:
         # Now create the dictionary entry
         self.machine.dict.create(
             nf=name,
-            cf=RDPFA,
+            cf=RDPFA, #TODO: something goes wrong with this at runtime
             pf=[addr],
             finish=True
         )

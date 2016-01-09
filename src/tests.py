@@ -104,8 +104,13 @@ class TestForth(unittest.TestCase):
 
     def test_25_drop(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "DROP", ".", ".")
-        #TODO should be a 'data stack underflow' exception
-        self.f.execute_word("TEST")
+        #should be a 'data stack underflow' exception
+        #TODO try/catch this exception and expect it.
+        try:
+            self.f.execute_word("TEST")
+            self.fail("Did not get expected BufferUnderflow exception")
+        except forth.BufferUnderflow:
+            pass # expected
 
     def test_30_wblk_rblk(self):
         # wblk ( n a -- )  i.e. blocknum addr
@@ -182,6 +187,14 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("UT")
         self.f.execute_word("UT")
+
+    def test_60_var_rdwr(self):
+        #print("HERE**********")
+        self.f.create_word("VADD", "TEST", "@")
+        #TODO: This exercises the 8/16 bit read issue
+        #because TEST increments on every byte read
+        self.f.execute_word("VADD")
+        self.f.execute_word("VADD")
 
     def test_98_nvmem(self):
         # quick test to prove mapped register handler is working

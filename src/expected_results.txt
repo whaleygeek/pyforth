@@ -20,7 +20,7 @@
 30
 20
 10
-0
+lastused,+ve-grow,underflow
 ******+,,,,,0
 65535
 65535

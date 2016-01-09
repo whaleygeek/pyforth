@@ -2,18 +2,19 @@
 
 PLAN
 - write a test to prove we can read and write 16 bits at a time
+(this fails at the moment, because there is no way of the rd_test and wr_test
+identifying the byte index into it's register)
 
+--------------------------------------------------------------------------------
 
 - write code for reading a line into TIB
 - design for WORD
 - write code for WORD
 - test that we can parse a word from IN
+- try to write a REPL at this point (which will speed up experimental testing)
 
-NOTE: At this point it might be possible to right a top level shell that reads in
-a line of words, interprets and executes those words one at a time, and then
-loops back.
 
-This will be a fast way to run interactive experiments when developing and testing.
+--------------------------------------------------------------------------------
 
 
 #TODO: Need to decide how to handle numbers

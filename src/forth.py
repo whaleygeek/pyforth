@@ -13,6 +13,7 @@ DISK_FILE_NAME = "forth_disk.bin"
 #----- DEBUG ------------------------------------------------------------------
 
 class Debug():
+    """All debug messages should be routed via here"""
     @staticmethod
     def out(ty, msg):
         """Display a formatted message on stdout"""
@@ -91,7 +92,7 @@ class Double(DoubleBigEndian):pass
 #----- BUFFER -----------------------------------------------------------------
 
 class Buffer():
-
+    """A general purpose memory buffer abstraction"""
     def __init__(self, storage, start=0, size=None):
         if size==None:
             size = len(storage)-start
@@ -157,6 +158,7 @@ MEMSIZE = 65536
 mem = [0 for i in range(MEMSIZE)]
 
 class Memory(Buffer):
+    """An abstraction around a block of memory, with named and mapped regions"""
     def __init__(self, storage, size=None):
         Buffer.__init__(self, storage, start=0, size=size)
         self.map = []
@@ -184,6 +186,12 @@ class Memory(Buffer):
             # use override handler
             return handler[key-start]
 
+    def call(self, addr):
+        handler, start = self.handlerfor(addr)
+        if handler == None:
+            raise RuntimeError("Address not callable:%x" % addr)
+        handler.call(addr-start)
+
     def handlerfor(self, addr):
         for i in self.map:
             name, start, size, handler = i
@@ -204,13 +212,16 @@ class Memory(Buffer):
         else:
             # grows up towards high memory
             start = addr
-        end = start + size
+        end = start + size - 1
 
         # check for overlaps with an existing region
         for i in self.map:
             iname, istart, isize, h = i
-            iend = istart + isize-1
+            iend = istart + isize - 1
             if (start >= istart and start <= iend) or (end >= istart and end <= iend):
+                Debug.info("name:%s start:%x size:%x end:%x"     % (name, start, size, end))
+                Debug.info("iname:%s istart:%x isize:%x iend:%x" % (iname, istart, isize, iend))
+
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
         self.map.append((name, start, abs(size), handler))
@@ -238,6 +249,7 @@ class Memory(Buffer):
 #----- INDEXED BUFFER ---------------------------------------------------------
 
 class IndexedBuffer(Buffer):
+    """A memory mapped buffer that has an index pointer"""
     # Pointer strategies
     FIRSTFREE = False # ptr points to first free byte
     LASTUSED  = True  # ptr points to last used byte
@@ -378,6 +390,7 @@ class IndexedBuffer(Buffer):
 #----- BLOCK BUFFERS ----------------------------------------------------------
 
 class BlockBuffers(Buffer):
+    """An abstraction in memory for disk block buffers"""
     def __init__(self, storage, start, size, numbuffers, buffersize):
         Buffer.__init__(storage, start, size)
         #TODO: surely this is related to 'size'?
@@ -485,6 +498,7 @@ class Stack(IndexedBuffer):
 
 
 class ForthStack(Stack):
+    """A Forth stack, which has additional useful operations"""
     def __init__(self, storage, start, size, growdirn, ptrtype):
         Stack.__init__(self, storage, start, size, growdirn, ptrtype)
 
@@ -575,6 +589,7 @@ class Vars(Stack):
 
 
 class UserVars(Vars):
+    """An abstraction for user accessible variables"""
     #TODO: should be one copy per user task.
     #e.g. BASE
     def __init__(self, storage, start, size):
@@ -929,6 +944,7 @@ class ReturnStack(ForthStack):
 #---- I/O ---------------------------------------------------------------------
 
 class KeyboardInput():
+    """A way to poll and get characters from the keyboard"""
     def __init__(self):
         pass
 
@@ -940,6 +956,7 @@ class KeyboardInput():
 
 
 class ScreenOutput():
+    """A way to output characters to the screen"""
     def __init__(self):
         pass
 
@@ -978,6 +995,140 @@ class Disk():
 
 #----- FORTH MACHINE INNER INTERPRETER ----------------------------------------
 
+class NvMem():
+    """Provides access to native variables mapped into memory"""
+    #TODO what about 16 bit registers? Need two mappings with a high/low flag
+    #passed into the rd/wr routine, so we don't have to have two routines?
+    def __init__(self, parent):
+        self.map = [
+            # rd                   wr                  exec
+            #TODO rd_base and rd_size in Buffer base class
+            #TODO rd_ptr and wr_ptr in IndexedBuffer base class
+            (parent.rd_test,       parent.wr_test), # 0 high byte
+            #(parent.rd_test,       parent.wr_test), # 1 low byte
+            #(parent.rd_ip,         parent.wr_ip),
+            #(parent.dict.rd_h,     parent.dict.wr_h),
+            #(parent.ds.rd_sp,      parent.ds.wr_sp),
+            #(parent.rs.rd_rp,      parent.rs.wr_rp),
+            #(parent.sv.rd_sv0,     parent.sv.wr_sv0),
+            #(parent.sv.rd_svp,     parent.sv.wr_svp),
+            #(parent.uv.rd_uv0,     parent.uv.wr_uv0),
+            #(parent.uv.rd_uvp,     parent.uv.wr_uvp),
+        ]
+
+    def __setitem__(self, key, value):
+        #Debug.trace("NV setitem: %x %x" % (key, value))
+        if key >= len(self.map):
+            raise RuntimeError("out of range NvMem offset:%x" % key)
+        rd, wr = self.map[key]
+        if wr==None:
+            raise RuntimeError("NvMem offset %x does not support write function" % key)
+        wr(value)
+
+    def __getitem__(self, key):
+        if key >= len(self.map):
+            raise RuntimeError("out of range NvMem offset:%x" % key)
+        rd, wr = self.map[key]
+        if rd==None:
+            raise RuntimeError("NvMem offset %x does not support read function" % key)
+        #Debug.trace("NV getitem: %x" % key)
+        return rd()
+
+    def call(self, addr):
+        raise RuntimeError("Region not callable:%x" % addr)
+
+
+class NvRoutine():
+    """Provides access to native routines mapped into memory"""
+    def __init__(self, parent):
+        self.map = [
+            ("NOP",        parent.n_nop), # must always be first entry
+            ("ABORT",      parent.n_abort),
+            ("!",          parent.n_store),
+            ("@",          parent.n_fetch),
+            ("C!",         parent.n_store8),
+            ("C@",         parent.n_fetch8),
+            ("EMIT",       parent.n_emit),
+            (".",          parent.n_printtos),
+            ("SWAP",       parent.ds.swap),
+            ("DUP",        parent.ds.dup),
+            ("OVER",       parent.ds.over),
+            ("ROT",        parent.ds.rot),
+            ("DROP",       parent.ds.drop),
+            ("+",          parent.n_add),
+            ("-",          parent.n_sub),
+            ("AND",        parent.n_and),
+            ("OR",         parent.n_or),
+            ("XOR",        parent.n_xor),
+            ("*",          parent.n_mult),
+            ("/",          parent.n_div),
+            ("MOD",        parent.n_mod),
+            ("0=",         parent.n_0eq),
+            ("NOT",        parent.n_not),
+            ("0<",         parent.n_0lt),
+            ("0>",         parent.n_0gt),
+            #("U<",         parent.n_ult),
+            #("FLAGS",      parent.n_flags),
+            #("KEY",        parent.n_key),
+            #("KEYQ",       parent.n_keyq),
+            ("RBLK",       parent.n_rblk),
+            ("WBLK",       parent.n_wblk),
+            ("BRANCH",     parent.n_branch),
+            ("0BRANCH",    parent.n_0branch),
+            (" RDPFA",     parent.n_rdpfa),
+            #(" ADRUV",     parent.n_adruv),
+            (" DODOES",    parent.n_dodoes),
+            (" DOLIT",     parent.n_dolit),
+            #(" DOCOL",    parent.n_docol),
+            #(" DOCON",     parent.n_docon),
+            #(" DOVAR",     parent.n_dovar),
+            ("EXECUTE",    parent.n_execute),
+            ("EXIT",       parent.n_exit),
+            #(" QUIT",      parent.n_quit),
+            #(" BYE",       parent.n_byte),
+            #("DOES>",      parent.n_does),
+            #(":",          parent.n_colon),
+            #(";",          parent.n_semicolon),
+            #("VARIABLE",   parent.n_variable),
+            #("CONSTANT",   parent.n_constant),
+        ]
+        
+        self.register_native_routines(parent)
+
+    def register_native_routines(self, parent):
+        """Register any native routines that want a DICT entry"""
+
+        # iterate through map and register all DICT entries for them
+        for i in range(len(self.map)):
+            n = self.map[i]
+            name, execfn = n
+            if name != None:
+                # only named items get appended to the DICT
+                if execfn != None:
+                    # It's a native code call, with no parameters
+                    parent.dict.create(nf=name, cf=i, pf=[], finish=True)
+
+    def getIndex(self, name):
+        """Get the offset index of a native routine."""
+        # Note: Hidden names are preceeded by a space
+        # Note: This is an index into the table, not an absolute address
+        for i in range(len(self.map)):
+            n = (self.map[i])[0]
+            if n == name:
+                return i
+        raise RuntimeError("native function not found:%s", name)
+
+    def call(self, index):
+        """Look up the call index in the dispatch table, and dispatch if known"""
+        if index < len(self.map):
+            name, execfn = self.map[index]
+            #Debug.trace("calling native fn:%d %s" % (addr, name))
+            if execfn != None:
+                execfn()
+                return
+        Debug.fail("call to unknown native address offset: %x" % index)
+
+
 class Machine():
     """The inner-interpreter of the lower level/native FORTH words"""
 
@@ -992,84 +1143,26 @@ class Machine():
 
     def boot(self):
         self.build_ds()       # builds memory abstractions
-        self.build_dispatch() # builds magic routine/register dispatch table
-        self.build_native()   # puts native routines/registers into DICT
         self.running = False
         self.limit = None     # how many times round DODOES before early terminate?
         return self
 
     def build_ds(self):
         """Build datastructures in memory"""
-
-        MEM_SIZE  = 65536
-        #          base,             dirn/size
-        NR_MEM    = (0,               +256)        # native routines
-        NV_MEM    = (256,             +256)        # native variables
-        #SV_MEM   = (0,               +1024      )  # system variables
-        #EL_MEM   = (1024,            +0         )  # electives
-        DICT_MEM = (1024,            +1024      )   # dictionary
-        #PAD_MEM  = (2048,            +80        )   # pad
-        DS_MEM   = (8192,            -1024      )   # data stack
-        TIB_MEM  = (8192,            +80        )   # text input buffer
-        RS_MEM   = (16384,           -1024      )   # return stack
-        UV_MEM   = (16384,           +1024      )   # user variables
-        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )   # block buffers
+        #           base,             dirn/size
+        NR_MEM    = (0,               +256)          # native routines
+        NV_MEM    = (256,             +256)          # native variables
+        #SV_MEM    = (0,               +1024     )    # system variables
+        #EL_MEM    = (1024,            +0        )    # electives
+        DICT_MEM = (1024,            +1024      )    # dictionary
+        #PAD_MEM   = (2048,            +80       )    # pad
+        DS_MEM   = (8192,            -1024      )    # data stack
+        TIB_MEM  = (8192,            +80        )    # text input buffer
+        RS_MEM   = (16384,           -1024      )    # return stack
+        UV_MEM   = (16384,           +1024      )    # user variables
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )    # block buffers
 
         self.mem = Memory(mem)
-
-        # Init Native routines
-        self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM)
-        #TODO could we init the routine dispatch table here?
-
-        # Init Native variables
-        class NvMem():
-            def __init__(self, parent):
-                self.map = [
-                    # rd                   wr
-                    (parent.rd_test,       parent.wr_test) # offset 0
-                ]
-
-                # DICT registers
-                #("H",      self.dict.rd_h, self.dict.wr_h, None),        # VAR
-
-                # DATA STACK registers
-                #("SP",     self.ds.rd_sp,  self.ds.wr_sp, None),         # VAR
-
-                # RETURN STACK registers
-                #("RP",     self.rs.rd_rp,  self.rs.wr_rp, None),         # VAR
-
-                # SYSTEM VARS registers
-                # start and ptr for sys vars (SV0, SVP)
-
-                # USER VARS registers
-                # start and ptr for user vars (UV0, UVP)
-
-                # BLOCK BUFFER registers
-                # start and size for block buffers (BB0, BBZ)
-
-                # MISC
-                #("IP",    self.rd_ip, self.wr_ip, None),               # VAR
-
-
-            def __setitem__(self, key, value):
-                #print("NV setitem: %x %x" % (key, value))
-                if key >= len(self.map):
-                    raise RuntimeError("out of range NvMem offset:%x" % key)
-                rd, wr = self.map[key]
-                if wr==None:
-                    raise RuntimeError("NvMem offset %x does not support write function" % key)
-                wr(value)
-
-            def __getitem__(self, key):
-                if key >= len(self.map):
-                    raise RuntimeError("out of range NvMem offset:%x" % key)
-                rd, wr = self.map[key]
-                if rd==None:
-                    raise RuntimeError("NvMem offset %x does not support read function" % key)
-                #print("NV getitem: %x" % key)
-                return rd()
-
-        self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=NvMem(self))
 
         # Init sysvars
         #svstart, svsize = self.mem.region("SV", SV_MEM)
@@ -1107,108 +1200,22 @@ class Machine():
         #bbstart, bbsize = self.mem.region("BB", BB_MEM)
         #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
+        # Init Native Variables (last so they can refer to other data structures)
+        self.nv_handler = NvMem(self)
+        self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=self.nv_handler)
 
-    def build_dispatch(self):
-        """Build the dispatch table"""
+        # Init Native Routines (last so that they can refer to other data structures)
+        self.nr_handler = NvRoutine(self)
+        self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM, handler=self.nr_handler)
 
-        #TODO put this in a wrapper class in boot() like NvMem() is done for vars
-
-        self.dispatch = [
-            # 'NOP' should always be 0'th item
-            ("NOP",    self.n_nop),
-            ("ABORT",  self.n_abort),
-            ("!",      self.n_store),
-            ("@",      self.n_fetch),
-            ("C!",     self.n_store8),
-            ("C@",     self.n_fetch8),
-            ("EMIT",   self.n_emit),
-            (".",      self.n_printtos),
-            ("SWAP",   self.ds.swap),
-            ("DUP",    self.ds.dup),
-            ("OVER",   self.ds.over),
-            ("ROT",    self.ds.rot),
-            ("DROP",   self.ds.drop),
-            ("+",      self.n_add),
-            ("-",      self.n_sub),
-            ("AND",    self.n_and),
-            ("OR",     self.n_or),
-            ("XOR",    self.n_xor),
-            ("*",      self.n_mult),
-            ("/",      self.n_div),
-            ("MOD",    self.n_mod),
-            ("0=",     self.n_0eq),
-            ("NOT",    self. n_not),
-            ("0<",     self. n_0lt),
-            ("0>",     self. n_0gt),
-            #("U<",    self. n_ult),
-
-            #("FLAGS", self.n_flags),
-            #("KEY",   self.n_key),
-            #("KEYQ",  self.n_keyq),
-            ("RBLK",   self.n_rblk),
-            ("WBLK",   self.n_wblk),
-
-            ("BRANCH", self.n_branch),
-            ("0BRANCH",self.n_0branch),
-
-            # Runtime support routines
-            (" RDPFA",     self.n_rdpfa),
-            #(" ADRUV",  self.n_adruv),
-
-            # Compiler support routines that can be called by high-level forth
-            #("DOES>"),
-            #(":"),
-            #(";")
-            #("VARIABLE")
-            #("CONSTANT")
-
-            # Compiler support routines that cannot be called by high-level forth
-            # but can be destinations in a CFA.
-            # Not registered in dictionary, this is flagged by first char of name=space
-            # But this table can still be searched for addresses for internal use.
-            (" DODOES",    self.n_dodoes),
-            (" DOLIT",     self.n_dolit),
-            #(" DOCOL")
-            #(" DOCON",    self.n_docon),
-            #(" DOVAR",    self.n_dovar),
-
-            ("EXECUTE",    self.n_execute),
-            ("EXIT",       self.n_exit),
-            #(" QUIT")
-            #(" BYE")
-        ]
-
-    def build_native(self):
-        """Build the native dispatch table and machine"""
-
-        #iterate through native.index and register all DICT entries for them
-        for i in range(len(self.dispatch)):
-            n = self.dispatch[i]
-            name, execfn = n
-            if name != None:
-                # only named items get appended to the DICT
-                if execfn != None:
-                    # It's a native code call, with no parameters
-                    self.dict.create(nf=name, cf=i, pf=[], finish=True)
-
-    def getIndex(self, name):
-        """Get the index address of a native routine.
-        Note that hidden names are preceeded by a space"""
-        for i in range(len(self.dispatch)):
-            n = (self.dispatch[i])[0]
-            if n == name:
-                return i
-        raise RuntimeError("native function not found:%s", name)
+    def getNativeRoutineAddress(self, name):
+        # Note: This will fail with an exception if it can't find the name
+        addr = self.nr_handler.getIndex(name)
+        addr += self.nrstart
+        return addr
 
     def call(self, addr):
-        """Look up the call address in the dispatch table, and dispatch if known"""
-        if addr < len(self.dispatch):
-            name, execfn = self.dispatch[addr]
-            #Debug.trace("calling native fn:%d %s" % (addr, name))
-            if execfn != None:
-                execfn()
-                return
-        Debug.fail("call to unknown native address: %x" % addr)
+        self.mem.call(addr)
 
     # functions for memory mapped registers
 
@@ -1228,7 +1235,6 @@ class Machine():
         self.testvalue = (self.testvalue + 1) & 0xFF
         return prev
 
-    # temporary testing
     def wr_test(self, number):
         self.testvalue = number
 
@@ -1580,6 +1586,7 @@ class Machine():
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
 
 class Forth:
+    """The outer interpreter"""
     def boot(self):
         self.outs = ScreenOutput()
         self.ins  = KeyboardInput()
@@ -1599,7 +1606,7 @@ class Forth:
 
         # Build the PF entries (all should contain CFAs)
         plist  = []
-        DODOES = self.machine.getIndex(" DODOES")
+        DODOES = self.machine.getNativeRoutineAddress(" DODOES")
 
         for word in args:
             if type(word) == str:
@@ -1628,7 +1635,7 @@ class Forth:
 
     def create_const(self, name, number):
         """Create a constant with a given 16 bit value"""
-        RDPFA = self.machine.getIndex(" RDPFA")
+        RDPFA = self.machine.getNativeRoutineAddress(" RDPFA")
 
         # Now create the dictionary entry
         self.machine.dict.create(
@@ -1645,7 +1652,7 @@ class Forth:
             raise RuntimeError("var size != 2 not yet supported")
 
         addr=self.machine.uv.pushn(init)
-        RDPFA = self.machine.getIndex(" RDPFA")
+        RDPFA = self.machine.getNativeRoutineAddress(" RDPFA")
 
         # Now create the dictionary entry
         self.machine.dict.create(

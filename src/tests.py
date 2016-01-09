@@ -7,6 +7,10 @@ import forth
 
 # A small smoke-test - non exhaustive.
 
+#TODO: Try to find a way to redirect the Output() to a buffer we can read back,
+# so that the tests don't need to generate any output, and we can do assertEquals()
+# on the result.
+
 class TestForth(unittest.TestCase):
 
     def setUp(self):
@@ -182,13 +186,19 @@ class TestForth(unittest.TestCase):
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()
 
-    def Xtest_99_nvmem(self):
-        # quick test to prove mem handler is working
-        print("NV_MEM test")
-        print("got1=%x" % self.f.machine.mem[256])
-        self.f.machine.mem[256] = 1234
-        print("got2=%x" % self.f.machine.mem[256])
+    def test_99_nvmem(self):
+        # quick test to prove mapped register handler is working
+        # The test address, when you write to it, it stores that value
+        # when you read from it, it returns the value then inc's
+        # (it's a hardware counter)
 
+        TEST_ADDR = 256
+        EXPECTED = 12
+        self.f.machine.mem[TEST_ADDR] = EXPECTED
+        for i in range(10):
+            actual = self.f.machine.mem[TEST_ADDR]
+            self.assertEquals(EXPECTED, actual)
+            EXPECTED += 1
 
 
 if __name__ == "__main__":

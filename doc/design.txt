@@ -1,9 +1,10 @@
 / design.txt  30/12/2015  D.J.Whale
 
 PLAN
-- spec for memory mapped variables
-- design for memory mapped variables
-- implement memory mapped variables
+- create dict entry for some memory mapped variables
+- write a test to prove we can read and write 16 bits at a time
+
+
 - write code for reading a line into TIB
 - design for WORD
 - write code for WORD
@@ -190,6 +191,18 @@ of going to the bytes list, goes to a read() or write() of the handler,
 and it can then lookup things in it's table.
 
 Done this, and it works.
+Reads and writes tested, working.
+
+
+- 8/16 bit
+I suspect this is wrong, we write a 16 bit number to an 8 bit memory location
+and get away with it.
+
+note: we should mask all writes with 0xFF in the low level memory routines
+
+note: need to write a test case for a 16 bit register read and a 16 bit
+register write, just to prove that it does work ok in two hits.
+
 
 ===============================================================================
 

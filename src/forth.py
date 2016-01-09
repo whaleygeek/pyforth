@@ -1052,7 +1052,7 @@ class Machine():
 
 
             def __setitem__(self, key, value):
-                print("NV setitem: %x %x" % (key, value))
+                #print("NV setitem: %x %x" % (key, value))
                 if key >= len(self.map):
                     raise RuntimeError("out of range NvMem offset:%x" % key)
                 rd, wr = self.map[key]
@@ -1066,7 +1066,7 @@ class Machine():
                 rd, wr = self.map[key]
                 if rd==None:
                     raise RuntimeError("NvMem offset %x does not support read function" % key)
-                print("NV getitem: %x" % key)
+                #print("NV getitem: %x" % key)
                 return rd()
 
         self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=NvMem(self))
@@ -1221,16 +1221,17 @@ class Machine():
         self.ip = number
 
     # temporary testing
-    testvalue = 42
+    testvalue = 0
 
     def rd_test(self):
-        print("reading test")
-        return self.testvalue
+        prev = self.testvalue
+        self.testvalue = (self.testvalue + 1) & 0xFF
+        return prev
 
     # temporary testing
     def wr_test(self, number):
-        print("write test to:%x" % number)
         self.testvalue = number
+
     # functions for native code
 
     def n_nop(self):

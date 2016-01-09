@@ -183,10 +183,7 @@ class TestForth(unittest.TestCase):
         self.f.create_word("UT")
         self.f.execute_word("UT")
 
-    #def test_99_dumpdict(self):
-    #    self.f.machine.dict.dump()
-
-    def test_99_nvmem(self):
+    def test_98_nvmem(self):
         # quick test to prove mapped register handler is working
         # The test address, when you write to it, it stores that value
         # when you read from it, it returns the value then inc's
@@ -199,6 +196,10 @@ class TestForth(unittest.TestCase):
             actual = self.f.machine.mem[TEST_ADDR]
             self.assertEquals(EXPECTED, actual)
             EXPECTED += 1
+
+    #def test_99_dumpdict(self):
+    #    self.f.machine.dict.dump()
+
 
 
 if __name__ == "__main__":

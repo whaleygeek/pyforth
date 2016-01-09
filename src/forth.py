@@ -999,28 +999,40 @@ class NvMem():
     """Provides access to native variables mapped into memory"""
     #TODO what about 16 bit registers? Need two mappings with a high/low flag
     #passed into the rd/wr routine, so we don't have to have two routines?
+
     def __init__(self, parent):
         self.map = [
-            # rd                   wr                  exec
+            # name,    rd                   wr                  exec
             #TODO rd_base and rd_size in Buffer base class
             #TODO rd_ptr and wr_ptr in IndexedBuffer base class
-            (parent.rd_test,       parent.wr_test), # 0 high byte
-            #(parent.rd_test,       parent.wr_test), # 1 low byte
-            #(parent.rd_ip,         parent.wr_ip),
-            #(parent.dict.rd_h,     parent.dict.wr_h),
-            #(parent.ds.rd_sp,      parent.ds.wr_sp),
-            #(parent.rs.rd_rp,      parent.rs.wr_rp),
-            #(parent.sv.rd_sv0,     parent.sv.wr_sv0),
-            #(parent.sv.rd_svp,     parent.sv.wr_svp),
-            #(parent.uv.rd_uv0,     parent.uv.wr_uv0),
-            #(parent.uv.rd_uvp,     parent.uv.wr_uvp),
+            ("TEST",     parent.rd_test,       parent.wr_test), # 0 high byte
+            #(None,       parent.rd_test,       parent.wr_test), # 1 low byte
+            #("IP",       parent.rd_ip,         parent.wr_ip),
+            #("H",        parent.dict.rd_h,     parent.dict.wr_h),
+            #("SP",       parent.ds.rd_sp,      parent.ds.wr_sp),
+            #("RP",       parent.rs.rd_rp,      parent.rs.wr_rp),
+            #("SVP",      parent.sv.rd_svp,     parent.sv.wr_svp),
+            #("UVP",      parent.uv.rd_uvp,     parent.uv.wr_uvp),
         ]
+        self.register_in_dict(parent)
+
+    def register_in_dict(self, parent):
+        """Register any native routines that want a DICT entry"""
+
+        RDPFA = parent.getNativeRoutineAddress(" RDPFA")
+        # iterate through map and register all DICT entries for them
+        for i in range(len(self.map)):
+            n = self.map[i]
+            name, rd, wr = n
+            if name != None:
+                # only named items get appended to the DICT
+                parent.dict.create(nf=name, cf=RDPFA, pf=[i], finish=True)
 
     def __setitem__(self, key, value):
         #Debug.trace("NV setitem: %x %x" % (key, value))
         if key >= len(self.map):
             raise RuntimeError("out of range NvMem offset:%x" % key)
-        rd, wr = self.map[key]
+        name, rd, wr = self.map[key]
         if wr==None:
             raise RuntimeError("NvMem offset %x does not support write function" % key)
         wr(value)
@@ -1028,7 +1040,7 @@ class NvMem():
     def __getitem__(self, key):
         if key >= len(self.map):
             raise RuntimeError("out of range NvMem offset:%x" % key)
-        rd, wr = self.map[key]
+        name, rd, wr = self.map[key]
         if rd==None:
             raise RuntimeError("NvMem offset %x does not support read function" % key)
         #Debug.trace("NV getitem: %x" % key)
@@ -1093,9 +1105,9 @@ class NvRoutine():
             #("CONSTANT",   parent.n_constant),
         ]
         
-        self.register_native_routines(parent)
+        self.register_in_dict(parent)
 
-    def register_native_routines(self, parent):
+    def register_in_dict(self, parent):
         """Register any native routines that want a DICT entry"""
 
         # iterate through map and register all DICT entries for them
@@ -1200,13 +1212,14 @@ class Machine():
         #bbstart, bbsize = self.mem.region("BB", BB_MEM)
         #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
+        # Init Native Routines (last so that they can refer to other data structures)
+        self.nr_handler = NvRoutine(self)
+        self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM, handler=self.nr_handler)
+
         # Init Native Variables (last so they can refer to other data structures)
         self.nv_handler = NvMem(self)
         self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=self.nv_handler)
 
-        # Init Native Routines (last so that they can refer to other data structures)
-        self.nr_handler = NvRoutine(self)
-        self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM, handler=self.nr_handler)
 
     def getNativeRoutineAddress(self, name):
         # Note: This will fail with an exception if it can't find the name

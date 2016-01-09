@@ -1,7 +1,6 @@
 / design.txt  30/12/2015  D.J.Whale
 
 PLAN
-- create dict entry for some memory mapped variables
 - write a test to prove we can read and write 16 bits at a time
 
 
@@ -203,6 +202,15 @@ note: we should mask all writes with 0xFF in the low level memory routines
 note: need to write a test case for a 16 bit register read and a 16 bit
 register write, just to prove that it does work ok in two hits.
 
+- DICT interface for memory mapped variables (DESIGN)
+Just like we load dict wrappers for native routines, there needs to be a
+walk of the table and a call to something like this to wrap it:
+   dict.create(name="SP", CF=RDPFA, PF=getAddr("SP"))
+   i.e. variables when accessed just put their address on the stack
+   the lower level fetch/store routines then do the access to that address,
+   which will be intercepted by the memory handler and the correct value returned,
+   which will then probably end up on the stack depending on the operation.
+(this is working)
 
 ===============================================================================
 

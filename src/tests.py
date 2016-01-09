@@ -182,6 +182,13 @@ class TestForth(unittest.TestCase):
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()
 
+    def Xtest_99_nvmem(self):
+        # quick test to prove mem handler is working
+        print("%x" % self.f.machine.mem[256])
+        self.f.machine.mem[256] = 1234
+
+
+
 if __name__ == "__main__":
     unittest.main()
 

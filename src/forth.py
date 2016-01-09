@@ -187,8 +187,9 @@ class Memory(Buffer):
     def handlerfor(self, addr):
         for i in self.map:
             name, start, size, handler = i
-            if addr >= start and addr <= start+size:
+            if addr >= start and addr <= start+size-1:
                 #found the region
+                #print("hander:%s" % str(handler))
                 return handler
         return None # use default handler
 
@@ -207,7 +208,7 @@ class Memory(Buffer):
 
         # check for overlaps with an existing region
         for i in self.map:
-            iname, istart, isize, handler = i
+            iname, istart, isize, h = i
             iend = istart + isize-1
             if (start >= istart and start <= iend) or (end >= istart and end <= iend):
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
@@ -226,8 +227,8 @@ class Memory(Buffer):
                 ustart = last_end
                 uend   = start-1
                 usize  = uend-ustart-1
-                print("%10s %5x %5x %5x %s" %(uname, ustart, uend, usize, str(handler)))
-            print("%10s %5x %5x %5x" % (name, start, start+size-1, size))
+                print("%10s %5x %5x %5x" % (uname, ustart, uend, usize))
+            print("%10s %5x %5x %5x %s" % (name, start, start+size-1, size, str(handler)))
             last_end = start + size
         #TODO: show any final unused space up to FFFF at end
 
@@ -1002,63 +1003,72 @@ class Machine():
 
         MEM_SIZE  = 65536
         #          base,             dirn/size
-        #TODO: reserve native routine address space
-        #TODO: reserve memory mapped register address space
-        #SV_MEM   = (0,               +1024      )
-        #EL_MEM   = (1024,            +0         )
-        DICT_MEM = (1024,            +1024      )
-        #PAD_MEM  = (2048,            +80        )
-        DS_MEM   = (8192,            -1024      ) # grows downwards
-        TIB_MEM  = (8192,            +80        )
-        RS_MEM   = (16384,           -1024      ) # grows downwards
-        UV_MEM   = (16384,           +1024      )
-        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )
+        NR_MEM    = (0,               +256)        # native routines
+        NV_MEM    = (256,             +256)        # native variables
+        #SV_MEM   = (0,               +1024      )  # system variables
+        #EL_MEM   = (1024,            +0         )  # electives
+        DICT_MEM = (1024,            +1024      )   # dictionary
+        #PAD_MEM  = (2048,            +80        )   # pad
+        DS_MEM   = (8192,            -1024      )   # data stack
+        TIB_MEM  = (8192,            +80        )   # text input buffer
+        RS_MEM   = (16384,           -1024      )   # return stack
+        UV_MEM   = (16384,           +1024      )   # user variables
+        #BB_MEM   = (65536-(1024*2),  +(1024*2)  )   # block buffers
 
         self.mem = Memory(mem)
 
-        #TODO: Reserve some space for native call addresses
+        # Init Native routines
+        self.nrstart, self.nrsize = self.mem.region("NR", NR_MEM)
+        #TODO could we init the routine dispatch table here?
 
-        #TODO: Reserve space for memory mapped registers
-        #and register a handler with an appropriate table that maps all the
-        #read and write routines
+        # Init Native variables
+        class NvMem():
+            def __setitem__(self, key, value):
+                print("NV setitem: %s %s" % (str(key), str(value)))
+                #TODO
 
-        #   init sysvars
+            def __getitem__(self, key):
+                print("NV getitem: %s" % str(key))
+                return 0xAAAA #TODO
+
+        self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=NvMem())
+
+        # Init sysvars
         #svstart, svsize = self.mem.region("SV", SV_MEM)
         #self.sv = SysVars(self.mem, svstart, svsize)
 
-        #   init elective space??
+        # Init elective space??
         #elstart, elsize  = self.region("EL", at=, EV_MEM)
         #self.el = Elective(self.mem, elstart, elsize)
 
-        #   init dictionary
+        # Init dictionary
         self.dictstart, self.dictsize = self.mem.region("DICT", DICT_MEM)
         self.dict = Dictionary(self.mem, self.dictstart, self.dictsize)
 
-        #   init pad
+        # Init pad
         #padstart, padsize = self.mem.region("PAD", PAD_MEM)
         #self.pad = Pad(self.mem, padstart, padptr, padsize)
 
-        #   init data stack
+        # Init data stack
         self.dsstart, self.dssize = self.mem.region("DS", DS_MEM)
         self.ds = DataStack(self.mem, self.dsstart, self.dssize)
 
-        #   init text input buffer
+        # Init text input buffer
         self.tibstart, self.tibsize = self.mem.region("TIB", TIB_MEM)
         self.tib = IndexedBuffer(self.mem, self.tibstart, self.tibsize)
 
-        #   init return stack
+        # Init return stack
         self.rsstart, self.rssize = self.mem.region("RS", RS_MEM)
         self.rs = ReturnStack(self.mem, self.rsstart, self.rssize)
 
-        #   init user variables (BASE, S0,...)
+        # Init user variables (BASE, S0,...)
         self.uvstart, self.uvsize = self.mem.region("UV", UV_MEM)
         self.uv = UserVars(self.mem, self.uvstart, self.uvsize)
 
-        #   init block buffers
+        # Init block buffers
         #bbstart, bbsize = self.mem.region("BB", BB_MEM)
         #self.bb = BlockBuffers(self.mem, bbstart, bbsize)
 
-        #self.mem.show_map()
 
     def build_dispatch(self):
         """Build the dispatch table"""

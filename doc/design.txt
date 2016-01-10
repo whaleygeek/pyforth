@@ -4,7 +4,10 @@ PLAN
 overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
-TODO: bulk load a lot of the definitions
+Bulk imported a lot of simple words.
+  Had to make the DICT bigger for them to fit
+  **** But get strange error past some size, even though space in dict.
+
 
 --------------------------------------------------------------------------------
 

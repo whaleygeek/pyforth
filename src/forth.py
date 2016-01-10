@@ -230,6 +230,8 @@ class Memory(Buffer):
 
     def show_map(self):
         """Display the memory map on stdout"""
+
+        #TODO must sort by real start address first, otherwise unused region calcs are wrong!
         print("MEMORY MAP")
         last_end = 0
         for i in self.map:
@@ -1067,6 +1069,8 @@ class NvRoutine():
             ("OVER",       parent.ds.over),    # 0A
             ("ROT",        parent.ds.rot),     # 0B
             ("DROP",       parent.ds.drop),    # 0C
+            ("NIP",        parent.ds.nip),
+            ("TUCK",       parent.ds.tuck),
             ("+",          parent.n_add),
             ("-",          parent.n_sub),
             ("AND",        parent.n_and),
@@ -1165,11 +1169,11 @@ class Machine():
         #           base,             dirn/size
         NR_MEM   = (0x0000,          +256)     # native routines
         NV_MEM   = (0x0100,          +256)     # native variables
-        DICT_MEM = (0x0400,          +1024)    # dictionary
-        DS_MEM   = (0x2000,          -1024)    # data stack
-        TIB_MEM  = (0x2000,          +80)      # text input buffer
-        RS_MEM   = (0x4000,          -1024)    # return stack
-        UV_MEM   = (0x4000,          +1024)    # user variables
+        DICT_MEM = (0x0400,          +2048)    # dictionary
+        DS_MEM   = (0x8000,          -1024)    # data stack
+        TIB_MEM  = (0x8000,          +80)      # text input buffer
+        RS_MEM   = (0xA000,          -1024)    # return stack
+        UV_MEM   = (0xA000,          +1024)    # user variables
 
         #PAD_MEM   = (2048,            +80       )    # pad
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )    # block buffers
@@ -1222,6 +1226,7 @@ class Machine():
         self.nv_handler = NvMem(self, NV_MEM[0])
         self.nvstart, self.nvsize = self.mem.region("NV", NV_MEM, handler=self.nv_handler)
 
+        #self.mem.show_map()
 
     def getNativeRoutineAddress(self, name):
         # Note: This will fail with an exception if it can't find the name
@@ -1746,6 +1751,9 @@ class Forth:
             #("BB0",  self.machine.bb.start),
             #("BBZ",  self.machine.bb.size),
             #("PADZ", self.machine.pad.size),
+            ("FALSE", 0x0000),
+            ("TRUE",  0xFFFF),
+
         ]
 
         for c in consts:
@@ -1783,16 +1791,60 @@ class Forth:
         # CODE WORDS ----------------------------------------------------------
 
         words = [
-            #name  parts
-            ("=",  ["-", "0="]),
-            ("<>", ["-", "0=", "NOT"]),
-            ("<",  ["-", "0>"]),
-            (">",  ["-", "0<"]),
+            #name      parts                  stack effects
+            #----- RELATIONAL
+            ("=",      ["-", "0="]),
+            ("<>",     ["-", "0=", "NOT"]),
+            ("<",      ["-", "0>"]),
+            (">",      ["-", "0<"]),
+            #----- ALU
+            ("/MOD",   ["DUP", "DUP", "/", "ROT", "ROT", "MOD", "SWAP"]),   # ( n1 n2 -- n-rem n-quot)
+            ("1+",     [1,  "+"]),                                          # ( n -- n+1)
+            ("1-",     [1,  "-"]),                                          # ( n -- n-1)
+            ("2+",     [2,  "+"]),                                          # ( n -- n+2)
+            ("2-",     [2,  "-"]),                                          # ( n -- n-2)
+            ("2*",     [2,  "*"]),                                          # ( n -- n*2)
+            ("2/",     [2,  "/"]),                                          # ( n -- n/2)
+            ("NEGATE", [-1, "*"]),                                          # ( n -- -n)
+
+            #TODO does DOLIT get called for the numbers, that is wrong for BRANCH
+            ("ABS",    ["DUP", "0<", "0BRANCH", 2, "NEGATE"]),                          # ( n -- |n|)
+            ("MIN",    ["OVER", "OVER", "<", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- min)
+            ("MAX",    ["OVER", "OVER", ">", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- max)
+
+            #----- STACK OPS
+            (">R",      ["RP", "@", 1, "+", "DUP", "ROT", "!", "RP", "!"]),             # ( n -- )
+            ("R>",      ["RP", "DUP", "@", "@", "SWAP", 1, "-", "RP", "!"]),            # ( -- n)
+            ("R@",      ["RP", "@", "@"]),                                              # ( -- n)
+            ("SP@",     ["SP", "@"]),                                                   # ( -- a)
+            ("?DUP",    ["DUP", "0BRANCH", 2, "DUP"]),                                  # ( n -- n n or 0 -- 0)
+            ("2SWAP",   ["ROT", ">R", "ROT", "R>"]),                                    # ( d1 d2 -- d2 d1)
+            ("2DUP",    ["OVER", "OVER"]),                                              # ( d -- d d)
+            ("2OVER",   ["2SWAP", "2DUP", ">R", ">R", "2SWAP", "R>", "R>"]),            # ( d1 d2 -- d1 d2 d1)
+            ("2DROP",   ["DROP", "DROP"]),                                              # ( d --)
+
+            #----- GENERAL I/O
+            ("HEX",      [16, "BASE", "!"]),                                            #( -- )
+            #TODO below this, we get 'fail call to unknown native address offset: 6c"
+            #("OCTAL",    [8,  "BASE", "!"]),                                            #( -- )
+
+            #TODO below this, we get strange 'address not callable' errors in test unconditional branch
+            #("DECIMAL",  [10, "BASE", "!"]),                                            #( -- )
+            #("CR",       [13, "EMIT"]),                                                 #( -- )
+            #("SPACE",    [32, "EMIT"]),                                                 #( -- )
+            #("PAGE",     [12, "EMIT"]),                                                 #( -- )
+
+            #---- SIMPLE MEMORY OPS
+            #("+!",       ["DUP", "@", "ROT", "+", "!"]),                                #( n a -- )
+            #("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
+            #("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
         ]
 
         for w in words:
             name, parts = w
             self.create_word(name, *parts)
+
+        #self.machine.dict.dump()
 
 
 #----- RUNNER -----------------------------------------------------------------

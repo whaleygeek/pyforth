@@ -5,20 +5,7 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Got KEY test working
-
-TODO NEXT
-Now we can mock capture output, and have removed the capture compare,
-need to put asserts at end of each test case, otherwise the test is
-"it ran with no exceptions" which is not as strong as comparing the output!
-
-Don't move on again until we have all asserts in the test suite,
-otherwise we don't have any real regression test harness.
-
-===============================================================================
-
-
-
+Test harness asserts added using mock output
 
 
 ===============================================================================

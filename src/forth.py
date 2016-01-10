@@ -1560,6 +1560,7 @@ class Machine():
         { printnum(ds_pop16) } ;"""
         n = self.ds.popn()
         self.outs.writen(n)
+        self.outs.writech(' ')
 
     def n_rdpfa(self):
         """: n_RDPFA   ( -- n)

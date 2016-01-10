@@ -197,7 +197,7 @@ class Memory(Buffer):
             name, start, size, handler = i
             if addr >= start and addr <= start+size-1:
                 #found the region
-                #print("hander:%s" % str(handler))
+                #Debug.trace("hander:%s" % str(handler))
                 return handler, start
         return None, None # use default handler
 
@@ -306,33 +306,33 @@ class IndexedBuffer(Buffer):
         if self.ptrtype == IndexedBuffer.FIRSTFREE:
             if self.growdirn > 0:
                 if ptr > self.start + (self.size): # one extra allowed at right hand side
-                    print("firstfree,+ve-grow,overflow")
+                    Debug.trace("firstfree,+ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr < self.start:
-                    print("firstfree,+ve-grow,underflow")
+                    Debug.traceprint("firstfree,+ve-grow,underflow")
                     raise BufferUnderflow
             else: # growdirn -ve
                 if ptr < self.start-1: # one extra allowed at left hand side
-                    print("firstfree,-ve-grow,overflow")
+                    Debug.traceprint("firstfree,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size-1):
-                    print("firstfree,-ve-grow,underflow")
+                    Debug.traceprint("firstfree,-ve-grow,underflow")
                     raise BufferUnderflow
 
         else: # LASTUSED
             if self.growdirn > 0:
                 if ptr > self.start + (self.size-1): # must not exceed buffer
-                    print("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
+                    Debug.trace("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
                     raise BufferOverflow
                 elif ptr < (self.start-1): # one extra at left hand side
-                    print("lastused,+ve-grow,underflow")
+                    Debug.trace("lastused,+ve-grow,underflow")
                     raise BufferUnderflow
             else: # growdirn -ve
                 if ptr < self.start:
-                    print("lastused,-ve-grow,overflow")
+                    Debug.trace("lastused,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size):
-                    print("lastused,-ve-grow,underflow")
+                    Debug.trace("lastused,-ve-grow,underflow")
                     raise BufferUnderflow
 
 
@@ -429,6 +429,22 @@ class IndexedBuffer(Buffer):
         b0, b1, b2, b3 = self.read(rel=index*4, size=4)
         double = Double.from_bytes((b0, b1, b2, b3))
         return double
+
+    # Helpful routines for memory mapping pointer register
+
+    def rd_p(self, offset):
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+        bytes = Number.to_bytes(self.ptr)
+        return bytes[offset]
+
+    def wr_p(self, offset, byte):
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+        b0, b1 = Number.to_bytes(self.ptr)
+        bytes = [b0, b1]
+        bytes[offset] = byte
+        self.ptr = Number.from_bytes(bytes)
 
 #----- PAD --------------------------------------------------------------------
 
@@ -626,23 +642,6 @@ class Vars(Stack):
 #    def __init__(self, storage, start, size):
 #        Vars.__init__(self, storage, start, size)
 
-#    # functions used to implement memory mapped registers
-#    def rd_sv0(self):
-#        """Read the SysVars start address"""
-#        return self.start
-#
-#    def rd_svz(self):
-#        """Read the SysVars size in bytes"""
-#        return self.size
-#
-#    def rd_svp(self):
-#        """Read the SysVars current pointer"""
-#        return self.ptr
-#
-#    def wr_svp(self, number):
-#        """Write to the SysVars current pointer"""
-#        self.ptr = number
-
 
 class UserVars(Vars):
     """An abstraction for user accessible variables"""
@@ -650,15 +649,6 @@ class UserVars(Vars):
     #e.g. BASE
     def __init__(self, storage, start, size):
         Vars.__init__(self, storage, start, size)
-
-    # functions used to implement memory mapped registers
-    def rd_uvp(self):
-        """Read the UserVars pointer"""
-        return self.ptr
-
-    def wr_uvp(self, number):
-        """Write to the UserVars pointer"""
-        self.ptr = number
 
 
 #----- DICTIONARY -------------------------------------------------------------
@@ -934,67 +924,17 @@ class Dictionary(Stack):
     #TODO: might be some functions for address calculations exposed as natives too!
     #beware, we might not be able to pass parameters to them, so defaults should be good?
 
-    # functions for memory mapped registers
-
-    def rd_d0(self):
-        """Read the dictionary start address"""
-        return self.start
-
-    def rd_h(self):
-        """Read the present H value"""
-        return self.ptr
-
-    def wr_h(self, number):
-        """Write to the present H value"""
-        self.ptr = number
-
 
 class DataStack(ForthStack):
     """A stack for pushing application data on to """
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
-    #TODO: refactor up into ForthStack
-    # functions to allow memory mapped registers
-    def rd_s0(self):
-        """Read the DataStack start address"""
-        return self.start
-
-    def rd_sz(self):
-        """Read the DataStack size in bytes"""
-        return self.size
-
-    def rd_sp(self):
-        """Read the DataStack present TOS pointer"""
-        return self.ptr
-
-    def wr_sp(self, number):
-        """Write to the DataStack present TOS pointer"""
-        self.ptr = number
-
 
 class ReturnStack(ForthStack):
     """A stack for high level forth call/return addresses"""
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
-
-    #TODO: refactor up into ForthStack
-    # functions to allow memory mapped registers
-    def rd_r0(self):
-        """Read the ReturnStack start address"""
-        return self.start
-
-    def rd_rz(self):
-        """Read the ReturnStack size in bytes"""
-        return self.size
-
-    def rd_rp(self):
-        """Read the ReturnStack present TOS pointer"""
-        return self.ptr
-
-    def wr_rp(self, number):
-        """Write to the ReturnStack present TOS pointer"""
-        self.ptr = number
 
 
 #---- I/O ---------------------------------------------------------------------
@@ -1053,22 +993,20 @@ class Disk():
 
 class NvMem():
     """Provides access to native variables mapped into memory"""
-    #TODO what about 16 bit registers? Need two mappings with a high/low flag
-    #passed into the rd/wr routine, so we don't have to have two routines?
 
     def __init__(self, parent, start):
         self.map = [
-            # name,    rd                   wr                  exec
-            #TODO rd_base and rd_size in Buffer base class
-            #TODO rd_ptr and wr_ptr in IndexedBuffer base class
-            ("TEST",     parent.rd_test,       parent.wr_test), # 0 high byte
-            (None,       parent.rd_test,       parent.wr_test), # 1 low byte #TODO: needs an offset to know which byte
-            #("IP",       parent.rd_ip,         parent.wr_ip),
-            #("H",        parent.dict.rd_h,     parent.dict.wr_h),
-            #("SP",       parent.ds.rd_sp,      parent.ds.wr_sp),
-            #("RP",       parent.rs.rd_rp,      parent.rs.wr_rp),
-            #("SVP",      parent.sv.rd_svp,     parent.sv.wr_svp),
-            #("UVP",      parent.uv.rd_uvp,     parent.uv.wr_uvp),
+            # name,   o, l,   rd,                   wr
+            ("TEST",  0, 2,   parent.rd_test,       parent.wr_test),
+            ("IP",    2, 2,   parent.rd_ip,         parent.wr_ip),
+            ("H",     4, 2,   parent.dict.rd_p,     parent.dict.wr_p),
+            ("SP",    6, 2,   parent.ds.rd_p,       parent.ds.wr_p),
+            ("RP",    8, 2,   parent.rs.rd_p,       parent.rs.wr_p),
+            ("UVP",  10, 2,   parent.uv.rd_p,       parent.uv.wr_p),
+
+            #("SVP",  12, 2,   parent.sv.rd_p,       parent.sv.wr_p),
+            #example of a large buffer
+            #("BUF",  2, 100,   parent.rd_buf,        parent.wr_buf),
         ]
         self.register_in_dict(parent, start)
 
@@ -1077,35 +1015,38 @@ class NvMem():
 
         RDPFA = parent.getNativeRoutineAddress(" RDPFA")
         # iterate through map and register all DICT entries for them
-        for i in range(len(self.map)):
-            n = self.map[i]
-            name, rd, wr = n
+        for item in self.map:
+            name, ofs, size, rd, wr = item
             if name != None:
                 # only named items get appended to the DICT
-                addr = i + start
+                addr = start + ofs
                 parent.dict.create(nf=name, cf=RDPFA, pf=[addr], finish=True)
 
-    def __setitem__(self, key, value):
-        #Debug.trace("NV setitem: %x %x" % (key, value))
-        if key >= len(self.map):
-            raise RuntimeError("set: out of range NvMem offset:%x" % key)
-        name, rd, wr = self.map[key]
+    def find(self, offset):
+        """Search through map and find the region entry that holds this offset"""
+        for item in self.map:
+            name, ofs, size, rd, wr = item
+            if offset >= ofs and offset <= (ofs+size-1):
+                return item
+        return None
+
+    def __setitem__(self, offset, value):
+        item = self.find(offset)
+        if item == None:
+            raise ValueError("Unknown offset in region: %x" % offset)
+        name, start, ofs, rd, wr = item
         if wr==None:
-            raise RuntimeError("set: NvMem offset %x does not support write function" % key)
-        wr(value)
+            raise RuntimeError("set: NvMem offset %x does not support write function" % offset)
+        wr(offset, value)
 
-    def __getitem__(self, key):
-        #Debug.trace("NV getitem: %x" % key)
-        if key >= len(self.map):
-            raise RuntimeError("get: out of range NvMem offset:%x" % key)
-        name, rd, wr = self.map[key]
+    def __getitem__(self, offset):
+        item = self.find(offset)
+        if item == None:
+            raise ValueError("Unknown offset in region: %x" % offset)
+        name, start, ofs, rd, wr = item
         if rd==None:
-            raise RuntimeError("get: NvMem offset %x does not support read function" % key)
-        #Debug.trace("NV getitem: %x" % key)
-        return rd()
-
-    def call(self, addr):
-        raise RuntimeError("Region not callable:%x" % addr)
+            raise RuntimeError("get: NvMem offset %x does not support read function" % offset)
+        return rd(offset)
 
 
 class NvRoutine():
@@ -1292,24 +1233,44 @@ class Machine():
 
     # functions for memory mapped registers
 
-    def rd_ip(self):
-        """Read the present high level forth instruction pointer"""
-        return self.ip
+    def rd_ip(self, offset):
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+        bytes = Number.to_bytes(self.ip)
+        return bytes[offset]
 
-    def wr_ip(self, number):
-        """Write to the present high level forth instruction pointer"""
-        self.ip = number
+    def wr_ip(self, offset, byte):
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+        b0, b1 = Number.to_bytes(self.ip)
+        bytes = [b0, b1]
+        bytes[offset] = byte
+        self.ip = Number.from_bytes(bytes)
 
     # temporary testing
     testvalue = 0
 
-    def rd_test(self):
+    def rd_test(self, offset):
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+
+        # Every read increments the counter
         prev = self.testvalue
         self.testvalue = (self.testvalue + 1) & 0xFF
-        return prev
 
-    def wr_test(self, number):
-        self.testvalue = number
+        bytes = Number.to_bytes(prev)
+        byte = bytes[offset]
+        #Debug.trace("rd_test ofs %x byte %x" % (offset, byte))
+        return byte
+
+    def wr_test(self, offset, byte):
+        #Debug.trace("wr_test ofs %x byte %x" % (offset, byte))
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:%x" % offset)
+        b0, b1 = Number.to_bytes(self.testvalue)
+        bytes = [b0, b1]
+        bytes[offset] = byte
+        self.testvalue = Number.from_bytes(bytes)
 
     # functions for native code
 
@@ -1353,15 +1314,15 @@ class Machine():
     def n_fetch(self):
         """: n_FETCH  ( a -- n)
         { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
-        #print("###FETCH")
+        #Debug.trace("###FETCH")
         a = self.ds.popn()
-        #print("  addr:%x" % a)
+        #Debug.trace("  addr:%x" % a)
         n = self.mem.readn(a) #TODO: underlying code does two 8 bit reads direct from mem
         #TODO: This will cause 'TEST var to increment twice
         #TODO: need to have an offset passed into the read/write routine for that register
         #which would then allow variables of any size to be modelled, providing there is an
         #entry in the NvMem table for each byte.
-        #print("  n:%x" % n)
+        #Debug.trace("  n:%x" % n)
         self.ds.pushn(n)
 
     def n_store8(self):
@@ -1531,7 +1492,7 @@ class Machine():
     def n_rdpfa(self):
         """: n_RDPFA   ( -- n)
         { pfa=ip; r=mem[pfa]; ds_push(r) } ;"""
-        #print("ip %x" % self.ip)
+        #Debug.trace("ip %x" % self.ip)
         pfa = self.ip
         r = self.mem.readn(pfa)
         self.ds.pushn(r)
@@ -1771,13 +1732,16 @@ class Forth:
 
         # CONSTANTS -----------------------------------------------------------
 
-        #TODO tibstart, tibsize, padsize, bbstart
-        #("D0",     self.dict.rd_d0, None,     None),             # CONST
-        #("S0",     self.ds.rd_s0,  None,      None),             # CONST
-        #("R0",     self.rs.rd_r0,  None,      None),             # CONST
+        #TODO: self.create_const
+        # D0, DZ
+        # S0, SZ
+        # R0, RZ
 
         #: PAD   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
         #self.create_const("PAD", self.machine.uvstart)
+
+        #: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
+        #self.create_const("PADZ", self.padsize)
 
         #: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
         self.create_const("TIB", self.machine.tibstart)
@@ -1785,11 +1749,10 @@ class Forth:
         #: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
         self.create_const("TIBZ", self.machine.tibsize)
 
-        #: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
-        #self.create_const("PADZ", self.padsize)
-
         # : BB0   ( -- a)                      /ADD  n_RDPFA  CONST    Address of first byte of block buffers
         #self.create_const("BB0", self.bbstart)
+
+        #TODO: BBZ
 
 
         # VARIABLES -----------------------------------------------------------
@@ -1808,10 +1771,6 @@ class Forth:
 
         # : BASE   ( -- a)                     /P190 n_RDPFA  VAR    Address of number base variable
         #self.create_var("BASE", 2, init=10)
-
-
-        # : PAD   ( -- a)                      /P221 n_RDPFA  VAR    Address of scratch area start, note it regularly moves!
-        #TODO this is memory mapped?
 
         # : FLAGS  ( -- n)                     /ADD  n_RDPFA  VAR    Address of flags variable
         #TODO this is memory mapped

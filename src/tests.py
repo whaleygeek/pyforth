@@ -189,26 +189,13 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("UT")
 
     def test_60_var_rdwr(self):
+        # TEST is an NvMem var that increments the value on every read
         #print("HERE**********")
         self.f.create_word("VADD", "TEST", "@")
-        #TODO: This exercises the 8/16 bit read issue
+        #This exercises the 8/16 bit read issue
         #because TEST increments on every byte read
-        self.f.execute_word("VADD")
-        self.f.execute_word("VADD")
-
-    def test_98_nvmem(self):
-        # quick test to prove mapped register handler is working
-        # The test address, when you write to it, it stores that value
-        # when you read from it, it returns the value then inc's
-        # (it's a hardware counter)
-
-        TEST_ADDR = 256
-        EXPECTED = 12
-        self.f.machine.mem[TEST_ADDR] = EXPECTED
-        for i in range(10):
-            actual = self.f.machine.mem[TEST_ADDR]
-            self.assertEquals(EXPECTED, actual)
-            EXPECTED += 1
+        self.f.execute_word("VADD") # returns 0x0001
+        self.f.execute_word("VADD") # returns 0x0003
 
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()

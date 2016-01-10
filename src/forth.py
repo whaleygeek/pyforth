@@ -334,7 +334,7 @@ class IndexedBuffer(Buffer):
                     #Debug.trace("lastused,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size):
-                    #Debug.trace("lastused,-ve-grow,underflow")
+                    Debug.trace("lastused,-ve-grow,underflow ptr:%x start:%x size:%x" % (ptr, self.start, self.size))
                     raise BufferUnderflow
 
 
@@ -361,6 +361,7 @@ class IndexedBuffer(Buffer):
                 return self.ptr - rel - size
             else: # LASTUSED
                 return self.ptr - rel - (size-1)
+
         else: # -ve growth
             if self.ptrtype == IndexedBuffer.FIRSTFREE:
                 return self.ptr + rel + 1
@@ -370,12 +371,21 @@ class IndexedBuffer(Buffer):
     def getused(self):
         """Get the number of bytes used on the stack"""
         if self.growdirn > 0: # +ve growth
-            return self.ptr - self.start
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
+                u = self.ptr - self.start
+            else: # LASTUSED
+                u = (self.ptr+1) - self.start
+
         else: # -ve growth
-            return (self.start+self.size-1) - self.ptr
+            if self.ptrtype == IndexedBuffer.FIRSTFREE:
+                u = (self.start+self.size-1) - self.ptr
+            else: # LASTUSED
+                u = (self.start+self.size) - self.ptr
+
+        return u
 
     def getfree(self):
-        pass #TODO:
+        raise RuntimeError("Unimplemented") #TODO
 
     def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
@@ -523,7 +533,7 @@ class Stack(IndexedBuffer):
             if b > 32 and b < 127:
                 ch = chr(b)
             else:
-                ch = ' '
+                ch = '?'
             print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
     def push(self, bytes):
@@ -994,10 +1004,13 @@ class Output():
     def writen(self, number):
         self.buf += str(number)
 
-    def flush(self):
+    def get(self):
+        return self.buf
+
+    def clear(self):
         s = self.buf
         self.buf = ""
-        print("%s" % s)
+        #print("%s" % s)
 
 
 class ScreenOutput():
@@ -1150,7 +1163,7 @@ class NvRoutine():
             #("CONSTANT",   parent.n_constant),
             #("U<",         parent.n_ult),
             #("FLAGS",      parent.n_flags),
-            #("KEY",        parent.n_key),
+            ("KEY",        parent.n_key),
             #("KEYQ",       parent.n_keyq),
         ]
         
@@ -1525,15 +1538,16 @@ class Machine():
 
     def n_keyq(self):
         """: n_KEYQ   ( -- ?)
-        { ds_push8(kbhit) } ;"""
-        pass #TODO: knit to Input()
-        Debug.unimplemented("n_keyq")
+        # { ds_push8(kbhit) } ;"""
+        n = self.ins.waiting()
+        self.ds.pushn(n)
 
     def n_key(self):
         """: n_KEY   ( -- c)
         { ds_push8(getch) } ;"""
-        pass #TODO: knit to Input()
-        Debug.unimplemented("n_key")
+        ch = self.ins.getch()
+        b = ord(ch)
+        self.ds.pushn(b)
 
     def n_emit(self):
         """: n_EMIT   ( c -- )
@@ -1650,6 +1664,9 @@ class Machine():
             # put something useful in self.ip, i.e. the pfa
             self.ip = cfa+2 # pfa
             self.call(cf)
+            sz = self.rs.getused()
+            #Debug.trace("RS used: %d" % sz)
+            if sz == 0: break # EXIT returned to top level
             self.ip = self.rs.popn()
 
     def n_dolit(self):
@@ -1669,13 +1686,15 @@ class Machine():
         { ip=rs_pop() } ;"""
         #Debug.trace("exit")
 
+        self.ip = self.rs.popn()
         # If nothing on stack, STOP
-        if self.rs.getused() >= 2:
-            self.ip = self.rs.popn()
-            #Debug.trace("popped to IP: %x" % self.ip)
-        else:
-            #Debug.trace("Return stack empty, STOPPING")
-            self.running = False
+        #if self.rs.getused() >= 2:
+        #    #print("rs used:%d" % self.rs.getused())
+        #    self.ip = self.rs.popn()
+        #    #Debug.trace("popped to IP: %x" % self.ip)
+        #else:
+        #    Debug.trace("Return stack empty, STOPPING")
+        #    self.running = False
 
 
 #----- FORTH OUTER INTERPRETER ------------------------------------------------

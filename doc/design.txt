@@ -4,33 +4,18 @@ PLAN
 overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
-Bulk import working.
+JUST DONE
+Got KEY test working
 
---------------------------------------------------------------------------------
-spec: KEY
+TODO NEXT
+Now we can mock capture output, and have removed the capture compare,
+need to put asserts at end of each test case, otherwise the test is
+"it ran with no exceptions" which is not as strong as comparing the output!
 
-waits for next char from keyboard (or KeyboardInput)
-need a mocking way of doing this so we can poke keys in from a test script.
+Don't move on again until we have all asserts in the test suite,
+otherwise we don't have any real regression test harness.
 
-design: KEY
-- reading from keyboard (KeyboardInput)
-  waitch()
-  waiting()
-
-- reading from mock buffer (MockKeyboardInput)
-  waithch()
-  waiting()
-  clear()
-  append(ch)
-  set(str)
-
-test plan: KEY
-  override the forth.ins with a MockKeyboardInput() which has some methods
-  for clearing, writing strings, and appending to a keyboard buffer that
-  is then read by the getch and poll methods.
-
-  write a unit test that pokes known characters into MockKeyboardInput
-  and then a test word that reads a few of them out and displays them.
+===============================================================================
 
 
 
@@ -1688,4 +1673,29 @@ DESIGN: Bulk loading of high level const, var, words
 : 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
 
+--------------------------------------------------------------------------------
+spec: KEY
+
+waits for next char from keyboard (or KeyboardInput)
+need a mocking way of doing this so we can poke keys in from a test script.
+
+design: KEY
+- reading from keyboard (KeyboardInput)
+  waitch()
+  waiting()
+
+- reading from mock buffer (MockKeyboardInput)
+  waithch()
+  waiting()
+  clear()
+  append(ch)
+  set(str)
+
+test plan: KEY
+  override the forth.ins with a MockKeyboardInput() which has some methods
+  for clearing, writing strings, and appending to a keyboard buffer that
+  is then read by the getch and poll methods.
+
+  write a unit test that pokes known characters into MockKeyboardInput
+  and then a test word that reads a few of them out and displays them.
 

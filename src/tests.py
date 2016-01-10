@@ -5,17 +5,14 @@
 import unittest
 import forth
 
-# A small smoke-test - non exhaustive.
-
-#TODO: Try to find a way to redirect the Output() to a buffer we can read back,
-# so that the tests don't need to generate any output, and we can do assertEquals()
-# on the result.
+#TODO: there is no capture on output any more, so must put expectations in tests!!
+#This is possible now we capture output in the Output mock buffer.
 
 class TestForth(unittest.TestCase):
-
+    """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
-        self.f = forth.Forth().boot()
+        self.f = forth.Forth(outs=forth.Output()).boot()
 
     def tearDown(self):
         #print("teardown")
@@ -36,9 +33,9 @@ class TestForth(unittest.TestCase):
 
     def test_01_star(self):
         """Output a single * on stdout"""
-
         self.f.create_word("TEST", " DOLIT", 42, "EMIT")
         self.f.execute_word("TEST")
+        self.assertEquals("*", self.f.outs.get())
 
     def test_02_hello(self):
         """Output a Hello world! message"""
@@ -52,60 +49,74 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("TEST", *pfa)
         self.f.execute_word("TEST")
+        self.assertEquals(msg, self.f.outs.get())
 
     def test_03_add(self):
         """Add 1 and 2"""
         self.f.create_word("TEST", " DOLIT", 1, " DOLIT", 2, "+", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_04_sub(self):
         """Subtract"""
         self.f.create_word("TEST", " DOLIT", 2, " DOLIT", 1, "-", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_05_and(self):
         self.f.create_word("TEST", " DOLIT", 0xFFFF, " DOLIT", 0x8000, "AND", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_06_or(self):
         self.f.create_word("TEST", " DOLIT", 0xFFFF, " DOLIT", 0x8000, "OR", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_07_xor(self):
         self.f.create_word("TEST", " DOLIT", 0x0001, " DOLIT", 0x8000, "XOR", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_08_mult(self):
         self.f.create_word("TEST", " DOLIT", 2, " DOLIT", 4, "*", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_09_div(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 3, "/", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_10_mod(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 3, "MOD", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_20_dot(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, ".", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_21_swap(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "SWAP", ".", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_22_dup(self):
         self.f.create_word("TEST", " DOLIT", 10, "DUP", ".", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_23_over(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "OVER", ".", ".", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_24_rot(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, " DOLIT", 30, "ROT", ".", ".", ".")
         self.f.execute_word("TEST")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_25_drop(self):
         self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "DROP", ".", ".")
@@ -116,6 +127,7 @@ class TestForth(unittest.TestCase):
             self.fail("Did not get expected BufferUnderflow exception")
         except forth.BufferUnderflow:
             pass # expected
+        #TODO: assertEquals self.f.outs.get()
 
 
     #def test_30_wblk_rblk(self):
@@ -132,24 +144,28 @@ class TestForth(unittest.TestCase):
     #    self.f.execute_word("R")
     #
     #    #self.f.machine.mem.dump(65536-1024, 16) # TODO compare it
+    #    #TODO: assertEquals self.f.outs.get()
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
         self.f.create_word("B", " DOLIT", 42, "EMIT", "BRANCH", -4)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_41_0branch_taken(self):
         """Test conditional branch always taken"""
         self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 1, "0BRANCH", -6)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_42_0branch_nottaken(self):
         """Test conditional branch always not taken"""
         self.f.create_word("B", " DOLIT", 44, "EMIT", " DOLIT", 0, "0BRANCH", -6)
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_50_0eq(self):
         """Test 0= relational operator"""
@@ -158,6 +174,7 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("RT", " DOLIT", 0, "0=", ".")
         self.f.execute_word("RT")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_51_not(self):
         """Test NOT boolean operator"""
@@ -166,6 +183,7 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("NT", " DOLIT", 1, "NOT", ".")
         self.f.execute_word("NT")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_52_0lt(self):
         """Test 0< relational operator"""
@@ -177,6 +195,7 @@ class TestForth(unittest.TestCase):
         #This should be a SIGNED COMPARISON
         self.f.create_word("LT", " DOLIT", -1, "0<", ".")
         self.f.execute_word("LT")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_53_0gt(self): #TODO
         """Test 0> relational operator"""
@@ -186,6 +205,7 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("GT")
         self.f.execute_word("GT")
+        #TODO: assertEquals self.f.outs.get()
 
     def test_54_ult(self): #TODO
         """Test U< relational operator"""
@@ -195,8 +215,9 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("UT")
         self.f.execute_word("UT")
+        #TODO: assertEquals self.f.outs.get()
 
-    def Xtest_60_var_rdwr(self):
+    def test_60_var_rdwr(self):
         # TEST is an NvMem var that increments the value on every read
         #print("HERE**********")
         self.f.create_word("VADD", "TEST", "@")
@@ -204,6 +225,15 @@ class TestForth(unittest.TestCase):
         #because TEST increments on every byte read
         self.f.execute_word("VADD") # returns 0x0001
         self.f.execute_word("VADD") # returns 0x0003
+        #TODO: assertEquals self.f.outs.get()
+
+    def test_70_key(self):
+        self.f.create_word("KEYS", "KEY", "EMIT")
+        self.f.create_word("KEYS", "KEY", "EMIT")
+        self.f.ins.set("*")
+        self.f.execute_word("KEYS")
+        #self.f.outs.flush() # does a print # TODO have a get() and clear()
+        #TODO: assertEquals self.f.outs.get()
 
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()

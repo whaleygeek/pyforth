@@ -197,7 +197,9 @@ Done this, and it works.
 Reads and writes tested, working.
 
 
-- 8/16 bit
+================================================================================
+
+- 8/16 bit memory mapped variables
 I suspect this is wrong, we write a 16 bit number to an 8 bit memory location
 and get away with it.
 
@@ -215,6 +217,56 @@ walk of the table and a call to something like this to wrap it:
    which will be intercepted by the memory handler and the correct value returned,
    which will then probably end up on the stack depending on the operation.
 (this is working)
+
+CONSIDERATIONS
+
+- a variable could be of any size (i.e. consider it just a buffer in memory)
+- most common size is 16 bits (two separate 8 bit bytes)
+- if mapping a whole buffer into memory, having to fill in each byte in a table
+  would be a real pain
+- the mapping table could be changed to be an address and a length. Finding an
+  entry would then be a sequential search through an index to find the matching
+  region, and once the region was found, the relative index into that region
+  could be passed into the read/write service
+- the data structure could be independently optimised once it is working,
+  e.g. storing as a tree, storing as a hash table of all possible addresses,
+  and this fast search index could be auto generated once the table was
+  completed. So it does not have to be designed to be efficient at this stage,
+  just designed to be correct.
+
+DESIGN
+
+  MAP
+
+  self.map = [
+    (0, 2,   rd_ip, wr_ip),
+    (2, 100, rd_buf, wr_buf),
+  ]
+
+  SEARCH
+  search map sequentially, comparing start, start+size-1
+  if address matches, grab this record and process
+  process:
+    work out relative index into region from start
+    if this is a read, call rd_ip(rel)
+    if this is a write, call wr_ip(rel)
+
+  rd_ip(rel) -> byte
+    low byte or high byte, just access the register using Number.to_bytes()
+
+  wr_ip(rel, byte):
+    low byte or high byte, just access the register using Number.to_bytes()/from_bytes()
+
+  rd_buf(rel) -> byte
+    rel is index into buffer, just read to it's relative offset address
+
+  wr_buf(rel, byte):
+    rel is index into buffer, just write byte to it's relative address
+
+  GENERAL FORM OF INTERFACE ROUTINES
+  rd_xx(rel)->byte
+  wr_xx(rel, byte)
+  call_xx()
 
 ===============================================================================
 

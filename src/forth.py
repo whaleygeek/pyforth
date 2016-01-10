@@ -1144,6 +1144,7 @@ class NvRoutine():
                 execfn()
                 return
         Debug.fail("call to unknown native address offset: %x" % index)
+        raise RuntimeError("CALL FAILED")
 
 
 class Machine():
@@ -1753,7 +1754,6 @@ class Forth:
             #("PADZ", self.machine.pad.size),
             ("FALSE", 0x0000),
             ("TRUE",  0xFFFF),
-
         ]
 
         for c in consts:
@@ -1787,7 +1787,6 @@ class Forth:
             self.create_var(name, size=size, init=init)
 
 
-
         # CODE WORDS ----------------------------------------------------------
 
         words = [
@@ -1807,7 +1806,6 @@ class Forth:
             ("2/",     [2,  "/"]),                                          # ( n -- n/2)
             ("NEGATE", [-1, "*"]),                                          # ( n -- -n)
 
-            #TODO does DOLIT get called for the numbers, that is wrong for BRANCH
             ("ABS",    ["DUP", "0<", "0BRANCH", 2, "NEGATE"]),                          # ( n -- |n|)
             ("MIN",    ["OVER", "OVER", "<", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- min)
             ("MAX",    ["OVER", "OVER", ">", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- max)
@@ -1825,19 +1823,16 @@ class Forth:
 
             #----- GENERAL I/O
             ("HEX",      [16, "BASE", "!"]),                                            #( -- )
-            #TODO below this, we get 'fail call to unknown native address offset: 6c"
-            #("OCTAL",    [8,  "BASE", "!"]),                                            #( -- )
-
-            #TODO below this, we get strange 'address not callable' errors in test unconditional branch
-            #("DECIMAL",  [10, "BASE", "!"]),                                            #( -- )
-            #("CR",       [13, "EMIT"]),                                                 #( -- )
-            #("SPACE",    [32, "EMIT"]),                                                 #( -- )
-            #("PAGE",     [12, "EMIT"]),                                                 #( -- )
+            ("OCTAL",    [8,  "BASE", "!"]),                                            #( -- )
+            ("DECIMAL",  [10, "BASE", "!"]),                                            #( -- )
+            ("CR",       [13, "EMIT"]),                                                 #( -- )
+            ("SPACE",    [32, "EMIT"]),                                                 #( -- )
+            ("PAGE",     [12, "EMIT"]),                                                 #( -- )
 
             #---- SIMPLE MEMORY OPS
-            #("+!",       ["DUP", "@", "ROT", "+", "!"]),                                #( n a -- )
-            #("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
-            #("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
+            ("+!",       ["DUP", "@", "ROT", "+", "!"]),                                #( n a -- )
+            ("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
+            ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
         ]
 
         for w in words:

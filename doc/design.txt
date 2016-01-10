@@ -4,105 +4,52 @@ PLAN
 overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
-Bulk imported a lot of simple words.
-  Had to make the DICT bigger for them to fit
-  **** But get strange error past some size, even though space in dict.
-
+Bulk import working.
 
 --------------------------------------------------------------------------------
+spec: KEY
 
-- design for high level WORD
-- write code for high level WORD
-- test that we can expect a line and read a WORD from it.
-- try to write a REPL at this point (which will speed up experimental testing)
+waits for next char from keyboard (or KeyboardInput)
+need a mocking way of doing this so we can poke keys in from a test script.
 
+design: KEY
+- reading from keyboard (KeyboardInput)
+  waitch()
+  waiting()
 
------ HIGH LEVEL WORDS - DESIGN -----------------------------------------------
+- reading from mock buffer (MockKeyboardInput)
+  waithch()
+  waiting()
+  clear()
+  append(ch)
+  set(str)
 
----- CONST
+test plan: KEY
+  override the forth.ins with a MockKeyboardInput() which has some methods
+  for clearing, writing strings, and appending to a keyboard buffer that
+  is then read by the getch and poll methods.
 
-: FALSE   ( -- 0)                    0 ;
-: TRUE   ( -- -1)                    -1 ;
-
------ ALU
-: /MOD   ( n1 n2 -- n-rem n-quot)    DUP DUP / ROT ROT MOD SWAP ;
-: 1+   ( n -- n+1)                   1 + ;
-: 1-   ( n -- n-1)                   1 - ;
-: 2+   ( n -- n+2)                   2 + ;
-: 2-   ( n -- n-2)                   2 - ;
-: 2*   ( n -- n*2)                   2 * ;
-: 2/   ( n -- n/2)                   2 / ;
-: NEGATE   ( n -- -n)                -1 * ;
-: ABS   ( n -- |n|)                  DUP 0< 0BRANCH 2 NEGATE ;
-: MIN   ( n1 n2 -- min)              OVER OVER < NOT 0BRANCH 2 SWAP DROP ;
-: MAX   ( n1 n2 -- max)              OVER OVER > NOT 0BRANCH 2 SWAP DROP ;
-
------ STACK OPS
-: NIP   ( n1 n2 -- n2)               SWAP DROP ;
-: TUCK  ( n1 n2 -- n2 n1 n2)         SWAP OVER ;
-: >R   ( n -- )                      RP @ 1 + DUP ROT ! RP ! ;
-: R>   ( -- n)                       RP DUP @ @ SWAP 1 - RP ! ;
-: R@   ( -- n)                       RP @ @ ;
-: SP@   ( -- a)                      SP @ ;
-: ?DUP   ( n -- n n or 0 -- 0)       DUP 0BRANCH 2 DUP ;
-: 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
-: 2DUP   ( d -- d d)                 OVER OVER ;
-: 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
-: 2DROP   ( d --)                    DROP DROP ;
-
------ GENERAL I/O
-: HEX   ( -- )                       16 BASE ! ;
-: OCTAL   ( -- )                     8 BASE ! ;
-: DECIMAL   ( -- )                   10 BASE ! ;
-: CR   ( -- )                        13 EMIT ;
-: SPACE   ( -- )                     32 EMIT ;
-: PAGE   ( -- )                      12 EMIT ;
-
----- SIMPLE MEMORY OPS
-: +!   ( n a -- )                    DUP @ ROT + ! ;
-: 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
-: 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
-
---------------------------------------------------------------------------------
-
-TODO test cases for all of above synth words??
+  write a unit test that pokes known characters into MockKeyboardInput
+  and then a test word that reads a few of them out and displays them.
+  
 
 
---------------------------------------------------------------------------------
-#TODO need ( and \ commenting before this will work
-
-: SPACES   ( n -- )
-    \ loop
-        DUP   ( n n)
-        0=   ( n ?)
-        0BRANCH  7 ( exit)   ( n)
-        SPACE EMIT
-        1 -   ( n-1)
-        BRANCH -9 ( loop)
-    \ exit
-    DROP ;
-
-: TYPE   ( a # -- )
-    \ loop   ( a #)
-        DUP   ( a # #)
-        0=   ( a # ?)
-        0BRANCH 11 ( exit)   ( a #)
-        SWAP   ( # a)
-        DUP   ( # a a)
-        C@    ( # a c)
-        EMIT   ( # a)
-        1 +   ( # a+1)
-        SWAP   ( a+1 #)
-        1 -   ( a+1 #-1)
-        BRANCH -14   ( loop)
-    \ exit ( a #)
-    DROP DROP   ( )
 
 
 ===============================================================================
 
------ SPEC: line input buffer
-(to write)
+--------------------------------------------------------------------------------
+There is no ( and \commenting,
+pass in strings and put # python comments in the API calls for comments, end of line only
+
+
+--------------------------------------------------------------------------------
+
+code up EXPECT
+write a test case for EXPECT
+i.e. read a line and then display all chars entered.
+
+----- SPEC: EXPECT (line input buffer)
 : EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
 : SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
 : IN>                                consumes next char, advances pointer, leaves char on stack
@@ -114,10 +61,29 @@ TODO test cases for all of above synth words??
 
 ----- DESIGN: line input buffer
 
+test harness:
+
 : IN> ( -- c)                       points to next char to be consumed
     \ if INP at end of buffer, exit with zero, or ABORT? (is the CR written to buffer, or check SPAN?)
     INP C@ ( c)                     \ read char at current pointer
     INP @ 1 + INP !                 \ advance INP
+
+: ECHO
+    \ read
+        TIB TIBZ EXPECT             \ read a line into the TIB buffer, count in SPAN
+        SPAN @  ( n)                \ leave counter on top of stack
+        \ show  ( n)
+            DUP  ( n n)
+            0=  ( n ?)
+            0BRANCH ( doshow)  ( n) \ if counter zero, read anothe rline
+            DROP                    \ finished with counter
+            BRANCH ( read)
+            \ doshow ( n)
+            1 -   ( n)              \ dec counter
+            IN> EMIT  ( n )         \ read and advance IN ptr, and show char
+        BRANCH ( show)  ( n)        \ keep showing until no more left
+
+
 
 
 read a char and append to TIB, advance a pointer or a counter?
@@ -168,29 +134,7 @@ Then adjust them at the end to be correct for return.
     INP !                                     \ INP points to first char to read in buffer
 
 
-===============================================================================
 
----- read/interpret "shell" loop (REPL)
-
-: REPL
-    \ nextline
-    TIB TIBZ EXPECT                   \ read in a whole line up to CR
-    SPAN 0BRANCH ( nextline) -        \ empty lines are ignored
-
-    \ nextword
-    BL WORD   ( a)                    \ get a word
-    DUP C@    ( a #)                  \ get count at address, if zero, there was no word
-    0= NOT 0BRANCH ( gotword) - ( a)
-    DROP ( )
-    ." Ok"                            \ TODO: not written this word yet (SHOWSTR DOSTR 2Ok)
-    BRANCH ( nextline) -
-
-    \ gotword ( a)
-    \ TODO form the word into a string of correct format (addr and count? add 1 to addr?)
-    \ TODO find address of word in dict, push addr on stack, 0 if not found
-    \ if not found, show word and " Err", skip to end of line, nextline
-    EXECUTE                            \ execute the word whose address info is on the DS
-    BRANCH ( nextword) - ;
 
 ===============================================================================
 
@@ -289,19 +233,64 @@ into a buffer.
     \ push address of PAD buffer on stack
     ;
 
-: COUNT ( variable)
+===============================================================================
 
-: >IN ( variable)
+---- read/interpret "shell" loop (REPL)
 
-: TIB ( constant, address of text input buffer)
+: REPL
+    \ nextline
+    TIB TIBZ EXPECT                   \ read in a whole line up to CR
+    SPAN 0BRANCH ( nextline) -        \ empty lines are ignored
 
-: BLK ( variable)
+    \ nextword
+    BL WORD   ( a)                    \ get a word
+    DUP C@    ( a #)                  \ get count at address, if zero, there was no word
+    0= NOT 0BRANCH ( gotword) - ( a)
+    DROP ( )
+    ." Ok"                            \ TODO: not written this word yet (SHOWSTR DOSTR 2Ok)
+    BRANCH ( nextline) -
 
-: PAD ( variable, start address of temporary buffer)
+    \ gotword ( a)
+    \ TODO form the word into a string of correct format (addr and count? add 1 to addr?)
+    \ TODO find address of word in dict, push addr on stack, 0 if not found
+    \ if not found, show word and " Err", skip to end of line, nextline
+    EXECUTE                            \ execute the word whose address info is on the DS
+    BRANCH ( nextword) - ;
 
 
 ===============================================================================
 
+
+
+--------------------------------------------------------------------------------
+#TODO need ( and \ commenting before this will work
+
+: SPACES   ( n -- )
+    \ loop
+        DUP   ( n n)
+        0=   ( n ?)
+        0BRANCH  7 ( exit)   ( n)
+        SPACE EMIT
+        1 -   ( n-1)
+        BRANCH -9 ( loop)
+    \ exit
+    DROP ;
+
+: TYPE   ( a # -- )
+    \ loop   ( a #)
+        DUP   ( a # #)
+        0=   ( a # ?)
+        0BRANCH 11 ( exit)   ( a #)
+        SWAP   ( # a)
+        DUP   ( # a a)
+        C@    ( # a c)
+        EMIT   ( # a)
+        1 +   ( # a+1)
+        SWAP   ( a+1 #)
+        1 -   ( a+1 #-1)
+        BRANCH -14   ( loop)
+    \ exit ( a #)
+    DROP DROP   ( )
 
 ================================================================================
 
@@ -1647,6 +1636,56 @@ DESIGN: Bulk loading of high level const, var, words
 - iterate the tables
 - call create_const, create_var, create_word for each
 (done)
+
+
+
+----- HIGH LEVEL WORDS - DESIGN -----------------------------------------------
+
+(tests must be written for all)
+
+---- CONST
+
+: FALSE   ( -- 0)                    0 ;
+: TRUE   ( -- -1)                    -1 ;
+
+----- ALU
+: /MOD   ( n1 n2 -- n-rem n-quot)    DUP DUP / ROT ROT MOD SWAP ;
+: 1+   ( n -- n+1)                   1 + ;
+: 1-   ( n -- n-1)                   1 - ;
+: 2+   ( n -- n+2)                   2 + ;
+: 2-   ( n -- n-2)                   2 - ;
+: 2*   ( n -- n*2)                   2 * ;
+: 2/   ( n -- n/2)                   2 / ;
+: NEGATE   ( n -- -n)                -1 * ;
+: ABS   ( n -- |n|)                  DUP 0< 0BRANCH 2 NEGATE ;
+: MIN   ( n1 n2 -- min)              OVER OVER < NOT 0BRANCH 2 SWAP DROP ;
+: MAX   ( n1 n2 -- max)              OVER OVER > NOT 0BRANCH 2 SWAP DROP ;
+
+----- STACK OPS
+: NIP   ( n1 n2 -- n2)               SWAP DROP ;
+: TUCK  ( n1 n2 -- n2 n1 n2)         SWAP OVER ;
+: >R   ( n -- )                      RP @ 1 + DUP ROT ! RP ! ;
+: R>   ( -- n)                       RP DUP @ @ SWAP 1 - RP ! ;
+: R@   ( -- n)                       RP @ @ ;
+: SP@   ( -- a)                      SP @ ;
+: ?DUP   ( n -- n n or 0 -- 0)       DUP 0BRANCH 2 DUP ;
+: 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
+: 2DUP   ( d -- d d)                 OVER OVER ;
+: 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
+: 2DROP   ( d --)                    DROP DROP ;
+
+----- GENERAL I/O
+: HEX   ( -- )                       16 BASE ! ;
+: OCTAL   ( -- )                     8 BASE ! ;
+: DECIMAL   ( -- )                   10 BASE ! ;
+: CR   ( -- )                        13 EMIT ;
+: SPACE   ( -- )                     32 EMIT ;
+: PAGE   ( -- )                      12 EMIT ;
+
+---- SIMPLE MEMORY OPS
+: +!   ( n a -- )                    DUP @ ROT + ! ;
+: 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
+: 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
 
 

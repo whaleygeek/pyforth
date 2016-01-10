@@ -14,7 +14,12 @@ import forth
 class TestForth(unittest.TestCase):
 
     def setUp(self):
+        #print("setup")
         self.f = forth.Forth().boot()
+
+    def tearDown(self):
+        #print("teardown")
+        self.f = None
 
     # very basic test of stack
     def Xtest_000_stack_pushpop(self):
@@ -112,18 +117,21 @@ class TestForth(unittest.TestCase):
         except forth.BufferUnderflow:
             pass # expected
 
-    def test_30_wblk_rblk(self):
-        # wblk ( n a -- )  i.e. blocknum addr
-        #self.f.machine.mem.dump(1024, 16) # TODO capture it
 
-        self.f.create_word("W", " DOLIT", 0, " DOLIT", 1024, "WBLK") # probably DICT
-        self.f.create_word("R", " DOLIT", 0, " DOLIT", 65536-1024, "RBLK")
-        self.f.execute_word("W")
-
-        # rblk ( n a -- )  i.e. blocknum addr
-        self.f.execute_word("R")
-
-        #self.f.machine.mem.dump(65536-1024, 16) # TODO compare it
+    #def test_30_wblk_rblk(self):
+    #    # wblk ( n a -- )  i.e. blocknum addr
+    #    #self.f.machine.mem.dump(1024, 16) # TODO capture it
+    #
+    #   #TODO Addresses must not be manifsets, they must be related to actual spare space
+    #   otherwise we trash our dictionary between each test
+    #    self.f.create_word("W", " DOLIT", 0, " DOLIT", 1024, "WBLK") # probably DICT
+    #    self.f.create_word("R", " DOLIT", 0, " DOLIT", 65536-1024, "RBLK")
+    #    self.f.execute_word("W")
+    #
+    #    # rblk ( n a -- )  i.e. blocknum addr
+    #    self.f.execute_word("R")
+    #
+    #    #self.f.machine.mem.dump(65536-1024, 16) # TODO compare it
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
@@ -188,7 +196,7 @@ class TestForth(unittest.TestCase):
         self.f.create_word("UT")
         self.f.execute_word("UT")
 
-    def test_60_var_rdwr(self):
+    def Xtest_60_var_rdwr(self):
         # TEST is an NvMem var that increments the value on every read
         #print("HERE**********")
         self.f.create_word("VADD", "TEST", "@")
@@ -200,6 +208,44 @@ class TestForth(unittest.TestCase):
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()
 
+    #TODO: need smoke tests for
+    #native NIP, TUCK
+    #---- CONST
+    #: FALSE   ( -- 0)                    0 ;
+    #: TRUE   ( -- -1)                    -1 ;
+    #----- ALU
+    #: /MOD   ( n1 n2 -- n-rem n-quot)    DUP DUP / ROT ROT MOD SWAP ;
+    #: 1+   ( n -- n+1)                   1 + ;
+    #: 1-   ( n -- n-1)                   1 - ;
+    #: 2+   ( n -- n+2)                   2 + ;
+    #: 2-   ( n -- n-2)                   2 - ;
+    #: 2*   ( n -- n*2)                   2 * ;
+    #: 2/   ( n -- n/2)                   2 / ;
+    #: NEGATE   ( n -- -n)                -1 * ;
+    #: ABS   ( n -- |n|)                  DUP 0< 0BRANCH 2 NEGATE ;
+    #: MIN   ( n1 n2 -- min)              OVER OVER < NOT 0BRANCH 2 SWAP DROP ;
+    #: MAX   ( n1 n2 -- max)              OVER OVER > NOT 0BRANCH 2 SWAP DROP ;
+    #----- STACK OPS
+    #: >R   ( n -- )                      RP @ 1 + DUP ROT ! RP ! ;
+    #: R>   ( -- n)                       RP DUP @ @ SWAP 1 - RP ! ;
+    #: R@   ( -- n)                       RP @ @ ;
+    #: SP@   ( -- a)                      SP @ ;
+    #: ?DUP   ( n -- n n or 0 -- 0)       DUP 0BRANCH 2 DUP ;
+    #: 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
+    ##: 2DUP   ( d -- d d)                 OVER OVER ;
+    #: 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
+    #: 2DROP   ( d --)                    DROP DROP ;
+    #----- GENERAL I/O
+    #: HEX   ( -- )                       16 BASE ! ;
+    ##: OCTAL   ( -- )                     8 BASE ! ;
+    #: DECIMAL   ( -- )                   10 BASE ! ;
+    #: CR   ( -- )                        13 EMIT ;
+    #: SPACE   ( -- )                     32 EMIT ;
+    #: PAGE   ( -- )                      12 EMIT ;
+    #---- SIMPLE MEMORY OPS
+    #: +!   ( n a -- )                    DUP @ ROT + ! ;
+    #: 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
+    #: 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
 
 if __name__ == "__main__":

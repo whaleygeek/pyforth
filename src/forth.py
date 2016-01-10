@@ -308,33 +308,33 @@ class IndexedBuffer(Buffer):
         if self.ptrtype == IndexedBuffer.FIRSTFREE:
             if self.growdirn > 0:
                 if ptr > self.start + (self.size): # one extra allowed at right hand side
-                    Debug.trace("firstfree,+ve-grow,overflow")
+                    #Debug.trace("firstfree,+ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr < self.start:
-                    Debug.traceprint("firstfree,+ve-grow,underflow")
+                    #Debug.traceprint("firstfree,+ve-grow,underflow")
                     raise BufferUnderflow
             else: # growdirn -ve
                 if ptr < self.start-1: # one extra allowed at left hand side
-                    Debug.traceprint("firstfree,-ve-grow,overflow")
+                    #Debug.traceprint("firstfree,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size-1):
-                    Debug.traceprint("firstfree,-ve-grow,underflow")
+                    #Debug.traceprint("firstfree,-ve-grow,underflow")
                     raise BufferUnderflow
 
         else: # LASTUSED
             if self.growdirn > 0:
                 if ptr > self.start + (self.size-1): # must not exceed buffer
-                    Debug.trace("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
+                    #Debug.trace("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
                     raise BufferOverflow
                 elif ptr < (self.start-1): # one extra at left hand side
-                    Debug.trace("lastused,+ve-grow,underflow")
+                    #Debug.trace("lastused,+ve-grow,underflow")
                     raise BufferUnderflow
             else: # growdirn -ve
                 if ptr < self.start:
-                    Debug.trace("lastused,-ve-grow,overflow")
+                    #Debug.trace("lastused,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size):
-                    Debug.trace("lastused,-ve-grow,underflow")
+                    #Debug.trace("lastused,-ve-grow,underflow")
                     raise BufferUnderflow
 
 
@@ -941,36 +941,81 @@ class ReturnStack(ForthStack):
 
 #---- I/O ---------------------------------------------------------------------
 
-class KeyboardInput():
-    """A way to poll and get characters from the keyboard"""
+class Input():
     def __init__(self):
-        pass
+        self.buf = ""
 
-    def check(self):
-        return True
+    def clear(self):
+        self.buf = ""
 
-    def read(self):
-        return '*'
+    def set(self, string):
+        self.buf = string
+
+    def append(self, ch):
+        self.buf += ch
+
+    def waiting(self):
+        return len(self.buf)
+
+    def getch(self, wait=True):
+        if len(self.buf) > 0:
+            c = self.buf[0]
+            self.buf = self.buf[1:]
+            return c
+        if wait:
+            if len(self.buf) == 0:
+                raise RuntimeError("WAIT on mock buffer called")
+        return None # nothing in buffer
+
+
+#class KeyboardInput(Input):
+#    """A way to poll and get characters from the keyboard"""
+#
+#    def start(self):
+#        pass
+#
+#    def stop(self):
+#        pass
+#
+#    def body(self):
+#        while True: #TODO stop() should set flag
+#            pass # check for a char
+#            # if found, append to buffer
+#            # if nothing, sleep for a bit
+
+
+class Output():
+    def __init__(self):
+        self.buf = ""
+
+    def writech(self, ch):
+        self.buf += ch
+
+    def writen(self, number):
+        self.buf += str(number)
+
+    def flush(self):
+        s = self.buf
+        self.buf = ""
+        print("%s" % s)
 
 
 class ScreenOutput():
     """A way to output characters to the screen"""
+
     def __init__(self):
         pass
 
     def writech(self, ch):
         import sys
         sys.stdout.write(ch)
-        #import sys
-        #sys.stdout.flush()
 
-    def writen(self, n):
-        print("%d" % n)
-        #import sys
-        #sys.stdout.flush()
+    def writen(self, number):
+        import sys
+        sys.stdout.write(str(number))
 
 
-class Disk():
+class Disk(): #TODO: DiskFile(Disk) - to allow mocking
     """An interface to reading and writing blocks in a nominated binary file"""
 
     BLOCK_SIZE = 1024
@@ -1145,6 +1190,12 @@ class NvRoutine():
                 return
         Debug.fail("call to unknown native address offset: %x" % index)
         raise RuntimeError("CALL FAILED")
+
+    def __setitem__(self, key, value):
+        raise RuntimeError("Tried to write to NvRoutine memory offset:%x value:%x" % (key, value))
+
+    def __getitem__(self, key):
+        raise RuntimeError("Tried to read from NvRoutine memory offset:%x" % key)
 
 
 class Machine():
@@ -1631,10 +1682,19 @@ class Machine():
 
 class Forth:
     """The outer interpreter"""
+    def __init__(self, ins=None, outs=None, disks=None):
+        self.ins   = ins
+        self.outs  = outs
+        self.disks = disks
+
     def boot(self):
-        self.outs = ScreenOutput()
-        self.ins  = KeyboardInput()
-        self.disk = Disk(DISK_FILE_NAME)
+        if self.outs==None:
+            self.outs = Output() # Mock
+        if self.ins==None:
+            self.ins  = Input() # Mock
+        if self.disks==None:
+            self.disk = Disk(DISK_FILE_NAME) #Mock
+
         self.machine = Machine(self).boot()
         self.synthesise()
 
@@ -1844,7 +1904,7 @@ class Forth:
 
 #----- RUNNER -----------------------------------------------------------------
 
-forth = Forth().boot()
+forth = Forth(outs=ScreenOutput()).boot()
 
 def create_word(*args):
     forth.create_word(*args)
@@ -1858,10 +1918,13 @@ def test_hello():
     msg = "Hello world!\n"
     pfa = []
     for ch in msg:
+        pfa.append(" DOLIT")
         pfa.append(ord(ch))
         pfa.append("EMIT")
 
     forth.create_word("HELLO", *pfa)
+    #forth.machine.dict.dump()
+
     forth.execute_word("HELLO")
 
 if __name__ == "__main__":

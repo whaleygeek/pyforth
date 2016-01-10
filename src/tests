@@ -1,3 +1,0 @@
-#! /bin/bash
-python tests.py > actual_results.txt
-diff expected_results.txt actual_results.txt

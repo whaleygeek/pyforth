@@ -31,7 +31,7 @@ test plan: KEY
 
   write a unit test that pokes known characters into MockKeyboardInput
   and then a test word that reads a few of them out and displays them.
-  
+
 
 
 

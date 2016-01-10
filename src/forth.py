@@ -1007,6 +1007,7 @@ class NvMem():
             #("SVP",  12, 2,   parent.sv.rd_p,       parent.sv.wr_p),
             #example of a large buffer
             #("BUF",  2, 100,   parent.rd_buf,        parent.wr_buf),
+            # : FLAGS  ( -- n)                     /ADD  n_RDPFA  VAR    Address of flags variable
         ]
         self.register_in_dict(parent, start)
 
@@ -1732,71 +1733,66 @@ class Forth:
 
         # CONSTANTS -----------------------------------------------------------
 
-        #TODO: self.create_const
-        # D0, DZ
-        # S0, SZ
-        # R0, RZ
+        consts = [
+            # name,  value (all size 2)
+            ("D0",   self.machine.dict.start),
+            ("DZ",   self.machine.dict.size),
+            ("S0",   self.machine.ds.start),
+            ("SZ",   self.machine.ds.size),
+            ("R0",   self.machine.rs.start),
+            ("RZ",   self.machine.rs.size),
+            ("TIB",  self.machine.tibstart),
+            ("TIBZ", self.machine.tibsize),
+            #("BB0",  self.machine.bb.start),
+            #("BBZ",  self.machine.bb.size),
+            #("PADZ", self.machine.pad.size),
+        ]
 
+        for c in consts:
+            name, value = c
+            self.create_const(name, value)
+
+        #TODO PAD is dynamic
         #: PAD   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
         #self.create_const("PAD", self.machine.uvstart)
-
-        #: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
-        #self.create_const("PADZ", self.padsize)
-
-        #: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
-        self.create_const("TIB", self.machine.tibstart)
-
-        #: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
-        self.create_const("TIBZ", self.machine.tibsize)
-
-        # : BB0   ( -- a)                      /ADD  n_RDPFA  CONST    Address of first byte of block buffers
-        #self.create_const("BB0", self.bbstart)
-
-        #TODO: BBZ
 
 
         # VARIABLES -----------------------------------------------------------
 
-        # : >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
-        self.create_var("IN>")
+        vars = [
+            #name     size,   init
+            ("IN>",),
+            ("COUNT",),
+            ("BLK",),
+            #("BINDEX", 2*2),
+            ("BASE",    2,    10),
+        ]
+        for v in vars:
+            name = v[0]
+            size = 2
+            init = 0
+            if len(v) > 1:
+                size = v[1]
+                if len(v) > 2:
+                    init = v[2]
 
-        # : COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
-        #self.create_var("COUNT", 2)
+            self.create_var(name, size=size, init=init)
 
-        # : BLK   ( -- a)                      /P254 n_RDPFA  VAR    number of storage block being interpreted as input stream (0 means IN)
-        #self.create_var("BLK", 2)
-
-        # : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
-        #self.create_var("BINDEX", 2*2)
-
-        # : BASE   ( -- a)                     /P190 n_RDPFA  VAR    Address of number base variable
-        #self.create_var("BASE", 2, init=10)
-
-        # : FLAGS  ( -- n)                     /ADD  n_RDPFA  VAR    Address of flags variable
-        #TODO this is memory mapped
 
 
         # CODE WORDS ----------------------------------------------------------
-        # NOTE, could write a python fn that does word parsing and then just pass an expanded list
-        # to the create_word, so that all this can just be pasted in inside a string, and API defined?
-        # numbers would have to be recognised and passed as numbers though.
-        # Unless we wrote the n_NUMBER parser, and implemented the 'if it's not defined, try to interpret
-        # it as a number" rule in the python loader?
-        # could then store all this in a text file and just load it in in one go to synthesise all the
-        # high level words.
 
-        # : =  ( n1 n2 -- ?)    - 0= ;
-        self.create_word("=", "-", "0=")
+        words = [
+            #name  parts
+            ("=",  ["-", "0="]),
+            ("<>", ["-", "0=", "NOT"]),
+            ("<",  ["-", "0>"]),
+            (">",  ["-", "0<"]),
+        ]
 
-        # : <> ( n1 n2 -- )     - 0= NOT ;
-        self.create_word("<>", "-", "0=", "NOT")
-
-        # : <   ( n1 n2 -- ?)   - 0> ;
-        self.create_word("<", "-", "0>")
-
-        # : >   ( n1 n2 -- ?)   - 0< ;
-        self.create_word(">", "-", "0<")
-
+        for w in words:
+            name, parts = w
+            self.create_word(name, *parts)
 
 
 #----- RUNNER -----------------------------------------------------------------

@@ -4,16 +4,7 @@ PLAN
 overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
-* Need to be able to load in large amounts of high level text via the API
-  in order to define EXPECT as a high level word?
-
-- think about how we want to bootstrap this.
-Perhaps code it in API calls with a *'d list in the args for now??
-Comments are not processed yet?
-Numbers are not detected yet?
-Words are not 'found then fallback to number' yet?
-
-
+TODO: bulk load a lot of the definitions
 
 --------------------------------------------------------------------------------
 
@@ -23,65 +14,7 @@ Words are not 'found then fallback to number' yet?
 - try to write a REPL at this point (which will speed up experimental testing)
 
 
---------------------------------------------------------------------------------
-
-#TODO: Need to decide how to handle numbers
-# (The test harness now exposes this problem)
-
-# i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
-# what happens if you add 1 to 65535, it should wrap to 0
-# so all the maths *might* need to be done with the Number() class to
-# simulate a true 16 bit machine. Same for Double() and also need
-# a Byte() if there are arithmetic ops for bytes. Might also want a
-# Boolean() to simulate boolean behaviour with a S16, and a way to
-# convert to unsigned for U< for example.
-
-# Might just & 0xFFFF in all maths operations?
-================================================================================
-
-NATIVES STILL REQUIRED
-
-n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
-
-DICT WRAPPERS FOR NATIVES
-: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
-
-VARS/CONSTS REQUIRED
-: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
-: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
-: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
-: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
-: PAD   ( -- a)                      /P221 n_RDPFA  VAR    Address of scratch area start, note it regularly moves!
-: >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
-: COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
-: BLK   ( -- a)                      /P254 n_RDPFA  VAR    number of storage block being interpreted as input stream (0 means IN)
-
-
-VARS/CONSTS
-\ : BASE   ( -- a)                     /P190 n_RDPFA  CONST  Address of number base variable
-\ : FLAGS  ( -- n)                     /ADD  n_RDPFA  CONST  Address of flags variable
-\ : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
-\ : BB0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of first byte of block buffers
-
-
 ----- HIGH LEVEL WORDS - DESIGN -----------------------------------------------
-
-NATIVES (done)
-n_ABORT   ( -- )                     clear DS and quit to interpreter loop
-n_RDPFA   ( -- a)                    read value at PFA and push on DS. Used to read const or varaddr
-n_STORE   ( n a -- )                 write n to a
-n_FETCH   ( a -- n)                  read a to get n
-n_STORE8   ( b a -- )                write b to byte a
-n_FETCH8   ( a -- b)                 read byte b from a
-
-DICT wrappers (done)
-: ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
-: C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
-: !   ( n a -- )                     /P190 n_STORE   store single number into addr
-: @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
-: C!   ( b a -- )                    /P190 n_STORE8  store 8 bit value
-: C@   ( a -- b)                     /P190 n_FETCH8  fetch 8 bit value
-
 
 ---- CONST
 
@@ -127,13 +60,13 @@ DICT wrappers (done)
 : 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
 : 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
 
-# NOTE, could write a python fn that does word parsing and then just pass an expanded list
-# to the create_word, so that all this can just be pasted in inside a string, and API defined?
-# numbers would have to be recognised and passed as numbers though.
-# Unless we wrote the n_NUMBER parser, and implemented the 'if it's not defined, try to interpret
-# it as a number" rule in the python loader?
-# could then store all this in a text file and just load it in in one go to synthesise all the
-# high level words.
+--------------------------------------------------------------------------------
+
+TODO test cases for all of above synth words??
+
+
+--------------------------------------------------------------------------------
+#TODO need ( and \ commenting before this will work
 
 : SPACES   ( n -- )
     \ loop
@@ -161,46 +94,6 @@ DICT wrappers (done)
         BRANCH -14   ( loop)
     \ exit ( a #)
     DROP DROP   ( )
-
-===============================================================================
-
------ memory mapped variable spec
-Address mapped into low memory, when read/written, causes change of system variable.
-DICT wrapped entries that point to these vars, loaded by boot code
-These are all uservars at the moment until we investigate sysvars
-
------ memory mapped variable design
-
-when accessing var, RDPFA gets the PFA and pushes on stack.
-This is the address of the variable magic number stored in uservars space.
-
-READING
-the CF of @ is n_FETCH (which could be fetching from any address, even a non magic one)
-n_FETCH does two 8 bit reads in succession (which is safe), from magicaddr and magicaddr+1
-This means that both addresses must be mapped and routed to different halves of the variable
-
-have marked in n_FETCH, n_STORE, n_FETCH8 and n_STORE8 the problem.
-These routines, in order to work correctly, have to honour the mapped register
-scheme.
-
-perhaps Memory() needs to the indirection for us.
-perhaps we need a 16 bit access mode on memory that does the two atomic reads in a single call?
-It's indicative that rdbyte() and wrbyte() are not called by any code anywhere!!
-
-WRITING
-!
-same issues as above
-
-Another way to do this would be to have a special abstraction that has no
-storage allocated to it at all, that is mapped as a region in Memory
-i.e. a region that has it's own handler.
-Then access to any memory address in that part of the map, instead
-of going to the bytes list, goes to a read() or write() of the handler,
-and it can then lookup things in it's table.
-
-Done this, and it works.
-Reads and writes tested, working.
-
 
 
 ===============================================================================
@@ -406,6 +299,36 @@ into a buffer.
 
 ===============================================================================
 
+
+================================================================================
+
+NATIVES STILL REQUIRED
+
+n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
+
+DICT WRAPPERS FOR NATIVES
+: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+
+\ : FLAGS  ( -- n)                     /ADD  n_RDPFA  CONST  Address of flags variable
+\ : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
+\ : BB0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of first byte of block buffers
+
+
+
+--------------------------------------------------------------------------------
+
+#TODO: Need to decide how to handle numbers
+# (The test harness now exposes this problem)
+
+# i.e. are they signed or unsigned. So is False -1 or 0xFFFF?
+# what happens if you add 1 to 65535, it should wrap to 0
+# so all the maths *might* need to be done with the Number() class to
+# simulate a true 16 bit machine. Same for Double() and also need
+# a Byte() if there are arithmetic ops for bytes. Might also want a
+# Boolean() to simulate boolean behaviour with a S16, and a way to
+# convert to unsigned for U< for example.
+
+# Might just & 0xFFFF in all maths operations?
 
 : ( xxx)   ( -- )                    /P26  n_DODOES Comment, terminated by )
 : \                                  comment to end of line being parsed
@@ -1566,6 +1489,44 @@ at boot time.
 
 
 
+===============================================================================
+
+----- memory mapped variable spec
+Address mapped into low memory, when read/written, causes change of system variable.
+DICT wrapped entries that point to these vars, loaded by boot code
+These are all uservars at the moment until we investigate sysvars
+
+----- memory mapped variable design
+
+when accessing var, RDPFA gets the PFA and pushes on stack.
+This is the address of the variable magic number stored in uservars space.
+
+READING
+the CF of @ is n_FETCH (which could be fetching from any address, even a non magic one)
+n_FETCH does two 8 bit reads in succession (which is safe), from magicaddr and magicaddr+1
+This means that both addresses must be mapped and routed to different halves of the variable
+
+have marked in n_FETCH, n_STORE, n_FETCH8 and n_STORE8 the problem.
+These routines, in order to work correctly, have to honour the mapped register
+scheme.
+
+perhaps Memory() needs to the indirection for us.
+perhaps we need a 16 bit access mode on memory that does the two atomic reads in a single call?
+It's indicative that rdbyte() and wrbyte() are not called by any code anywhere!!
+
+WRITING
+!
+same issues as above
+
+Another way to do this would be to have a special abstraction that has no
+storage allocated to it at all, that is mapped as a region in Memory
+i.e. a region that has it's own handler.
+Then access to any memory address in that part of the map, instead
+of going to the bytes list, goes to a read() or write() of the handler,
+and it can then lookup things in it's table.
+
+Done this, and it works.
+Reads and writes tested, working.
 
 ================================================================================
 
@@ -1641,6 +1602,48 @@ DESIGN
 
 
 
+
+VARS/CONSTS REQUIRED
+: UV0   ( -- a)                      /ADD  n_RDPFA  CONST  Address of start of user vars
+: TIB   ( -- a)                      /P221 n_RDPFA  CONST  Address of start of text input buffer
+: TIBZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of TIB buffer
+: PADZ   ( -- n)                     /ADD  n_RDPFA  CONST  Size of PAD buffer
+: PAD   ( -- a)                      /P221 n_RDPFA  VAR    Address of scratch area start, note it regularly moves!
+: >IN   ( -- a)                      /P254 n_RDPFA  VAR    present char offset in input stream
+: COUNT   ( -- a)                    /P243 n_RDPFA  VAR    Address of var containing count of last parsed length
+: BLK   ( -- a)                      /P254 n_RDPFA  VAR    number of storage block being interpreted as input stream (0 means IN)
+(done)
+
+VARS/CONSTS
+\ : BASE   ( -- a)                     /P190 n_RDPFA  CONST  Address of number base variable
+
+
+
+NATIVES (done)
+n_ABORT   ( -- )                     clear DS and quit to interpreter loop
+n_RDPFA   ( -- a)                    read value at PFA and push on DS. Used to read const or varaddr
+n_STORE   ( n a -- )                 write n to a
+n_FETCH   ( a -- n)                  read a to get n
+n_STORE8   ( b a -- )                write b to byte a
+n_FETCH8   ( a -- b)                 read byte b from a
+
+DICT wrappers (done)
+: ABORT   ( -- )                     /P221 n_ABORT   Clear DS and then quit (RS also?)
+: C@   ( a -- c)                     /P190 n_FETCH8  fetch 8 bit value from addr
+: !   ( n a -- )                     /P190 n_STORE   store single number into addr
+: @   ( a -- n)                      /P190 n_FETCH   replace addr with contents
+: C!   ( b a -- )                    /P190 n_STORE8  store 8 bit value
+: C@   ( a -- b)                     /P190 n_FETCH8  fetch 8 bit value
+
+
+
+================================================================================
+
+DESIGN: Bulk loading of high level const, var, words
+- fill in 3 tables
+- iterate the tables
+- call create_const, create_var, create_word for each
+(done)
 
 
 

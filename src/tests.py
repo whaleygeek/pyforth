@@ -244,6 +244,33 @@ class x:#TestForth(unittest.TestCase):
         self.f.execute_word("KEYS")
         self.assertEquals("*", self.f.outs.get())
 
+    def test_80_show(self):
+        # fill TIB with some test data
+        self.f.create_word("TEST",
+            " DOLIT", 0x30, "SPAN", "!",                    # () init value to 48
+            "TIB", ">IN", "!",                              # () init ptr to TIB
+            " DOLIT", 10, "COUNT", "!",                     # () init count to 9
+                                                            # target:loop
+            "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # () if count 0, exit
+            "SPAN", "@", ">IN", "@", "C!",                  # () store value at addr
+            ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # () inc ptr
+            "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # () dec count
+            "SPAN", "@", " DOLIT", 1, "+", "SPAN", "!",     # () add one to char
+            "BRANCH", -33,                                  # to:loop
+                                                            # target:exit
+            "TIB", ">IN", "!",                              # ()
+            " DOLIT", 10, "COUNT", "!"                      # ()
+            )
+
+        self.f.execute_word("TEST")
+        #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
+
+        # Now use: TIB COUNT SHOW to test show works
+        self.f.create_word("TEST2", "TIB", "COUNT", "@", "SHOW")
+        self.f.execute_word("TEST2")
+        self.assertEquals("0123456789", self.f.outs.get())
+
+
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()
 
@@ -298,68 +325,13 @@ class TestNew(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-    def test_80_show(self):
-        # fill TIB with some test data
-        self.f.create_word("TEST",
-            " DOLIT", 0x30, "SPAN", "!",                    # () init value to 48
-            "TIB", ">IN", "!",                              # () init ptr to TIB
-            " DOLIT", 10, "COUNT", "!",                     # () init count to 9
-                                                            # target:loop
-            "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # () if count 0, exit
-            "SPAN", "@", ">IN", "@", "C!",                  # () store value at addr
-            ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # () inc ptr
-            "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # () dec count
-            "SPAN", "@", " DOLIT", 1, "+", "SPAN", "!",     # () add one to char
-            "BRANCH", -33,                                  # to:loop
-                                                            # target:exit
-            "TIB", ">IN", "!",                              # ()
-            " DOLIT", 10, "COUNT", "!"                      # ()
-            )
 
-        self.f.execute_word("TEST")
-        #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
-
-        # Now use: TIB COUNT SHOW to test show works
-        self.f.create_word("TEST2", "TIB", "COUNT", "@", "SHOW")
-        self.f.execute_word("TEST2")
-        self.assertEquals("0123456789", self.f.outs.get())
-
-    def xtest_expect(self):
+    def test_81_expect(self):
         """EXPECT a line"""
-
-        self.f.create_word("E",                             # ( a # -- )
-            "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
-            "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
-            ">IN", "!",                                     # ( a)        set INP to start of user buffer, use as write ptr in loop
-            # loop                                          # ( a)
-                "KEY",                                      # ( a c)      read a char
-                ">IN", "@", "C!",                           # ( a)        write via INP ptr
-                ">IN", "@", "DUP", "C@",                    # ( a a c)    read char back (no CDUP!)
-                #"SWAP",                                     # ( a c a)
-                #can't do SWAP with a char on the stack!!!
-                #" DOLIT", 1, "+", ">IN", "!",                # ( a c)     advance write pointer
-                #"SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
-            #    "SPAN", "@", "0=",                          # ( a c ?)   span=0 means buffer full
-            #    "NOT", "0BRANCH", 5,                        # ( a c)     (exit) early if yes
-            #    "CR", "=",                                  # ( a ?)     is char a CR?
-            #    "0BRANCH", -27,                             # ( a)       (loop) go round again if it isn't
-            # exit                                          # ( a)       address on stack is of start of buffer
-            #                                                #           >IN points to char after last written
-            #                                                #           a on stack is start of user buffer
-            #                                                #           >IN - a is the true SPAN including optional CR
-            #"DUP",                                          # ( aTIB aTIB)
-            #">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
-            #"SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
-            #"-",                                            # ( aTIB #read)
-            #"SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
-            #">IN", "!"                                      # ( )         INP points to first char to read in buffer
-            ".", "EMIT", "."
-        )
-
-        self.f.create_word("TEST", "TIB", "TIBZ", "E")# , "TIB", "SPAN", "@", "SHOW")
-        self.f.ins.set("HELLO")
+        self.f.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW")
+        self.f.ins.set("HELLO\n")
         self.f.execute_word("TEST")
-        self.assertEquals("xxx", self.f.outs.get())
+        self.assertEquals("HELLO\n", self.f.outs.get())
 
 
 if __name__ == "__main__":

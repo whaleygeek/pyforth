@@ -1921,36 +1921,38 @@ class Forth:
             ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
 
             #----- EXPECT
-            ("EXPECT", [                                    # ( a # -- )
-                "SPAN", "!",                                # ( a)       use SPAN as the char counter while in loop
-                "DUP",                                      # ( a a)     leave user buffer start on stack, for later cleanup
-                ">IN", "!",                                 # ( a)       set INP to start of user buffer, use as write ptr in loop
-                # loop                                      # ( a)
-                    "KEY",                                  # ( a c)     read a char
-                    "DUP",                                  # ( a c c)
-                    ">IN", "@",                             # ( a c c a) INP is write pointer
-                    "C!",                                   # ( a c)     write char to buffer
-                    ">IN", "@", 1, "+", "!",                # ( a c)     advance write pointer
-                    "SPAN", "@", 1, "-", "SPAN", "!",       # ( a c)     dec counter
-                    "SPAN", "@", "0=",                      # ( a c ?)   span=0 means buffer full
-                    "NOT", "0BRANCH", 5,                    # ( a c)     (exit) early if yes
-                    "CR", "=",                              # ( a ?)     is char a CR?
-                    "0BRANCH", -21,                         # ( a)       (loop) go round again if it isn't
-                # exit                                      # ( a)       address on stack is of start of buffer
-                                                            #           >IN points to char after last written
-                                                            #           a on stack is start of user buffer
-                                                            #           >IN - a is the true SPAN including optional CR
-                "DUP",                                      # ( aTIB aTIB)
-                ">IN", "@",                                 # ( aTIB aTIB aLASTWR+1)
-                "SWAP",                                     # ( aTIB aLASTWR+1 aTIB)
-                "-",                                        # ( aTIB #read)
-                "SPAN", "!",                                # ( aTIB)     SPAN holds number of chars read in
-                ">IN", "!"                                  # ( )         INP points to first char to read in buffer
+            ("EXPECT", [                                        # ( a # -- )
+                "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
+                "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
+                ">IN", "!",                                     # ( a)        set INP to start of user buffer, use as write ptr in loop
+                # loop                                          # ( a)
+                    "KEY",                                      # ( a c)      read a char
+                    ">IN", "@", "C!",                           # ( a)        write via INP ptr
+                    ">IN", "@", "DUP", "C@",                    # ( a a c)    read char back (no CDUP!)
+                    "SWAP",                                     # ( a c a)
+                    " DOLIT", 1, "+", ">IN", "!",               # ( a c)     advance write pointer
+                    "SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
+                    "SPAN", "@", "0=",                          # ( a c ?)   span=0 means buffer full
+                    "NOT", "0BRANCH", 6,                        # ( a c)     (exit) early if yes
+                    " DOLIT", 10, "=",                          # ( a ?)     is char a CR?
+                    "0BRANCH", -31,                             # ( a)       (loop) go round again if it isn't
+                # exit                                          # ( a)       address on stack is of start of buffer
+                #                                               #            >IN points to char after last written
+                #                                               #            a on stack is start of user buffer
+                #                                               #            >IN - a is the true SPAN including optional CR
+                "DUP",                                          # ( aTIB aTIB)
+                ">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
+                "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
+                "-",                                            # ( aTIB #read)
+                "SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
+                ">IN", "!"                                      # ( )         INP points to first char to read in buffer
             ]),
+
+
             #----- SHOW: show a string given address and length
             ("SHOW", [                                      # ( a # -- )
                                                             # target:read
-                "DUP", "0=", "NOT", "0BRANCH", 14,         # (exit) ( a #) if counter zero, exit
+                "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
                 "SWAP", "DUP", "C@",                        # ( # a c)      read char at address
                 "EMIT",                                     # ( # a)        show char
                 " DOLIT", 1, "+",                           # ( # a)        advance address
@@ -1958,7 +1960,6 @@ class Forth:
                 " DOLIT", 1, "-",                           # ( a #)        dec count
                 "BRANCH", -17,                              # (read)        go round for another
                                                             # target:exit
-
             ]),
         ]
 

@@ -5,16 +5,12 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Fixed char on stack - always takes one cell
-
+EXPECT SHOW working
 
 
 TODO
-test EXPECT with the EXPECT SHOW test case
-Should be possible to send a line in, and get that line echoed back
-
-TODO
-test the EXPECT SHOW loop interactively in forth.py
+Write an EXPECT/SHOW loop in the forth main
+and test it interactively
 
 
 ===============================================================================

@@ -1655,9 +1655,15 @@ class Machine():
         #Debug.trace(" calling cf:0x%x" % cf)
         self.call(cf)
 
+    depth = 0
     def n_dodoes(self):
         """Repeatedly fetch and execute CFA's until EXIT"""
-        #Debug.trace("DODOES")
+        self.depth += 1
+        Debug.trace("DODOES depth:%d" % self.depth)
+
+        # TODO when this executes an EXIT, it MUST return in python land
+        # otherwise the python stack will fill up and overflow.
+
         while self.running:
             #NEXT
             #Debug.trace("NEXT")
@@ -1680,6 +1686,8 @@ class Machine():
             #Debug.trace("RS used: %d" % sz)
             if sz == 0: break # EXIT returned to top level
             self.ip = self.rs.popn()
+        self.depth -= 1
+        print("returning from DODOES")
 
     def n_dolit(self):
         """Process an inline 16 bit literal and put it on DS"""

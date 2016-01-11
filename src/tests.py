@@ -328,32 +328,33 @@ class TestNew(unittest.TestCase):
     def test_expect(self):
         """EXPECT a line"""
 
-        self.f.create_word("E",                                 # ( a # -- )
-                "SPAN", "!",                                    # ( a)       use SPAN as the char counter while in loop
-                "DUP",                                          # ( a a)     leave user buffer start on stack, for later cleanup
-                ">IN", "!",                                     # ( a)       set INP to start of user buffer, use as write ptr in loop
-                # loop                                          # ( a)
-                    "KEY",                                      # ( a c)     read a char
-                    "DUP",                                      # ( a c c)
-                    ">IN", "@",                                 # ( a c c a) INP is write pointer
-                #    "C!",                                       # ( a c)     write char to buffer
-                #    ">IN", "@", " DOLIT", 1, "+", "!",          # ( a c)     advance write pointer
-                #    "SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
-                #    "SPAN", "@", "0=",                          # ( a c ?)   span=0 means buffer full
-                #    "NOT", "0BRANCH", 5,                        # ( a c)     (exit) early if yes
-                #    "CR", "=",                                  # ( a ?)     is char a CR?
-                #    "0BRANCH", -27,                             # ( a)       (loop) go round again if it isn't
-                # exit                                          # ( a)       address on stack is of start of buffer
-                #                                                #           >IN points to char after last written
-                #                                                #           a on stack is start of user buffer
-                #                                                #           >IN - a is the true SPAN including optional CR
-                #"DUP",                                          # ( aTIB aTIB)
-                #">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
-                #"SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
-                #"-",                                            # ( aTIB #read)
-                #"SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
-                #">IN", "!"                                      # ( )         INP points to first char to read in buffer
-                ".", "EMIT", "EMIT",
+        self.f.create_word("E",                             # ( a # -- )
+            "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
+            "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
+            ">IN", "!",                                     # ( a)        set INP to start of user buffer, use as write ptr in loop
+            # loop                                          # ( a)
+                "KEY",                                      # ( a c)      read a char
+                ">IN", "@", "C!",                           # ( a)        write via INP ptr
+                ">IN", "@", "DUP", "C@",                    # ( a a c)    read char back (no CDUP!)
+                #"SWAP",                                     # ( a c a)
+                #can't do SWAP with a char on the stack!!!
+                #" DOLIT", 1, "+", ">IN", "!",                # ( a c)     advance write pointer
+                #"SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
+            #    "SPAN", "@", "0=",                          # ( a c ?)   span=0 means buffer full
+            #    "NOT", "0BRANCH", 5,                        # ( a c)     (exit) early if yes
+            #    "CR", "=",                                  # ( a ?)     is char a CR?
+            #    "0BRANCH", -27,                             # ( a)       (loop) go round again if it isn't
+            # exit                                          # ( a)       address on stack is of start of buffer
+            #                                                #           >IN points to char after last written
+            #                                                #           a on stack is start of user buffer
+            #                                                #           >IN - a is the true SPAN including optional CR
+            #"DUP",                                          # ( aTIB aTIB)
+            #">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
+            #"SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
+            #"-",                                            # ( aTIB #read)
+            #"SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
+            #">IN", "!"                                      # ( )         INP points to first char to read in buffer
+            ".", "EMIT", "."
         )
 
         self.f.create_word("TEST", "TIB", "TIBZ", "E")# , "TIB", "SPAN", "@", "SHOW")

@@ -5,13 +5,15 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Split out test harness into two parts
-Fixed EMIT problem, now uses " DOCHR" to push a char on stack
-All tests pass
-Started to debug EXPECT
+Started to test EXPECT.
+Realised that a c must actually be an n, what about...
+42 EMIT
+The 42 pushes a number on the stack.
+Need to SWAP regularly, can't do that if c is an 8bit
+
 
 TODO
-DUP does a 16 bit, we need a CDUP to duplicate a character
+Remove PCHR code and make all chars push n on stack
 
 
 

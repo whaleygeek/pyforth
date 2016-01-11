@@ -1005,6 +1005,7 @@ class Input():
     def getch(self, wait=True):
         if len(self.buf) > 0:
             c = self.buf[0]
+            #print("getch returns:%s" % c)
             self.buf = self.buf[1:]
             return c
         if wait:
@@ -1403,7 +1404,7 @@ class Machine():
 
     def n_store(self):
         """: n_STORE   ( n a -- )
-        { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;"""
+        { a=ds_pop; n=ds_pop mem[a]=n0; mem[a+1]=n1} ;"""
         a = self.ds.popn()
         n = self.ds.popn()
         #print("STORE a:0x%x n:0x%x" % (a, n))
@@ -1421,7 +1422,7 @@ class Machine():
     def n_store8(self):
         #TODO check brodie, what does this get from stack, a 16bit or an 8bit?
         """: n_STORE8  ( b a -- )
-        { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
+        { a=ds_pop; b=ds_pop; mem[a]=b } ;"""
         a = self.ds.popn()
         b = self.ds.popn() & 0xFF
         #print("STORE8 a:0x%x b:0x%x" % (a, b))
@@ -1680,9 +1681,9 @@ class Machine():
         """Repeatedly fetch and execute CFA's until EXIT"""
         self.depth += 1
         thisname = self.dict.pfa02name(self.ip)
-        Debug.trace("DODOES enter, depth:%d word:%x %s" % (self.depth, self.ip, thisname))
-        DODOES = self.getNativeRoutineAddress(" DODOES")
-        EXIT   = self.getNativeRoutineAddress("EXIT")
+        #Debug.trace("DODOES enter, depth:%d word:%x %s" % (self.depth, self.ip, thisname))
+        #DODOES = self.getNativeRoutineAddress(" DODOES")
+        #EXIT   = self.getNativeRoutineAddress("EXIT")
 
         # TODO when this executes an EXIT, it MUST return in python land
         # otherwise the python stack will fill up and overflow.
@@ -1699,6 +1700,7 @@ class Machine():
             # ip points to the cfa of the word to execute
             #Debug.trace(" fetch from ip:0x%x" % self.ip)
             cfa = self.mem.readn(self.ip)
+            #print(" exec: %s" % self.dict.cfa2name(cfa))
             #Debug.trace(" cfa:0x%x" % cfa)
             cf = self.mem.readn(cfa)
             #Debug.trace(" cf:0x%x" % cf)
@@ -1706,23 +1708,23 @@ class Machine():
             # put something useful in self.ip, i.e. the pfa
             self.ip = cfa+2 # pfa
             #print("calling cf:%x" % cf)
-            if cf == DODOES:
-                print("dodoes %s calling dodoes, word:%x %s" % (thisname, self.ip, self.dict.pfa02name(self.ip)))
-            elif cf == EXIT:
-                print("dodoes %s calling exit" % thisname)
+            #if cf == DODOES:
+            #    print("dodoes %s calling dodoes, word:%x %s" % (thisname, self.ip, self.dict.pfa02name(self.ip)))
+            #elif cf == EXIT:
+            #    print("dodoes %s calling exit" % thisname)
             self.call(cf) # if this called n_exit, we must now exit this level of the dodoes loop.
             self.ip = self.rs.popn() # this still needs to happen after call()
 
             if self.exits_pending > 0:
-                print("dodoes %s EXITS pending %d" % (thisname, self.exits_pending))
+                #print("dodoes %s EXITS pending %d" % (thisname, self.exits_pending))
                 self.exits_pending -= 1
-                print("dodoes %s exits now pending %d" % (thisname, self.exits_pending))
+                #print("dodoes %s exits now pending %d" % (thisname, self.exits_pending))
                 break
 
-        self.ip = self.rs.popn()
+        #self.ip = self.rs.popn()
 
         self.depth -= 1
-        print("returning from DODOES %s, depth now %d" % (thisname, self.depth))
+        #print("returning from DODOES %s, depth now %d" % (thisname, self.depth))
 
     def n_dolit(self):
         """Process an inline 16 bit literal and put it on DS"""
@@ -1737,12 +1739,12 @@ class Machine():
 
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
-        print("****EXIT")
+        #print("****EXIT")
         self.exits_pending += 1
 
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
 
-class Forth:
+class Forth():
     """The outer interpreter"""
     def __init__(self, ins=None, outs=None, disks=None):
         self.ins   = ins
@@ -1967,13 +1969,12 @@ class Forth:
                 # loop                                          # ( a)
                     "KEY", "DUP",                               # ( a c c)    read a char
                     ">IN", "@", "C!",                           # ( a c)        write via INP ptr
-                    "OVER",                                     # ( a c a)
-                    " DOLIT", 1, "+", ">IN", "!",               # ( a c)     advance write pointer
+                    ">IN", "@", " DOLIT", 1, "+", ">IN", "!",   # ( a c)     advance write pointer
                     "SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
                     " DOLIT", 10, "=", "NOT",                   # ( a ?)     is char a LF?
-                    "0BRANCH", 6,
-                    "SPAN", "@", "0=",                          # ( a ?)   span=0 means buffer full
-                    "0BRANCH", -31,                             # ( a)       (loop) go round again if it isn't
+                    "0BRANCH", 6,                               # ( a)       if it is, exit
+                    "SPAN", "@", "0=",                          # ( a ?)     is span=0 (buffer full)
+                    "0BRANCH", -29,                             # ( a)       (loop) go round again if it isn't
                 # exit                                          # ( a)       address on stack is of start of buffer
                 #                                               #            >IN points to char after last written
                 #                                               #            a on stack is start of user buffer
@@ -1983,7 +1984,7 @@ class Forth:
                 "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
                 "-",                                            # ( aTIB #read)
                 "SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
-                ">IN", "!",                                      # ( )         INP points to first char to read in buffer
+                ">IN", "!",                                     # ( )         INP points to first char to read in buffer
             ]),
 
 
@@ -2035,14 +2036,15 @@ def test_hello():
     forth.execute_word("HELLO")
 
 def test_echoloop():
-    forth.create_word(
-        "RUN",
-            "TIB", "TIBZ", "EXPECT",
-            #"TIB", "SPAN", "@", "SHOW",
-            "BRANCH", -4
-    )
+    #forth.create_word(
+    #    "RUN",
+    #        "TIB", "TIBZ", "EXPECT",
+    #        #"TIB", "SPAN", "@", "SHOW",
+    #        "BRANCH", -4
+    #)
+    forth.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW", "BRANCH", -8 )
     #forth.machine.dict.dump()
-    forth.execute_word("RUN")
+    forth.execute_word("TEST")
 
 if __name__ == "__main__":
     #test_hello()

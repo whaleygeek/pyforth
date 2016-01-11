@@ -5,9 +5,23 @@
 import unittest
 import forth
 
-#TODO: Split into to suites, one for the full set of tests,
-#another for the test being developed
-# can then turn all other tests off while developing new test
+
+class xx:#QuickTest(unittest.TestCase):
+    """A small smoke test - non exhaustive"""
+    def setUp(self):
+        #print("setup")
+        self.f = forth.Forth(outs=forth.Output()).boot()
+
+    def tearDown(self):
+        #print("teardown")
+        self.f = None
+
+    def test_01_star(self):
+        """Output a single * on stdout"""
+        self.f.create_word("TEST", " DOLIT", 42, "EMIT")
+        self.f.execute_word("TEST")
+        self.assertEquals("*", self.f.outs.get())
+
 
 class TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
@@ -270,6 +284,14 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("TEST2")
         self.assertEquals("0123456789", self.f.outs.get())
 
+    def test_81_expect(self):
+        """EXPECT a line"""
+        self.f.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW" )
+        self.f.ins.set("HELLO\n")
+        self.f.execute_word("TEST")
+        #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
+        self.assertEquals("HELLO\n", self.f.outs.get())
+
 
     #def test_99_dumpdict(self):
     #    self.f.machine.dict.dump()
@@ -316,7 +338,7 @@ class TestForth(unittest.TestCase):
 
 
 
-class TestNew(unittest.TestCase):
+class x:#TestNew(unittest.TestCase):
     def setUp(self):
         #print("setup")
         self.f = forth.Forth(outs=forth.Output()).boot()
@@ -326,12 +348,6 @@ class TestNew(unittest.TestCase):
         self.f = None
 
 
-    def test_81_expect(self):
-        """EXPECT a line"""
-        self.f.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW")
-        self.f.ins.set("HELLO\n")
-        self.f.execute_word("TEST")
-        self.assertEquals("HELLO\n", self.f.outs.get())
 
 
 if __name__ == "__main__":

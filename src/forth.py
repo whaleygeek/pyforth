@@ -695,6 +695,10 @@ class Dictionary(Stack):
         self.last_ffa = self.ptr
         self.defining_ffa = None
 
+        # for easy debug
+        self.cfa_cache = {}
+        self.pfa0_cache = {}
+
     def create(self, nf, cf=None, pf=None, immediate=False, finish=False):
         """Create a new dictionary record"""
         #Debug.trace("dict.create: nf:%s cf:%d pf:%s" % (nf, cf, str(pf)))
@@ -725,11 +729,20 @@ class Dictionary(Stack):
         self.allot(2)
         self.store(lf)
 
-        # if cf/nf provided, fill them in too
+        # if cf/pf provided, fill them in too
         if cf != None:
             self.allot()
             self.store(cf)
+            #for fast debug
+            cfa = (self.ptr-1)
+            self.cfa_cache[cfa] = nf
+
+        #for fast debug
+        pfa0 = self.ptr+1
+        self.pfa0_cache[pfa0] = nf
+
         if pf != None:
+
             for f in pf:
                 self.allot()
                 self.store(f)
@@ -757,6 +770,12 @@ class Dictionary(Stack):
             buf += chr(self.bytes.readb(addr))
             addr += 1
         return buf
+
+    def cfa2name(self, cfa):
+        return self.cfa_cache[cfa]
+
+    def pfa02name(self, pfa0):
+        return self.pfa0_cache[pfa0]
 
     def dump(self):
         """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
@@ -1239,6 +1258,7 @@ class Machine():
         self.build_ds()       # builds memory abstractions
         self.running = False
         self.limit = None     # how many times round DODOES before early terminate?
+        self.exits_pending = 0
         return self
 
     def build_ds(self):
@@ -1659,12 +1679,15 @@ class Machine():
     def n_dodoes(self):
         """Repeatedly fetch and execute CFA's until EXIT"""
         self.depth += 1
-        Debug.trace("DODOES depth:%d" % self.depth)
+        thisname = self.dict.pfa02name(self.ip)
+        Debug.trace("DODOES enter, depth:%d word:%x %s" % (self.depth, self.ip, thisname))
+        DODOES = self.getNativeRoutineAddress(" DODOES")
+        EXIT   = self.getNativeRoutineAddress("EXIT")
 
         # TODO when this executes an EXIT, it MUST return in python land
         # otherwise the python stack will fill up and overflow.
 
-        while self.running: #TODO this is a bodge, and it is WRONG
+        while self.running:
             #NEXT
             #Debug.trace("NEXT")
             if self.limit != None:
@@ -1682,23 +1705,24 @@ class Machine():
             self.rs.pushn(self.ip+2)
             # put something useful in self.ip, i.e. the pfa
             self.ip = cfa+2 # pfa
-            print("calling cf:%x" % cf)
+            #print("calling cf:%x" % cf)
+            if cf == DODOES:
+                print("dodoes %s calling dodoes, word:%x %s" % (thisname, self.ip, self.dict.pfa02name(self.ip)))
+            elif cf == EXIT:
+                print("dodoes %s calling exit" % thisname)
             self.call(cf) # if this called n_exit, we must now exit this level of the dodoes loop.
-
-            #TODO: I think all we need to do is set a 'exit' flag in n_exit,
-            #not pop from the stack in n_exit
-            #detect the flag here, clear it, and break the loop.
-            #then outside the loop, rs.popn() from the stack and do a python return.
-
-            #TODO this is a bodge, and it is WRONG
-            sz = self.rs.getused()
-            #Debug.trace("RS used: %d" % sz)
-            if sz == 0: break # EXIT returned to top level
             self.ip = self.rs.popn() # this still needs to happen after call()
-            
+
+            if self.exits_pending > 0:
+                print("dodoes %s EXITS pending %d" % (thisname, self.exits_pending))
+                self.exits_pending -= 1
+                print("dodoes %s exits now pending %d" % (thisname, self.exits_pending))
+                break
+
+        self.ip = self.rs.popn()
 
         self.depth -= 1
-        print("returning from DODOES")
+        print("returning from DODOES %s, depth now %d" % (thisname, self.depth))
 
     def n_dolit(self):
         """Process an inline 16 bit literal and put it on DS"""
@@ -1713,20 +1737,8 @@ class Machine():
 
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
-        """: n_EXIT   ( -- )
-        { ip=rs_pop() } ;"""
-        #Debug.trace("exit")
-
-        self.ip = self.rs.popn()
-        # If nothing on stack, STOP
-        #if self.rs.getused() >= 2:
-        #    #print("rs used:%d" % self.rs.getused())
-        #    self.ip = self.rs.popn()
-        #    #Debug.trace("popped to IP: 0x%x" % self.ip)
-        #else:
-        #    Debug.trace("Return stack empty, STOPPING")
-        #    self.running = False
-
+        print("****EXIT")
+        self.exits_pending += 1
 
 #----- FORTH OUTER INTERPRETER ------------------------------------------------
 
@@ -2027,9 +2039,9 @@ def test_echoloop():
         "RUN",
             "TIB", "TIBZ", "EXPECT",
             #"TIB", "SPAN", "@", "SHOW",
-            "TIB", "SPAN", ">IN", ".", ".", ".",
-            "BRANCH", -10
+            "BRANCH", -4
     )
+    #forth.machine.dict.dump()
     forth.execute_word("RUN")
 
 if __name__ == "__main__":

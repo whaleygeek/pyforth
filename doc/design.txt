@@ -5,24 +5,29 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-EXPECT/SHOW loop working
-Fixed a number of stack growth problems.
 
+Put a load of name based debug in dodoes
 
-The call() pattern in dodoes() is not returning enough,
-and over a long number of times round the dodoes loop, the python stack
-fills up and overflows. so ip/rs is popping off, but something is not
-returning in python each time round the loop.
+debug:DODOES enter, depth:1 word:8ed RUN
+dodoes RUN calling dodoes, word:85a EXPECT
+debug:DODOES enter, depth:2 word:85a EXPECT
+
+dodoes EXPECT calling dodoes, word:60a =
+debug:DODOES enter, depth:3 word:60a =
+dodoes = calling exit
+****EXIT
+dodoes = EXITS pending 1
+dodoes = exits now pending 0
+returning from DODOES =, depth now 2
+dodoes EXPECT calling dodoes, word:85a EXPECT
+debug:DODOES enter, depth:3 word:85a EXPECT
 
 TODO
-Look at how n_exit is handled, and where every call() is, and re jig it
-so that when an exit is executed, that version of any loop will exit one
-python nest level.
+This looks like something is going wrong with the self.ip and it's returning
+back to itself making it unnaturally recursive, which is why the python
+stack continues to grow...
 
-Be careful, there is n_dodoes.... call() and also n_execute.... call()
-
-Also one call to n_exit does not want to trigger a chain reaction of exits
-all the way up the stack back to the top.
+dodoes EXPECT calling dodoes, word:85a EXPECT
 
 
 ===============================================================================

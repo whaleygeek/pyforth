@@ -5,13 +5,15 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-EXPECT/SHOW loop sort of working in forth.py
+EXPECT/SHOW loop working
+Fixed a number of stack growth problems.
+
 
 TODO
-WAIT on mock buffer called
-Need to write KeyboardInput() class and bind it to forth.py main
-so that we can use this forth instance interactively.
-
+Looks like the call() pattern in dodoes() is not returning enough,
+and over a long number of times round the dodoes loop, the python stack
+fills up and overflows. so ip/rs is popping off, but something is not
+returning in python each time round the loop.
 
 
 ===============================================================================

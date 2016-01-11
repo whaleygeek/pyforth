@@ -4,6 +4,7 @@
 # The main purpose of this is to study the design of the FORTH language
 # by attempting a modern implementation of it.
 
+import sys
 
 #----- CONFIGURATION ----------------------------------------------------------
 
@@ -948,11 +949,20 @@ class DataStack(ForthStack):
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=1, ptrtype=Stack.LASTUSED)
 
+    #def pushn(self, number):
+    #    ForthStack.pushn(self, number)
+    #    print("DS PUSH, size 0x%x " % self.getused())
+
 
 class ReturnStack(ForthStack):
     """A stack for high level forth call/return addresses"""
     def __init__(self, mem, start, size):
         ForthStack.__init__(self, mem, start, size, growdirn=-1, ptrtype=Stack.LASTUSED)
+
+    #def pushn(self, number):
+    #    ForthStack.pushn(self, number)
+    #    print("RS PUSH, size 0x%x " % self.getused())
+
 
 
 #---- I/O ---------------------------------------------------------------------
@@ -984,21 +994,17 @@ class Input():
         return None # nothing in buffer
 
 
-#class KeyboardInput(Input):
-#    """A way to poll and get characters from the keyboard"""
-#
-#    def start(self):
-#        pass
-#
-#    def stop(self):
-#        pass
-#
-#    def body(self):
-#        while True: #TODO stop() should set flag
-#            pass # check for a char
-#            # if found, append to buffer
-#            # if nothing, sleep for a bit
+class KeyboardInput(Input):
+    """A way to poll and get characters from the keyboard"""
 
+    def waiting(self):
+        raise RuntimeError("Not yet implemented")
+
+    def getch(self):
+        ch = sys.stdin.read(1) # blocking, line buffered
+        if ch == "": # EOF
+            raise RuntimeError("EOF on Keyboard input stream")
+        return ch
 
 class Output():
     def __init__(self):
@@ -1920,21 +1926,22 @@ class Forth:
             ("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
             ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
 
+
+            #TODO if buffer overflows, it goes wrong (i.e. more than 80 chars)
             #----- EXPECT
             ("EXPECT", [                                        # ( a # -- )
                 "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
                 "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
                 ">IN", "!",                                     # ( a)        set INP to start of user buffer, use as write ptr in loop
                 # loop                                          # ( a)
-                    "KEY",                                      # ( a c)      read a char
-                    ">IN", "@", "C!",                           # ( a)        write via INP ptr
-                    ">IN", "@", "DUP", "C@",                    # ( a a c)    read char back (no CDUP!)
-                    "SWAP",                                     # ( a c a)
+                    "KEY", "DUP",                               # ( a c c)    read a char
+                    ">IN", "@", "C!",                           # ( a c)        write via INP ptr
+                    "OVER",                                     # ( a c a)
                     " DOLIT", 1, "+", ">IN", "!",               # ( a c)     advance write pointer
                     "SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
-                    "SPAN", "@", "0=",                          # ( a c ?)   span=0 means buffer full
-                    "NOT", "0BRANCH", 6,                        # ( a c)     (exit) early if yes
-                    " DOLIT", 10, "=",                          # ( a ?)     is char a CR?
+                    " DOLIT", 10, "=", "NOT",                   # ( a ?)     is char a LF?
+                    "0BRANCH", 6,
+                    "SPAN", "@", "0=",                          # ( a ?)   span=0 means buffer full
                     "0BRANCH", -31,                             # ( a)       (loop) go round again if it isn't
                 # exit                                          # ( a)       address on stack is of start of buffer
                 #                                               #            >IN points to char after last written
@@ -1945,7 +1952,7 @@ class Forth:
                 "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
                 "-",                                            # ( aTIB #read)
                 "SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
-                ">IN", "!"                                      # ( )         INP points to first char to read in buffer
+                ">IN", "!",                                      # ( )         INP points to first char to read in buffer
             ]),
 
 
@@ -1960,6 +1967,7 @@ class Forth:
                 " DOLIT", 1, "-",                           # ( a #)        dec count
                 "BRANCH", -17,                              # (read)        go round for another
                                                             # target:exit
+                "DROP", "DROP",
             ]),
         ]
 
@@ -1972,7 +1980,7 @@ class Forth:
 
 #----- RUNNER -----------------------------------------------------------------
 
-forth = Forth(outs=ScreenOutput()).boot()
+forth = Forth(ins=KeyboardInput(), outs=ScreenOutput()).boot()
 
 def create_word(*args):
     forth.create_word(*args)
@@ -1999,8 +2007,9 @@ def test_echoloop():
     forth.create_word(
         "RUN",
             "TIB", "TIBZ", "EXPECT",
-            "TIB", "SPAN", "SHOW",
-            "BRANCH", -3
+            #"TIB", "SPAN", "@", "SHOW",
+            "TIB", "SPAN", ">IN", ".", ".", ".",
+            "BRANCH", -10
     )
     forth.execute_word("RUN")
 

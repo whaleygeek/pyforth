@@ -9,11 +9,20 @@ EXPECT/SHOW loop working
 Fixed a number of stack growth problems.
 
 
-TODO
-Looks like the call() pattern in dodoes() is not returning enough,
+The call() pattern in dodoes() is not returning enough,
 and over a long number of times round the dodoes loop, the python stack
 fills up and overflows. so ip/rs is popping off, but something is not
 returning in python each time round the loop.
+
+TODO
+Look at how n_exit is handled, and where every call() is, and re jig it
+so that when an exit is executed, that version of any loop will exit one
+python nest level.
+
+Be careful, there is n_dodoes.... call() and also n_execute.... call()
+
+Also one call to n_exit does not want to trigger a chain reaction of exits
+all the way up the stack back to the top.
 
 
 ===============================================================================

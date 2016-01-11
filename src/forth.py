@@ -1157,11 +1157,11 @@ class NvRoutine():
             ("WBLK",       parent.n_wblk),
             ("BRANCH",     parent.n_branch),
             ("0BRANCH",    parent.n_0branch),
-            (" RDPFA",     parent.n_rdpfa),     # 1D
-            (" DODOES",    parent.n_dodoes),    # 1E
+            (" RDPFA",     parent.n_rdpfa),     # 1F
+            (" DODOES",    parent.n_dodoes),    # 20
             (" DOLIT",     parent.n_dolit),
             ("EXECUTE",    parent.n_execute),
-            ("EXIT",       parent.n_exit),
+            ("EXIT",       parent.n_exit),      # 23
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
             #(" DOVAR",     parent.n_dovar),
@@ -1664,7 +1664,7 @@ class Machine():
         # TODO when this executes an EXIT, it MUST return in python land
         # otherwise the python stack will fill up and overflow.
 
-        while self.running:
+        while self.running: #TODO this is a bodge, and it is WRONG
             #NEXT
             #Debug.trace("NEXT")
             if self.limit != None:
@@ -1672,6 +1672,7 @@ class Machine():
                 if self.limit <= 0:
                     self.running = False
                     break
+
             # ip points to the cfa of the word to execute
             #Debug.trace(" fetch from ip:0x%x" % self.ip)
             cfa = self.mem.readn(self.ip)
@@ -1681,11 +1682,21 @@ class Machine():
             self.rs.pushn(self.ip+2)
             # put something useful in self.ip, i.e. the pfa
             self.ip = cfa+2 # pfa
-            self.call(cf)
+            print("calling cf:%x" % cf)
+            self.call(cf) # if this called n_exit, we must now exit this level of the dodoes loop.
+
+            #TODO: I think all we need to do is set a 'exit' flag in n_exit,
+            #not pop from the stack in n_exit
+            #detect the flag here, clear it, and break the loop.
+            #then outside the loop, rs.popn() from the stack and do a python return.
+
+            #TODO this is a bodge, and it is WRONG
             sz = self.rs.getused()
             #Debug.trace("RS used: %d" % sz)
             if sz == 0: break # EXIT returned to top level
-            self.ip = self.rs.popn()
+            self.ip = self.rs.popn() # this still needs to happen after call()
+            
+
         self.depth -= 1
         print("returning from DODOES")
 

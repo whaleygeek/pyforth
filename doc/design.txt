@@ -5,112 +5,31 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Test harness asserts added using mock output
+SHOW and testshow now working.
+EMIT was reading n but needs to read b.
+
+
+TODO
+fix problems with EMIT - need a " DOCHR" for pushing chars on the stack
+All items marked up in tests.py and forth.py that need fixing.
+re test all unit tests
+
+TODO
+split tests into two suites, one that is completed tests, one that is
+the test being developed. Then it will be quicker to turn completed
+tests off while developing a test, without commenting them all out.
+
+TODO
+test EXPECT with the EXPECT SHOW test case
+Should be possible to send a line in, and get that line echoed back
+
+TODO
+test the EXPECT SHOW loop interactively in forth.py
 
 
 ===============================================================================
 
---------------------------------------------------------------------------------
-There is no ( and \commenting,
-pass in strings and put # python comments in the API calls for comments, end of line only
-
-
---------------------------------------------------------------------------------
-
-code up EXPECT
-write a test case for EXPECT
-i.e. read a line and then display all chars entered.
-
------ SPEC: EXPECT (line input buffer)
-: EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
-: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
-: IN>                                consumes next char, advances pointer, leaves char on stack
-: INP                                /add CONST address of var which is pointer to next to consume in TIB
-
-(already defined)
-: TIB                                CONST address of start of TIB (absolute address)
-: TIBZ                               CONST, size of TIB buffer
-
------ DESIGN: line input buffer
-
-test harness:
-
-: IN> ( -- c)                       points to next char to be consumed
-    \ if INP at end of buffer, exit with zero, or ABORT? (is the CR written to buffer, or check SPAN?)
-    INP C@ ( c)                     \ read char at current pointer
-    INP @ 1 + INP !                 \ advance INP
-
-: ECHO
-    \ read
-        TIB TIBZ EXPECT             \ read a line into the TIB buffer, count in SPAN
-        SPAN @  ( n)                \ leave counter on top of stack
-        \ show  ( n)
-            DUP  ( n n)
-            0=  ( n ?)
-            0BRANCH ( doshow)  ( n) \ if counter zero, read anothe rline
-            DROP                    \ finished with counter
-            BRANCH ( read)
-            \ doshow ( n)
-            1 -   ( n)              \ dec counter
-            IN> EMIT  ( n )         \ read and advance IN ptr, and show char
-        BRANCH ( show)  ( n)        \ keep showing until no more left
-
-
-
-
-read a char and append to TIB, advance a pointer or a counter?
-Is there a counter in the first byte in TIB, this could be used as the pointer
-instead of creating another variable. SPAN is this variable, so it could be
-modified live.
-
-Early terminate when TIBZ chars read in.
-
-TODO: takes in address and size on stack, not using them directly
-NOTE: but it does always write to SPAN and clear IN>
-
-could use IN> as a temporary pointer when filling buffer
-IN> is a word, it consumes a char and advances pointer, leaving char on stack
-
-Is the CR written to buffer (even if full) so we can easily know that INP IN> should terminate?
-If so, an 80 char buffer can only hold 79, 1 must be left for the CR worst case.
-
-usage: TIB TIBZ EXPECT
-
-use INP as the write pointer, and SPAN as the counter.
-Then adjust them at the end to be correct for return.
-
-: EXPECT ( a # -- )
-    SPAN ! ( a)                               \ use SPAN as the char counter while in loop
-    DUP   ( a a)                              \ leave user buffer start on stack, for later cleanup
-    INP !   ( a)                              \ set INP to start of user buffer, use as write ptr in loop
-    \ loop
-        KEY   ( a c)                          \ read a char
-        DUP   ( a c c)
-        INP @  ( a c c a)                     \ INP is write pointer
-        C!   ( a c)                           \ write char to buffer
-        INP @ 1 + !   ( a c)                  \ advance write pointer
-        SPAN @ 1 - SPAN !   ( a c)            \ dec counter
-        SPAN @ 0=   ( a c ?)                  \ span=0 means buffer full
-        NOT 0BRANCH ( exit) 5 ( a c)          \ exit early if yes
-        CR ( c c) = ( a ?)                    \ is char a CR?
-        0BRANCH ( loop) -21                   \ go round again if it isn't
-    \ exit ( a)                               \ address on stack is of start of buffer
-    \ INP points to char after last written
-    \ a on stack is start of user buffer
-    \ INP - a is the true SPAN including optional CR
-    DUP ( aTIB aTIB)
-    INP @ ( aTIB aTIB aLASTWR+1)
-    SWAP ( aTIB aLASTWR+1 aTIB)
-    - ( aTIB #read)
-    SPAN ! ( aTIB)                            \ SPAN holds number of chars read in
-    INP !                                     \ INP points to first char to read in buffer
-
-
-
-
-===============================================================================
-
------ WORD SPEC
+----- spec: WORD
 
 : WORD   ( c -- a)
 
@@ -143,28 +62,17 @@ into a buffer.
 
 
 
----- WORD DESIGN
-
-#### Need support for constants TIB and variables COUNT, >IN, BLK
-#### Need TIB buffer to be allocated in memory
-
-#### Need an input stream processor that reads characters from stdin up to newline
-# into an 80 character TIB and adjusts the >IN pointer to the start.
-
-#### Need a way to kick off the interpreter loop
-# read a line to buffer
-# process the whole line (INTERPRET?)
-# loop back
+---- design: WORD
 
 # The processing of the inner loops is the same, perhaps refactor
 # it out into a helper that just processes based on an arbitrary set of pointers?
-# remember that IN> consumes a char by reading it and advancing pointer.
+# remember that >IN consumes a char by reading it and advancing pointer.
 # could pass address of consume routine on DS of course (a callback!)
 
 # probably also worth factoring out writing to the PAD buffer into a helper,
 # as that is a common routine that may be used elsewhere in other words.
 
-# does the IN> return a magic number if nothing to consume (e.g. 0?)
+# does the >IN return a magic number if nothing to consume (e.g. 0?)
 # that might simplify the code. Remember it is just a variable, so perhaps
 # there is a space for a general purpose "consume next char until end of buffer"
 # word, where the in ptr address and the end buffer address are passed in?
@@ -177,11 +85,11 @@ into a buffer.
     TIB 0BRANCH blk
         \ targettibskiploop
             \ if no chars left in TIB, BRANCH exit
-            \ consume next char from TIB (IN>)
+            \ consume next char from TIB (>IN)
         \ if char matches separator, BRANCH tibskiploop
         \ target tibcopyloop
             \ if no chars left in TIB, BRANCH exit
-            \ consume next char from TIB (IN>)
+            \ consume next char from TIB (>IN)
             \ copy char to next PAD buffer
             \ inc PAD ptr
             \ inc COUNT
@@ -207,7 +115,7 @@ into a buffer.
 
 ===============================================================================
 
----- read/interpret "shell" loop (REPL)
+---- design: read/interpret "shell" loop (REPL)
 
 : REPL
     \ nextline
@@ -1686,3 +1594,107 @@ test plan: KEY
   write a unit test that pokes known characters into MockKeyboardInput
   and then a test word that reads a few of them out and displays them.
 
+
+
+
+
+===============================================================================
+
+--------------------------------------------------------------------------------
+There is no ( and \commenting,
+pass in strings and put # python comments in the API calls for comments, end of line only
+
+
+--------------------------------------------------------------------------------
+
+code up EXPECT
+write a test case for EXPECT
+i.e. read a line and then display all chars entered.
+
+----- SPEC: EXPECT (line input buffer)
+: EXPECT   ( a # -- )                /P254 n_DODOES wait for chars or newline
+: SPAN   ( -- a)                     /P254 ADRVAR number of chars read in expect
+: >IN                                /P254 ADRVAR address of next char in input stream
+: TIB                                CONST address of start of TIB (absolute address)
+: TIBZ                               CONST, size of TIB buffer
+
+
+Early terminate when TIBZ chars read in.
+
+Q: Is the CR written to buffer (even if full) so we can easily know that INP >IN should terminate?
+If so, an 80 char buffer can only hold 79, 1 must be left for the CR worst case.
+
+usage: TIB TIBZ EXPECT
+
+uses >IN as the write pointer, SPAN as the space left counter.
+On exit >IN point to start of buffer, SPAN is number of bytes in buffer
+(how is buffer terminated, always by a CR?
+
+: EXPECT ( a # -- )
+    SPAN ! ( a)                               \ use SPAN as the char counter while in loop
+    DUP   ( a a)                              \ leave user buffer start on stack, for later cleanup
+    >IN !   ( a)                              \ set INP to start of user buffer, use as write ptr in loop
+    \ loop
+        KEY   ( a c)                          \ read a char
+        DUP   ( a c c)
+        >IN @  ( a c c a)                     \ INP is write pointer
+        C!   ( a c)                           \ write char to buffer
+        >IN @ 1 + !   ( a c)                  \ advance write pointer
+        SPAN @ 1 - SPAN !   ( a c)            \ dec counter
+        SPAN @ 0=   ( a c ?)                  \ span=0 means buffer full
+        NOT 0BRANCH ( exit) 5 ( a c)          \ exit early if yes
+        CR ( c c) = ( a ?)                    \ is char a CR?
+        0BRANCH ( loop) -21                   \ go round again if it isn't
+    \ exit ( a)                               \ address on stack is of start of buffer
+    \ >IN points to char after last written
+    \ a on stack is start of user buffer
+    \ >IN - a is the true SPAN including optional CR
+    DUP ( aTIB aTIB)
+    >IN @ ( aTIB aTIB aLASTWR+1)
+    SWAP ( aTIB aLASTWR+1 aTIB)
+    - ( aTIB #read)
+    SPAN ! ( aTIB)                            \ SPAN holds number of chars read in
+    >IN !                                     \ INP points to first char to read in buffer
+
+
+----- DESIGN: test harness for EXPECT
+
+: TEST TIB TIBZ EXPECT TIB SPAN SHOW ;
+
+: SHOW                                  # ( a # -- )
+                                        # target:read
+    DUP                                 # ( a #)
+    DUP 0= NOT 0BRANCH 12               # (exit) ( a #) if counter zero, exit
+    SWAP DUP C@                         # ( # a c)      read char at address
+    EMIT                                # ( # a)        show char
+    1 +                                 # ( # a)        advance address
+    SWAP                                # ( a #)
+    1 -                                 # ( a #)        dec count
+    BRANCH -16                          # (read)        go round for another
+                                        # target:exit
+
+: ECHO
+                                        # target:loop
+    TIB TIBZ EXPECT                     # get a line
+    TIB SPAN SHOW                       # show a line
+    BRANCH -7                           # loop
+
+
+test: SHOW fill TIB with data 0123456789
+
+48 SPAN !                       # init value to 48
+TIB >IN !                       # init ptr to TIB
+9 COUNT !                       # init count to 9
+                                # target:loop
+COUNT @ 0= NOT 0BRANCH 19       # if count 0, exit
+SPAN C@ >IN !                   # store value at addr
+>IN @ 1 + >IN !                 # inc ptr
+COUNT @ 1 - COUNT !             # dec count
+BRANCH -23                      # to:loop
+                                # target:exit
+TIB >IN !
+9 COUNT !
+
+self.f.machine.tib.dumpraw()
+
+TIB COUNT SHOW

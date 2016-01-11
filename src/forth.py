@@ -142,7 +142,6 @@ class Buffer():
         self[addr+2] = b2
         self[addr+3] = b3
 
-
     def dump(self, start, len):
         """Dump memory to stdout, for debug reasons"""
         #TODO do a proper 8 or 16 column address-prefixed dump
@@ -1366,10 +1365,6 @@ class Machine():
 
     def n_dovar(self):
         """Reads the address of the variable, i.e. PFA, and pushes onto DS"""
-        #TODO: The PFA of the current word needs to be accessible implicitly somewhere
-        #the parser would have read out the CFA of the word to execute,
-        #CFA+2 is the PFA for it, and that parameter is the variable address
-        #which needs to be pushed onto the DS
         pass # TODO:
         Debug.unimplemented("n_dovar")
 
@@ -1378,22 +1373,16 @@ class Machine():
         { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;"""
         a = self.ds.popn()
         n = self.ds.popn()
+        #print("STORE a:%x n:%x" % (a, n))
         self.mem.writen(a, n)
-        #TODO: problem, this will not honour the memory mapped registers,
-        #it accesses the memory list directly
 
     def n_fetch(self):
         """: n_FETCH  ( a -- n)
         { a=ds_pop; n0=mem[a]; n1=mem[a+1]; ds_push8(n0); ds_push8(n1) } ;"""
         #Debug.trace("###FETCH")
         a = self.ds.popn()
-        #Debug.trace("  addr:%x" % a)
-        n = self.mem.readn(a) #TODO: underlying code does two 8 bit reads direct from mem
-        #TODO: This will cause 'TEST var to increment twice
-        #TODO: need to have an offset passed into the read/write routine for that register
-        #which would then allow variables of any size to be modelled, providing there is an
-        #entry in the NvMem table for each byte.
-        #Debug.trace("  n:%x" % n)
+        n = self.mem.readn(a)
+        #print("FETCH a:%x n:%x" % (a, n))
         self.ds.pushn(n)
 
     def n_store8(self):
@@ -1401,17 +1390,15 @@ class Machine():
         { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
         b = self.ds.popb()
+        #print("STORE8 a:%x b:%x" % (a, b))
         self.mem.writeb(a, b)
-        #it accesses the memory list directly
-        #TODO: problem, this will not honour the memory mapped registers
 
     def n_fetch8(self):
         """: n_FETCH8   ( a -- b)
         { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
         b = self.mem.readb(a)
-        #TODO: problem, this will not honour the memory mapped registers
-        #it accesses the memory list directly
+        #print("FETCH8 a:%x b:%x" % (a, b))
         self.ds.pushb(b)
 
     def n_add(self):
@@ -1552,7 +1539,7 @@ class Machine():
     def n_emit(self):
         """: n_EMIT   ( c -- )
         { putch(ds_pop8) } ;"""
-        ch = chr(self.ds.popn() & 0xFF)
+        ch = chr(self.ds.popb() & 0xFF)
         self.outs.writech(ch)
 
     def n_printtos(self):
@@ -1582,23 +1569,32 @@ class Machine():
     def n_branch(self):
         """: n_BRANCH   ( -- )
         { rel=memn[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
+        #print("BRANCH")
         ip = self.rs.popn() # points to REL
+        #print("  ip on entry:%x" % ip)
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
+        #print("  rel:%x" % rel)
         abs = (ip + rel) & 0xFFFF # 2's complement
+        #print("  to:%x" % abs)
         self.rs.pushn(abs)
 
     def n_0branch(self):
         """: n_0BRANCH   ( ? -- )
         { f=ds_pop; r=mem[ip]; if f==0:ip=ip+(2*r) else: ip+=2 } ;"""
+        #print("0BRANCH")
         f = self.ds.popn()
+        #print("  flag:%x" % f)
         ip = self.rs.popn() # points to REL
+        #print("  ip on entry:%x" % ip)
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
+        #print("  rel:%d dec" % rel)
 
         if f == 0:
             abs = (ip + rel) & 0xFFFF # 2's complement
         else:
-            abs = ip
+            abs = ip+2
 
+        #print("  to:%x" % abs)
         self.rs.pushn(abs)
 
     def n_rblk(self):
@@ -1849,11 +1845,12 @@ class Forth:
 
         vars = [
             #name     size,   init
-            ("IN>",),
+            (">IN",),
             ("COUNT",),
             ("BLK",),
             #("BINDEX", 2*2),
             ("BASE",    2,    10),
+            ("SPAN",),
         ]
         for v in vars:
             name = v[0]
@@ -1913,6 +1910,47 @@ class Forth:
             ("+!",       ["DUP", "@", "ROT", "+", "!"]),                                #( n a -- )
             ("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
             ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
+
+            #----- EXPECT
+            ("EXPECT", [                                    # ( a # -- )
+                "SPAN", "!",                                # ( a)       use SPAN as the char counter while in loop
+                "DUP",                                      # ( a a)     leave user buffer start on stack, for later cleanup
+                ">IN", "!",                                 # ( a)       set INP to start of user buffer, use as write ptr in loop
+                # loop                                      # ( a)
+                    "KEY",                                  # ( a c)     read a char
+                    "DUP",                                  # ( a c c)
+                    ">IN", "@",                             # ( a c c a) INP is write pointer
+                    "C!",                                   # ( a c)     write char to buffer
+                    ">IN", "@", 1, "+", "!",                # ( a c)     advance write pointer
+                    "SPAN", "@", 1, "-", "SPAN", "!",       # ( a c)     dec counter
+                    "SPAN", "@", "0=",                      # ( a c ?)   span=0 means buffer full
+                    "NOT", "0BRANCH", 5,                    # ( a c)     (exit) early if yes
+                    "CR", "=",                              # ( a ?)     is char a CR?
+                    "0BRANCH", -21,                         # ( a)       (loop) go round again if it isn't
+                # exit                                      # ( a)       address on stack is of start of buffer
+                                                            #           >IN points to char after last written
+                                                            #           a on stack is start of user buffer
+                                                            #           >IN - a is the true SPAN including optional CR
+                "DUP",                                      # ( aTIB aTIB)
+                ">IN", "@",                                 # ( aTIB aTIB aLASTWR+1)
+                "SWAP",                                     # ( aTIB aLASTWR+1 aTIB)
+                "-",                                        # ( aTIB #read)
+                "SPAN", "!",                                # ( aTIB)     SPAN holds number of chars read in
+                ">IN", "!"                                  # ( )         INP points to first char to read in buffer
+            ]),
+            #----- SHOW: show a string given address and length
+            ("SHOW", [                                      # ( a # -- )
+                                                            # target:read
+                "DUP", "0=", "NOT", "0BRANCH", 14,         # (exit) ( a #) if counter zero, exit
+                "SWAP", "DUP", "C@",                        # ( # a c)      read char at address
+                "EMIT",                                     # ( # a)        show char
+                " DOLIT", 1, "+",                           # ( # a)        advance address
+                "SWAP",                                     # ( a #)
+                " DOLIT", 1, "-",                           # ( a #)        dec count
+                "BRANCH", -17,                              # (read)        go round for another
+                                                            # target:exit
+
+            ]),
         ]
 
         for w in words:
@@ -1938,7 +1976,7 @@ def test_hello():
     msg = "Hello world!\n"
     pfa = []
     for ch in msg:
-        pfa.append(" DOLIT")
+        pfa.append(" DOLIT") #TODO: need a " DOCHR" otherwise stack will break
         pfa.append(ord(ch))
         pfa.append("EMIT")
 

@@ -188,7 +188,7 @@ class Memory(Buffer):
     def call(self, addr):
         handler, start = self.handlerfor(addr)
         if handler == None:
-            raise RuntimeError("Address not callable:%x" % addr)
+            raise RuntimeError("Address not callable:0x%x" % addr)
         handler.call(addr-start)
 
     def handlerfor(self, addr):
@@ -218,8 +218,8 @@ class Memory(Buffer):
             iname, istart, isize, h = i
             iend = istart + isize - 1
             if (start >= istart and start <= iend) or (end >= istart and end <= iend):
-                Debug.info("name:%s start:%x size:%x end:%x"     % (name, start, size, end))
-                Debug.info("iname:%s istart:%x isize:%x iend:%x" % (iname, istart, isize, iend))
+                Debug.info("name:%s start:0x%x size:0x%x end:0x%x"     % (name, start, size, end))
+                Debug.info("iname:%s istart:0x%x isize:0x%x iend:0x%x" % (iname, istart, isize, iend))
 
                 raise ValueError("Region %s overlaps with %s" % (name, iname))
 
@@ -269,7 +269,7 @@ class IndexedBuffer(Buffer):
     def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
         Buffer.__init__(self, storage, start, size)
         if size < 0:
-            raise RuntimeError("must not see -ve size here:%x" % size)
+            raise RuntimeError("must not see -ve size here:0x%x" % size)
         # IndexedBuffer
         if growdirn > 0: # growdirn +ve
             growdirn = 1
@@ -323,7 +323,7 @@ class IndexedBuffer(Buffer):
         else: # LASTUSED
             if self.growdirn > 0:
                 if ptr > self.start + (self.size-1): # must not exceed buffer
-                    #Debug.trace("lastused,+ve-grow,overflow start:%x size:%x ptr:%x" % (self.start, self.size, ptr))
+                    #Debug.trace("lastused,+ve-grow,overflow start:0x%x size:0x%x ptr:0x%x" % (self.start, self.size, ptr))
                     raise BufferOverflow
                 elif ptr < (self.start-1): # one extra at left hand side
                     #Debug.trace("lastused,+ve-grow,underflow")
@@ -333,7 +333,7 @@ class IndexedBuffer(Buffer):
                     #Debug.trace("lastused,-ve-grow,overflow")
                     raise BufferOverflow
                 elif ptr > self.start + (self.size):
-                    Debug.trace("lastused,-ve-grow,underflow ptr:%x start:%x size:%x" % (ptr, self.start, self.size))
+                    Debug.trace("lastused,-ve-grow,underflow ptr:0x%x start:0x%x size:0x%x" % (ptr, self.start, self.size))
                     raise BufferUnderflow
 
 
@@ -445,13 +445,13 @@ class IndexedBuffer(Buffer):
 
     def rd_p(self, offset):
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
         bytes = Number.to_bytes(self.ptr)
         return bytes[offset]
 
     def wr_p(self, offset, byte):
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
         b0, b1 = Number.to_bytes(self.ptr)
         bytes = [b0, b1]
         bytes[offset] = byte
@@ -533,7 +533,7 @@ class Stack(IndexedBuffer):
                 ch = chr(b)
             else:
                 ch = '?'
-            print("%x:%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
+            print("0x%x:0x%x  (%c)" % (addr, b, ch)) #ERROR, something storing a str?
 
     def push(self, bytes):
         """Push a list of bytes"""
@@ -753,9 +753,9 @@ class Dictionary(Stack):
     def dump(self):
         """Dump the dictionary in reverse order from self.last_ffa back to NULL"""
         print("\nDICTIONARY")
-        buf = "start:%x size:%x ptr:%x last_ffa:%x" % (self.start, self.size, self.ptr, self.last_ffa)
+        buf = "start:0x%x size:0x%x ptr:0x%x last_ffa:0x%x" % (self.start, self.size, self.ptr, self.last_ffa)
         if self.defining_ffa != None:
-            buf += " defining_ffa:%x" % self.defining_ffa
+            buf += " defining_ffa:0x%x" % self.defining_ffa
         print(buf)
 
         ffa = self.last_ffa
@@ -767,7 +767,7 @@ class Dictionary(Stack):
 
             #print("-" * 40)
             #### FF - Flags Field
-            ff_buf = "ffa:%x " % ffa
+            ff_buf = "ffa:0x%x " % ffa
             if ff & Dictionary.FLAG_IMMEDIATE: buf += "im "
             if ff & Dictionary.FLAG_DEFINING:  buf += "def "
             if ff & Dictionary.FLAG_UNUSED:    buf += "un "
@@ -779,7 +779,7 @@ class Dictionary(Stack):
             #### NF - Name Field
             nfa = ptr
             nf = self.readname(nfa, count)
-            nf_buf = "nfa:%x (%s)" % (nfa, nf)
+            nf_buf = "nfa:0x%x (%s)" % (nfa, nf)
             #print(nf_buf)
             ptr += count
 
@@ -787,7 +787,7 @@ class Dictionary(Stack):
             lfa = ptr
             lf = self.bytes.readn(lfa)
             prev_nf = self.readname(lf+1, self.bytes.readb(lf) & Dictionary.FIELD_COUNT)
-            lf_buf = "lfa:%x=%x->(%s)" % (lfa, lf, prev_nf)
+            lf_buf = "lfa:0x%x=0x%x->(%s)" % (lfa, lf, prev_nf)
             #print(lf_buf)
             ptr += 2
 
@@ -795,7 +795,7 @@ class Dictionary(Stack):
             cfa = ptr
             cf = self.bytes.readn(cfa)
             #TODO: cf_name comes from machine.dispatch
-            cf_buf = "cfa:%x=%x" % (cfa, cf)
+            cf_buf = "cfa:0x%x=0x%x" % (cfa, cf)
             #print(cf_buf)
             ptr += 2
 
@@ -813,7 +813,7 @@ class Dictionary(Stack):
             #Can't assume LF's are sequential, when vocabularies in use.
             #TODO: could always store a zero after FF (PAD) then we would be able to
             #backscan for start of string.
-            pf_buf = "pfa:%x=%x" % (pfa, pf)
+            pf_buf = "pfa:0x%x=0x%x" % (pfa, pf)
             #print(pf_buf)
 
             # Print a single line dump of dict record
@@ -1093,19 +1093,19 @@ class NvMem():
     def __setitem__(self, offset, value):
         item = self.find(offset)
         if item == None:
-            raise ValueError("Unknown offset in region: %x" % offset)
+            raise ValueError("Unknown offset in region: 0x%x" % offset)
         name, start, ofs, rd, wr = item
         if wr==None:
-            raise RuntimeError("set: NvMem offset %x does not support write function" % offset)
+            raise RuntimeError("set: NvMem offset 0x%x does not support write function" % offset)
         wr(offset, value)
 
     def __getitem__(self, offset):
         item = self.find(offset)
         if item == None:
-            raise ValueError("Unknown offset in region: %x" % offset)
+            raise ValueError("Unknown offset in region: 0x%x" % offset)
         name, start, ofs, rd, wr = item
         if rd==None:
-            raise RuntimeError("get: NvMem offset %x does not support read function" % offset)
+            raise RuntimeError("get: NvMem offset 0x%x does not support read function" % offset)
         return rd(offset)
 
 
@@ -1147,6 +1147,7 @@ class NvRoutine():
             (" RDPFA",     parent.n_rdpfa),     # 1D
             (" DODOES",    parent.n_dodoes),    # 1E
             (" DOLIT",     parent.n_dolit),
+            (" PCHR",      parent.n_pchr),
             ("EXECUTE",    parent.n_execute),
             ("EXIT",       parent.n_exit),
             #(" DOCOL",    parent.n_docol),
@@ -1200,14 +1201,14 @@ class NvRoutine():
             if execfn != None:
                 execfn()
                 return
-        Debug.fail("call to unknown native address offset: %x" % index)
+        Debug.fail("call to unknown native address offset: 0x%x" % index)
         raise RuntimeError("CALL FAILED")
 
     def __setitem__(self, key, value):
-        raise RuntimeError("Tried to write to NvRoutine memory offset:%x value:%x" % (key, value))
+        raise RuntimeError("Tried to write to NvRoutine memory offset:0x%x value:0x%x" % (key, value))
 
     def __getitem__(self, key):
-        raise RuntimeError("Tried to read from NvRoutine memory offset:%x" % key)
+        raise RuntimeError("Tried to read from NvRoutine memory offset:0x%x" % key)
 
 
 class Machine():
@@ -1305,13 +1306,13 @@ class Machine():
 
     def rd_ip(self, offset):
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
         bytes = Number.to_bytes(self.ip)
         return bytes[offset]
 
     def wr_ip(self, offset, byte):
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
         b0, b1 = Number.to_bytes(self.ip)
         bytes = [b0, b1]
         bytes[offset] = byte
@@ -1322,7 +1323,7 @@ class Machine():
 
     def rd_test(self, offset):
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
 
         # Every read increments the counter
         prev = self.testvalue
@@ -1330,13 +1331,13 @@ class Machine():
 
         bytes = Number.to_bytes(prev)
         byte = bytes[offset]
-        #Debug.trace("rd_test ofs %x byte %x" % (offset, byte))
+        #Debug.trace("rd_test ofs 0x%x byte 0x%x" % (offset, byte))
         return byte
 
     def wr_test(self, offset, byte):
-        #Debug.trace("wr_test ofs %x byte %x" % (offset, byte))
+        #Debug.trace("wr_test ofs 0x%x byte 0x%x" % (offset, byte))
         if offset not in [0,1]:
-            raise ValueError("Out of range offset:%x" % offset)
+            raise ValueError("Out of range offset:0x%x" % offset)
         b0, b1 = Number.to_bytes(self.testvalue)
         bytes = [b0, b1]
         bytes[offset] = byte
@@ -1373,7 +1374,7 @@ class Machine():
         { a=ds_pop; n0=ds_pop8; n1=ds_pop8; mem[a]=n0; mem[a+1]=n1} ;"""
         a = self.ds.popn()
         n = self.ds.popn()
-        #print("STORE a:%x n:%x" % (a, n))
+        #print("STORE a:0x%x n:0x%x" % (a, n))
         self.mem.writen(a, n)
 
     def n_fetch(self):
@@ -1382,7 +1383,7 @@ class Machine():
         #Debug.trace("###FETCH")
         a = self.ds.popn()
         n = self.mem.readn(a)
-        #print("FETCH a:%x n:%x" % (a, n))
+        #print("FETCH a:0x%x n:0x%x" % (a, n))
         self.ds.pushn(n)
 
     def n_store8(self):
@@ -1390,7 +1391,7 @@ class Machine():
         { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
         b = self.ds.popb()
-        #print("STORE8 a:%x b:%x" % (a, b))
+        #print("STORE8 a:0x%x b:0x%x" % (a, b))
         self.mem.writeb(a, b)
 
     def n_fetch8(self):
@@ -1398,7 +1399,7 @@ class Machine():
         { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
         b = self.mem.readb(a)
-        #print("FETCH8 a:%x b:%x" % (a, b))
+        #print("FETCH8 a:0x%x b:0x%x" % (a, b))
         self.ds.pushb(b)
 
     def n_add(self):
@@ -1534,7 +1535,7 @@ class Machine():
         { ds_push8(getch) } ;"""
         ch = self.ins.getch()
         b = ord(ch)
-        self.ds.pushn(b)
+        self.ds.pushb(b)
 
     def n_emit(self):
         """: n_EMIT   ( c -- )
@@ -1552,7 +1553,7 @@ class Machine():
     def n_rdpfa(self):
         """: n_RDPFA   ( -- n)
         { pfa=ip; r=mem[pfa]; ds_push(r) } ;"""
-        #Debug.trace("ip %x" % self.ip)
+        #Debug.trace("ip 0x%x" % self.ip)
         pfa = self.ip
         r = self.mem.readn(pfa)
         self.ds.pushn(r)
@@ -1571,11 +1572,11 @@ class Machine():
         { rel=memn[ip]; ip+=2; abs=ip-rel; ip=abs } ;"""
         #print("BRANCH")
         ip = self.rs.popn() # points to REL
-        #print("  ip on entry:%x" % ip)
+        #print("  ip on entry:0x%x" % ip)
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
-        #print("  rel:%x" % rel)
+        #print("  rel:0x%x" % rel)
         abs = (ip + rel) & 0xFFFF # 2's complement
-        #print("  to:%x" % abs)
+        #print("  to:0x%x" % abs)
         self.rs.pushn(abs)
 
     def n_0branch(self):
@@ -1583,9 +1584,9 @@ class Machine():
         { f=ds_pop; r=mem[ip]; if f==0:ip=ip+(2*r) else: ip+=2 } ;"""
         #print("0BRANCH")
         f = self.ds.popn()
-        #print("  flag:%x" % f)
+        #print("  flag:0x%x" % f)
         ip = self.rs.popn() # points to REL
-        #print("  ip on entry:%x" % ip)
+        #print("  ip on entry:0x%x" % ip)
         rel = 2 * self.mem.readn(ip) # each cell is two bytes
         #print("  rel:%d dec" % rel)
 
@@ -1594,7 +1595,7 @@ class Machine():
         else:
             abs = ip+2
 
-        #print("  to:%x" % abs)
+        #print("  to:0x%x" % abs)
         self.rs.pushn(abs)
 
     def n_rblk(self):
@@ -1631,13 +1632,13 @@ class Machine():
         # ( pfa -- )
         #Debug.trace("EXECUTE")
         pfa = self.ds.popn()
-        #Debug.trace(" pfa:%x" % pfa)
+        #Debug.trace(" pfa:0x%x" % pfa)
         # Don't assume DODOES, just in case it is a low level word!
         cfa = self.dict.pfa2cfa(pfa)
-        #Debug.trace(" cfa:%x" % cfa)
+        #Debug.trace(" cfa:0x%x" % cfa)
         cf = self.mem.readn(cfa)
         self.ip = pfa
-        #Debug.trace(" calling cf:%x" % cf)
+        #Debug.trace(" calling cf:0x%x" % cf)
         self.call(cf)
 
     def n_dodoes(self):
@@ -1652,11 +1653,11 @@ class Machine():
                     self.running = False
                     break
             # ip points to the cfa of the word to execute
-            #Debug.trace(" fetch from ip:%x" % self.ip)
+            #Debug.trace(" fetch from ip:0x%x" % self.ip)
             cfa = self.mem.readn(self.ip)
-            #Debug.trace(" cfa:%x" % cfa)
+            #Debug.trace(" cfa:0x%x" % cfa)
             cf = self.mem.readn(cfa)
-            #Debug.trace(" cf:%x" % cf)
+            #Debug.trace(" cf:0x%x" % cf)
             self.rs.pushn(self.ip+2)
             # put something useful in self.ip, i.e. the pfa
             self.ip = cfa+2 # pfa
@@ -1677,6 +1678,17 @@ class Machine():
         ip += 2
         self.rs.pushn(ip)
 
+    def n_pchr(self):
+        """Process an inline 8 bit literal and put it on DS"""
+        #: n_DOLIT  ( -- )
+        #{ip=rs_pop; b=mem_readn(ip); ds.pushn(n) ip+=2}
+        ip = self.rs.popn()
+        b = self.mem.readn(ip)
+        self.ds.pushb(b)
+        #Debug.trace("found byte literal: 0x%x" % b)
+        ip += 2 # cells are always 16 bits wide
+        self.rs.pushn(ip)
+
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
         """: n_EXIT   ( -- )
@@ -1688,7 +1700,7 @@ class Machine():
         #if self.rs.getused() >= 2:
         #    #print("rs used:%d" % self.rs.getused())
         #    self.ip = self.rs.popn()
-        #    #Debug.trace("popped to IP: %x" % self.ip)
+        #    #Debug.trace("popped to IP: 0x%x" % self.ip)
         #else:
         #    Debug.trace("Return stack empty, STOPPING")
         #    self.running = False
@@ -1976,7 +1988,7 @@ def test_hello():
     msg = "Hello world!\n"
     pfa = []
     for ch in msg:
-        pfa.append(" DOLIT") #TODO: need a " DOCHR" otherwise stack will break
+        pfa.append(" PCHR")
         pfa.append(ord(ch))
         pfa.append("EMIT")
 

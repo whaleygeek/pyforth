@@ -5,19 +5,15 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-SHOW and testshow now working.
-EMIT was reading n but needs to read b.
-
-
-TODO
-fix problems with EMIT - need a " DOCHR" for pushing chars on the stack
-All items marked up in tests.py and forth.py that need fixing.
-re test all unit tests
+Split out test harness into two parts
+Fixed EMIT problem, now uses " DOCHR" to push a char on stack
+All tests pass
+Started to debug EXPECT
 
 TODO
-split tests into two suites, one that is completed tests, one that is
-the test being developed. Then it will be quicker to turn completed
-tests off while developing a test, without commenting them all out.
+DUP does a 16 bit, we need a CDUP to duplicate a character
+
+
 
 TODO
 test EXPECT with the EXPECT SHOW test case

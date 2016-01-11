@@ -9,7 +9,7 @@ import forth
 #another for the test being developed
 # can then turn all other tests off while developing new test
 
-class x:#TestForth(unittest.TestCase):
+class TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")

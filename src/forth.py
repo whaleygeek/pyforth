@@ -1147,7 +1147,6 @@ class NvRoutine():
             (" RDPFA",     parent.n_rdpfa),     # 1D
             (" DODOES",    parent.n_dodoes),    # 1E
             (" DOLIT",     parent.n_dolit),
-            (" PCHR",      parent.n_pchr),
             ("EXECUTE",    parent.n_execute),
             ("EXIT",       parent.n_exit),
             #(" DOCOL",    parent.n_docol),
@@ -1387,6 +1386,7 @@ class Machine():
         self.ds.pushn(n)
 
     def n_store8(self):
+        #TODO check brodie, what does this get from stack, a 16bit or an 8bit?
         """: n_STORE8  ( b a -- )
         { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
@@ -1395,6 +1395,7 @@ class Machine():
         self.mem.writeb(a, b)
 
     def n_fetch8(self):
+        #TODO check brodie, what does this put on stack, a 16 bit or an 8 bit?
         """: n_FETCH8   ( a -- b)
         { a=ds_pop; b=mem[a]; ds_push8(b) } ;"""
         a = self.ds.popn()
@@ -1526,21 +1527,21 @@ class Machine():
 
     def n_keyq(self):
         """: n_KEYQ   ( -- ?)
-        # { ds_push8(kbhit) } ;"""
+        # { ds_pushn(kbhit) } ;"""
         n = self.ins.waiting()
         self.ds.pushn(n)
 
     def n_key(self):
         """: n_KEY   ( -- c)
-        { ds_push8(getch) } ;"""
+        { ds_pushn(getch) } ;"""
         ch = self.ins.getch()
         b = ord(ch)
-        self.ds.pushb(b)
+        self.ds.pushn(b)
 
     def n_emit(self):
         """: n_EMIT   ( c -- )
-        { putch(ds_pop8) } ;"""
-        ch = chr(self.ds.popb() & 0xFF)
+        { putch(ds_popn) } ;"""
+        ch = chr(self.ds.popn() & 0xFF)
         self.outs.writech(ch)
 
     def n_printtos(self):
@@ -1676,17 +1677,6 @@ class Machine():
         self.ds.pushn(n)
         #Debug.trace("found literal: %d" % n)
         ip += 2
-        self.rs.pushn(ip)
-
-    def n_pchr(self):
-        """Process an inline 8 bit literal and put it on DS"""
-        #: n_DOLIT  ( -- )
-        #{ip=rs_pop; b=mem_readn(ip); ds.pushn(n) ip+=2}
-        ip = self.rs.popn()
-        b = self.mem.readn(ip)
-        self.ds.pushb(b)
-        #Debug.trace("found byte literal: 0x%x" % b)
-        ip += 2 # cells are always 16 bits wide
         self.rs.pushn(ip)
 
     def n_exit(self):
@@ -1988,7 +1978,7 @@ def test_hello():
     msg = "Hello world!\n"
     pfa = []
     for ch in msg:
-        pfa.append(" PCHR")
+        pfa.append(" DOLIT")
         pfa.append(ord(ch))
         pfa.append("EMIT")
 

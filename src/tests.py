@@ -9,7 +9,7 @@ import forth
 #another for the test being developed
 # can then turn all other tests off while developing new test
 
-class x: #TestForth(unittest.TestCase):
+class x:#TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
@@ -34,7 +34,7 @@ class x: #TestForth(unittest.TestCase):
 
     def test_01_star(self):
         """Output a single * on stdout"""
-        self.f.create_word("TEST", " PCHR", 42, "EMIT")
+        self.f.create_word("TEST", " DOLIT", 42, "EMIT")
         self.f.execute_word("TEST")
         self.assertEquals("*", self.f.outs.get())
 
@@ -44,7 +44,7 @@ class x: #TestForth(unittest.TestCase):
         msg = "Hello world!\n"
         pfa = []
         for ch in msg:
-            pfa.append(" PCHR")
+            pfa.append(" DOLIT")
             pfa.append(ord(ch))
             pfa.append("EMIT")
 
@@ -148,21 +148,21 @@ class x: #TestForth(unittest.TestCase):
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
-        self.f.create_word("B", " PCHR", 42, "EMIT", "BRANCH", -4)
+        self.f.create_word("B", " DOLIT", 42, "EMIT", "BRANCH", -4)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
         self.assertEquals("******", self.f.outs.get())
 
     def test_41_0branch_taken(self):
         """Test conditional branch always taken"""
-        self.f.create_word("B", " PCHR", 43, "EMIT", " DOLIT", 1, "0BRANCH", -6)
+        self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 1, "0BRANCH", -6)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
         self.assertEquals("+", self.f.outs.get())
 
     def test_42_0branch_nottaken(self):
         """Test conditional branch always not taken"""
-        self.f.create_word("B", " PCHR", 44, "EMIT", " DOLIT", 0, "0BRANCH", -6)
+        self.f.create_word("B", " DOLIT", 44, "EMIT", " DOLIT", 0, "0BRANCH", -6)
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
         self.assertEquals(",,,,,", self.f.outs.get())
@@ -300,20 +300,22 @@ class TestNew(unittest.TestCase):
 
     def test_80_show(self):
         # fill TIB with some test data
+        #TODO: Problem is all to do with chars in SPAN, and size of what is on stack
+        # C@ should store a char, but read a n?
         self.f.create_word("TEST",
-            " DOLIT", 0x30, "SPAN", "C!",                   # init value to 48
-            "TIB", ">IN", "!",                              # init ptr to TIB
-            " DOLIT", 10, "COUNT", "!",                     # init count to 9
+            " DOLIT", 0x30, "SPAN", "C!",                   # () init value to 48
+            "TIB", ">IN", "!",                              # () init ptr to TIB
+            " DOLIT", 10, "COUNT", "!",                     # () init count to 9
                                                             # target:loop
-            "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # if count 0, exit
-            "SPAN", "C@", ">IN", "@", "C!",                 # store value at addr
-            ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # inc ptr
-            "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # dec count
-            "SPAN", "C@", " DOLIT", 1, "+", "SPAN", "C!",   # add one to char
+            "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # () if count 0, exit
+            "SPAN", "C@", ">IN", "@", "C!",                 # () store value at addr
+            ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # () inc ptr
+            "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # () dec count
+            "SPAN", "C@", " DOLIT", 1, "+", "SPAN", "C!",   # () add one to char
             "BRANCH", -33,                                  # to:loop
                                                             # target:exit
-            "TIB", ">IN", "!",
-            " DOLIT", 10, "COUNT", "!"
+            "TIB", ">IN", "!",                              # ()
+            " DOLIT", 10, "COUNT", "!"                      # ()
             )
 
         self.f.execute_word("TEST")
@@ -325,7 +327,7 @@ class TestNew(unittest.TestCase):
         self.f.execute_word("TEST2")
         self.assertEquals("0123456789", self.f.outs.get())
 
-    def test_expect(self):
+    def xtest_expect(self):
         """EXPECT a line"""
 
         self.f.create_word("E",                             # ( a # -- )

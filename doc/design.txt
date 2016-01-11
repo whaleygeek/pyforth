@@ -6,14 +6,12 @@ This will make it easier to test and develop new words.
 
 JUST DONE
 Started to test EXPECT.
-Realised that a c must actually be an n, what about...
-42 EMIT
-The 42 pushes a number on the stack.
-Need to SWAP regularly, can't do that if c is an 8bit
+Too out PCHR
 
 
 TODO
-Remove PCHR code and make all chars push n on stack
+Read brodie on C! and C@ and KEY, these work with chars, but what goes
+onto the stack? If a c is on the stack as a byte, we can't use SWAP anymore!
 
 
 

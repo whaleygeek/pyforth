@@ -5,13 +5,7 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Started to test EXPECT.
-Too out PCHR
-
-
-TODO
-Read brodie on C! and C@ and KEY, these work with chars, but what goes
-onto the stack? If a c is on the stack as a byte, we can't use SWAP anymore!
+Fixed char on stack - always takes one cell
 
 
 

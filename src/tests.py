@@ -300,18 +300,16 @@ class TestNew(unittest.TestCase):
 
     def test_80_show(self):
         # fill TIB with some test data
-        #TODO: Problem is all to do with chars in SPAN, and size of what is on stack
-        # C@ should store a char, but read a n?
         self.f.create_word("TEST",
-            " DOLIT", 0x30, "SPAN", "C!",                   # () init value to 48
+            " DOLIT", 0x30, "SPAN", "!",                    # () init value to 48
             "TIB", ">IN", "!",                              # () init ptr to TIB
             " DOLIT", 10, "COUNT", "!",                     # () init count to 9
                                                             # target:loop
             "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # () if count 0, exit
-            "SPAN", "C@", ">IN", "@", "C!",                 # () store value at addr
+            "SPAN", "@", ">IN", "@", "C!",                  # () store value at addr
             ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # () inc ptr
             "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # () dec count
-            "SPAN", "C@", " DOLIT", 1, "+", "SPAN", "C!",   # () add one to char
+            "SPAN", "@", " DOLIT", 1, "+", "SPAN", "!",     # () add one to char
             "BRANCH", -33,                                  # to:loop
                                                             # target:exit
             "TIB", ">IN", "!",                              # ()
@@ -323,7 +321,6 @@ class TestNew(unittest.TestCase):
 
         # Now use: TIB COUNT SHOW to test show works
         self.f.create_word("TEST2", "TIB", "COUNT", "@", "SHOW")
-        #self.f.machine.limit=20
         self.f.execute_word("TEST2")
         self.assertEquals("0123456789", self.f.outs.get())
 

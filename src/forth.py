@@ -585,6 +585,13 @@ class ForthStack(Stack):
     def __init__(self, storage, start, size, growdirn, ptrtype):
         Stack.__init__(self, storage, start, size, growdirn, ptrtype)
 
+    # All entries on a ForthStack are at least 1 cell in size.
+    def pushb(self, byte):
+        raise RuntimeError("Byte push on to a Forth stack is not supported")
+
+    def popb(self):
+        raise RuntimeError("Byte pop from a Forth stack is not supported")
+
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
         n = self.getn(self.TOS)
@@ -1390,7 +1397,7 @@ class Machine():
         """: n_STORE8  ( b a -- )
         { a=ds_pop; b=ds_pop8; mem[a]=b } ;"""
         a = self.ds.popn()
-        b = self.ds.popb()
+        b = self.ds.popn() & 0xFF
         #print("STORE8 a:0x%x b:0x%x" % (a, b))
         self.mem.writeb(a, b)
 
@@ -1401,7 +1408,7 @@ class Machine():
         a = self.ds.popn()
         b = self.mem.readb(a)
         #print("FETCH8 a:0x%x b:0x%x" % (a, b))
-        self.ds.pushb(b)
+        self.ds.pushn(b)
 
     def n_add(self):
         """: n_ADD   ( n1 n2 -- n-sum)

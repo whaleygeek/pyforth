@@ -1995,7 +1995,16 @@ def test_hello():
 
     forth.execute_word("HELLO")
 
-if __name__ == "__main__":
-    test_hello()
+def test_echoloop():
+    forth.create_word(
+        "RUN",
+            "TIB", "TIBZ", "EXPECT",
+            "TIB", "SPAN", "SHOW",
+            "BRANCH", -3
+    )
+    forth.execute_word("RUN")
 
+if __name__ == "__main__":
+    #test_hello()
+    test_echoloop()
 # END

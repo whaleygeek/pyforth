@@ -5,12 +5,13 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-EXPECT SHOW working
-
+EXPECT/SHOW loop sort of working in forth.py
 
 TODO
-Write an EXPECT/SHOW loop in the forth main
-and test it interactively
+WAIT on mock buffer called
+Need to write KeyboardInput() class and bind it to forth.py main
+so that we can use this forth instance interactively.
+
 
 
 ===============================================================================

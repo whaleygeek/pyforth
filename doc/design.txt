@@ -22,12 +22,32 @@ returning from DODOES =, depth now 2
 dodoes EXPECT calling dodoes, word:85a EXPECT
 debug:DODOES enter, depth:3 word:85a EXPECT
 
+
+###### Also noted, ALL the tests are now failing with BUFFER UNDERFLOW
+
+
+
+
 TODO
 This looks like something is going wrong with the self.ip and it's returning
 back to itself making it unnaturally recursive, which is why the python
 stack continues to grow...
 
 dodoes EXPECT calling dodoes, word:85a EXPECT
+
+Perhaps try to implement a complete instruction trace, not just a DODOES one,
+and insert call nesting by indents. This will then let us see the full flow
+of the code and see if it is unnaturally recursing on returning from a
+DODOES and getting the return address wrong (as actually most words in EXPECT
+are natives).
+
+It is possible that expect is calling itself after the equality check
+and only receiving 1 character, showing that one character, then going round
+expect again, receiving one, showing one, etc, recursing every time,
+and the newlines are inserted by the keyboard processor
+
+This is easy to check with an EMIT after each call to SHOW
+
 
 
 ===============================================================================

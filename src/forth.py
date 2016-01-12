@@ -44,7 +44,7 @@ class Debug():
     def fail(msg):
         """Display a failure message on stdout and stop the progra"""
         Debug.out("fail", msg)
-        raise RuntimeError("FAIL: %s:", str(msg))
+        raise RuntimeError("FAIL:"+ str(msg))
 
 
 #----- NUMBER and DOUBLE accessors --------------------------------------------
@@ -144,7 +144,7 @@ class Buffer():
     def dump(self, start, len):
         """Dump memory to stdout, for debug reasons"""
         #TODO do a proper 8 or 16 column address-prefixed dump
-        for a in range(start, start+len):
+        for a in range(self.start+start, self.start+start+len):
             print("%4x:%2x" % (a, self[a]))
 
 
@@ -927,7 +927,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.bytes.readb(ffa)
             if ff == 0:
-                Debug.fail("Could not find word in dict:%s", name)
+                Debug.fail("Could not find word in dict:%s" % name)
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
                 # check if name in NFA matches
@@ -1965,6 +1965,7 @@ class Forth():
             #("BINDEX", 2*2),
             ("BASE",    2,    10),
             ("SPAN",),
+            ("TIB#",),
         ]
         for v in vars:
             name = v[0]
@@ -2029,7 +2030,7 @@ class Forth():
             ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
 
 
-            #----- EXPECT
+            #-----
             ("EXPECT", [                                        # ( a # -- )
                 "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
                 "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
@@ -2054,9 +2055,7 @@ class Forth():
                 "SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
                 ">IN", "!",                                     # ( )         INP points to first char to read in buffer
             ]),
-
-
-            #----- TYPE: show a string given address and length
+            #-----
             ("TYPE", [                                      # ( a # -- )
                                                             # target:read
                 "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
@@ -2069,7 +2068,7 @@ class Forth():
                                                             # target:exit
                 "DROP", "DROP",
             ]),
-            #----- COUNT
+            #-----
             ("COUNT", [                                     # ( a)
                 "DUP",                                      # ( a a)
                 "C@",                                       # ( a #)
@@ -2077,7 +2076,7 @@ class Forth():
                 LIT(1), "+",                                # ( # a)
                 "SWAP",                                     # ( a #)
             ]),
-            #----- SPACES
+            #-----
             ("SPACES", [                                    # ( n -- )
                 # loop                                      # ( n)
                     "DUP",                                  # ( n n)
@@ -2087,6 +2086,15 @@ class Forth():
                     "BRANCH", -10,                          # ( n)      to:loop
                 # exit                                      # ( n)
                 "DROP"                                      # ( )
+            ]),
+            #-----
+            ("IN@+", [                                          # ( -- c)
+                "TIB", "TIB#", "@", "+",                        # ( a)          address of first unused byte at end of buffer
+                ">IN", "@", "=",                                # ( ?)          is IN ptr at end of buffer?  TRUE if at end
+                LIT(0), "SWAP", "NOT", "0BRANCH", +12, "DROP",  # ( -- or 0)    to:exit with 0 on stack if end, stack empty if chars
+                ">IN", "@", "C@",                               # ( c)          read next char at ptr
+                ">IN", "@", LIT(1), "+", ">IN", "!",            # ( c)          advance IN ptr
+                # exit                                          # ( c or 0)
             ]),
         ]
 

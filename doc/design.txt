@@ -5,48 +5,33 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-SHOW -> TYPE ( a #)
+IN@+ coded, will read and advance pointer.
+A useful building block for WORD
 
 
-TIB #TIB @ TYPE
+Just a thought, if TIB is an indexed buffer and IN> is the ptr,
+if we memory mapped IN> to the ptr and TIB# to the size,
+the code at both ends will be simpler, because we're just
+reusing the normal IndexedBuffer behaviour.
 
-' TEST >BODY CELL+ 1+ 7 TYPE
-
-#TIB @, the count of received characters.
-
-
-===============================================================================
-
----- spec TIB
-
-TIB  - constant address of start of buffer
-TIBZ - constant max size of buffer
-IN>  - var pointer to next read character
-TIB# - var of chars in TIB buffer total for processing
-IN@+ - read next char from buffer onto stack, inc ptr. zero marks end of buffer.
-
----- design (read next char from buffer and put onto stack, zero if nothing left)
-: IN@+                              \ ( -- c)
-    TIB @ TIB# @ +                  \ ( a)          address of first unused byte at end of buffer
-    IN> @ =                         \ ( ?)          is IN ptr at end of buffer?  TRUE if at end
-    0 SWAP NOT 0BRANCH +12 DROP     \ ( -- or 0)    to:exit with 0 on stack if end, stack empty if chars
-    IN> @ C@ DUP                    \ ( c c)        read next char at ptr
-    IN> @ 1 + IN> !                 \ ( c )         advance IN ptr
-    \ exit                          \ ( c or 0)
-
----- test
-setup TIB='hello', TIB#=5, IN>=TIB
-: TEST IN@+ DUP 0BRANCH +4 EMIT BRANCH -6
-TEST
+Or, if we are not using the internal pointer, might be worth
+just defining it as a Buffer()
 
 
+================================================================================
 
 WORD
+
+from online Brodie:
 
 ( c -- addr )
 
 Reads one word from the input stream, using the character (usually blank) as a delimiter.
 Moves the string to the address (HERE) with the count in the first byte, leaving the address on the stack.
+
+Note, the new forth might use HERE rather than TIB, because HERE is always just past the end of the
+dictionary? Sounds dangerous though if the side effect of a compiling word is to define something
+in the dictionary and move the HERE pointer??
 
 
 ----- spec: WORD
@@ -72,44 +57,43 @@ the user pressed RETURN
 
 ---- design: WORD
 
-# The processing of the inner loops is the same, perhaps refactor
-# it out into a helper that just processes based on an arbitrary set of pointers?
-# remember that >IN consumes a char by reading it and advancing pointer.
-# could pass address of consume routine on DS of course (a callback!)
-
 # probably also worth factoring out writing to the PAD buffer into a helper,
 # as that is a common routine that may be used elsewhere in other words.
-
-# does the >IN return a magic number if nothing to consume (e.g. 0?)
-# that might simplify the code. Remember it is just a variable, so perhaps
-# there is a space for a general purpose "consume next char until end of buffer"
-# word, where the in ptr address and the end buffer address are passed in?
-# can then pass in addresses relevant to TIB or BLK accordingly.
 
 We are ignoring the block reading here until the basic word is working.
 We don't have blocks yet anyway.
 
-: WORD \ word ( c -- a)
-    \ store separator char somewhere
-    \ target:tibskiploop
-        \ if no chars left in TIB, BRANCH ( exit)
-        \ consume next char from TIB (>IN)  ## is there something that reads and advances pointer in one go??
-    \ if char matches separator, BRANCH ( tibskiploop)
+Note: this could be a 'SKIP' word (BL SKIP) that skips the given character
+on the input stream. Means that it has to deal with end of buffer, and
+it has to read ahead, which means it must wind the pointer back one if
+it finds a non separator
 
-    \ zero counter
-    \ init write ptr into PAD buffer (skip over count byte reserved space)
+Remember, PAD is start of buffer and that is where the counter goes!
 
-    \ target:tibcopyloop
-        \ if no chars left in TIB, BRANCH exit
-        \ consume next char from TIB (>IN)
-        \ copy char to next PAD buffer
-        \ inc PAD ptr
-        \ inc counter
-    \ if char is not separator, BRANCH ( tibcopyloop)
+Might just about arrange for SEP to stay on the stack in these.
 
-    \ target:exit
-    \ copy counter into first byte of PAD buffer
-    \ push address of PAD buffer start onto stack
+: WORD                                  # ( c -- a)
+    SEP !                               # ( )           store separator char (or put on stack?)
+    # skip
+        >IN@+                           # ( c or 0)     read next from input stream, returns 0 if empty
+        0BRANCH +n exitskip             # ( )           exit if at end of buffer??
+        SEP = NOT 0BRANCH -nn skip      # ( )           if matches separator
+        >IN @ 1 - >IN !                 # ( )           just seen non separator, wind back to first non sep char
+    # exitskip
+
+    0 PAD !                             # ( )           counted zero chars
+    PAD 1 + PAD> !                      # ( )           PAD write ptr to start of PAD buffer, skip count
+
+    # copy
+        >IN@+                           # ( c or 0)     try to consume next char
+        DUP 0BRANCH +nn exit            # ( c)          zero marks end of buffer
+        PAD> @ !                        # ( )           write char to next pad ptr
+        PAD> DUP @ 1 + PAD> !           # ( a)          inc PAD write ptr (a is addr of last written char)
+        PAD @ 1 + PAD !                 # ( )           inc counter
+        SEP = 0BRANCH -nn copy          # ( )           if not separator, go round again
+
+    # exit
+    PAD                                 # ( )           address of PAD returned on stack
     ;
 
 
@@ -1816,6 +1800,36 @@ read position, and the count of active characters - i.e. 2 constants 2 variables
 of the string in memory AND the count, in this form:"
 
 ( addr u -- )
+
+
+TIB #TIB @ TYPE
+
+' TEST >BODY CELL+ 1+ 7 TYPE
+
+
+===============================================================================
+
+---- spec TIB
+
+TIB  - constant address of start of buffer
+TIBZ - constant max size of buffer
+IN>  - var pointer to next read character
+TIB# - var of chars in TIB buffer total for processing
+IN@+ - read next char from buffer onto stack, inc ptr. zero marks end of buffer.
+
+---- design (read next char from buffer and put onto stack, zero if nothing left)
+: IN@+                              \ ( -- c)
+    TIB @ TIB# @ +                  \ ( a)          address of first unused byte at end of buffer
+    IN> @ =                         \ ( ?)          is IN ptr at end of buffer?  TRUE if at end
+    0 SWAP NOT 0BRANCH +12 DROP     \ ( -- or 0)    to:exit with 0 on stack if end, stack empty if chars
+    IN> @ C@ DUP                    \ ( c c)        read next char at ptr
+    IN> @ 1 + IN> !                 \ ( c )         advance IN ptr
+    \ exit                          \ ( c or 0)
+
+---- test
+setup TIB='hello', TIB#=5, IN>=TIB
+: TEST IN@+ DUP 0BRANCH +4 EMIT BRANCH -6
+TEST
 
 
 ===== END =====================================================================

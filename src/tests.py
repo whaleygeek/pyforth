@@ -19,6 +19,7 @@ class x:#Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
+
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()
 
@@ -291,6 +292,23 @@ class TestForth(unittest.TestCase):
         self.f.create_word("TEST", LIT(20), "SPACES")
         self.f.execute_word("TEST")
         self.assertEquals("                    ", self.f.outs.get())
+
+    def test_84_rd_in(self):
+        #setup TIB='hello', TIB#=5, IN>=TIB
+        self.f.machine.tib.fwd(5)
+        self.f.machine.tib.write(0, [ord('H'),ord('E'), ord('L'), ord('L'), ord('O')])
+        #self.f.machine.tib.dump(0, 10)
+
+        self.f.create_word("TEST",
+                            "TIB", ">IN", "!",
+                            LIT(5), "TIB#", "!",
+                            "IN@+", "DUP", "0BRANCH", +4, "EMIT", "BRANCH", -6
+        )
+
+
+        self.f.execute_word("TEST")
+        self.assertEquals("HELLO", self.f.outs.get())
+
 
 
 

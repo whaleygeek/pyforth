@@ -54,16 +54,8 @@ class TestForth(unittest.TestCase):
 
     def test_02_hello(self):
         """Output a Hello world! message"""
-
-        #TODO use Forth.STRING here
         msg = "Hello world!\n"
-        pfa = []
-        for ch in msg:
-            pfa.append(" DOLIT")
-            pfa.append(ord(ch))
-            pfa.append("EMIT")
-
-        self.f.create_word("TEST", *pfa)
+        self.f.create_word("TEST", STR(msg), "COUNT", "SHOW")
         self.f.execute_word("TEST")
         self.assertEquals(msg, self.f.outs.get())
 

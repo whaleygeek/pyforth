@@ -5,62 +5,15 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-coded and tested SPACES
+designed and coded DOSTR
+tested and it works with "Hello World!\n"
 
 
 TODO
-* Implement DOSTR and test it
+Use STR() in any other test cases
 
 * Read brodie about TYPE, says something about moved to PAD first??
   Then probably rename SHOW as TYPE
-
-
-===============================================================================
-
---- IDEA
-
-f.create_word(f.LITERAL(1)) - puts in the DOLIT
-f.create_word(f.STRING("Hello World") - puts in the DOSTR and encodes
-
-This will be a closer step towards compile time code that can be ported
-into Forth later.
-
-
-
----- spec DOSTR
-a way to embed string literals into the pfa list.
-pack two chars per cell so it is just like any other string in memory.
-Count byte preceeded.
-
----- design DOSTR (native, a way to embed string literals in PFA)
-
-" DOSTR" [<count> <byte0>] [<byte1> <byte2>] [<byte3> <zero>]
-
-If the string has an even number of characters, the last
-char is set to zero. The count byte will not include this.
-
-When the string is being compiled in, a single string is provided,
- and this is interpreted as an array of chars.
-They will be double packed into the cells.
-
-At runtime, DOSTR will push the address of the pfa on the stack, which
- is the address of the count byte and first byte of data.
-
-It will calculate the pfa beyond the end of the string and adjust the ip
-accordingly so the main loop can return to it.
-
-Given the address on the stack, the programmer can use COUNT to turn this
-into a count byte and an address on the stack, if that is the form they
-wish to use.
-
-
-
-
------ test design
-
-: TEST " DOSTR", "Hello World", COUNT, SHOW ;
-
-note: SHOW might be renamed to TYPE later, not sure  yet.
 
 
 ===============================================================================
@@ -129,6 +82,15 @@ We don't have blocks yet anyway.
 
 
 ===============================================================================
+
+Think, if we are able to implement ." message" yet?
+Not sure, it needs compiler support. Really it is STR(msg) COUNT SHOW,
+but would require that create_word actually interpreted the words rather than
+compiling them into the words - don't want to do too much of this until the
+compiler framework is working, as otherwise we'll be doing everything twice
+
+===============================================================================
+
 
 ---- spec REPL
 A read, execute, print, loop.
@@ -1730,4 +1692,64 @@ output a specified number of spaces to the output stream
         BRANCH -9 ( loop)           \ ( n)
     \ exit                          \ ( n)
     DROP                            \ ( )
+
+
+--- IDEA
+
+f.create_word(f.LITERAL(1)) - puts in the DOLIT
+f.create_word(f.STRING("Hello World") - puts in the DOSTR and encodes
+
+This will be a closer step towards compile time code that can be ported
+into Forth later.
+
+
+===============================================================================
+
+---- spec DOSTR
+a way to embed string literals into the pfa list.
+pack two chars per cell so it is just like any other string in memory.
+Count byte preceeded.
+
+---- design DOSTR (native, a way to embed string literals in PFA)
+
+" DOSTR" [<count> <byte0>] [<byte1> <byte2>] [<byte3> <zero>]
+
+If the string has an even number of characters, the last
+char is set to zero. The count byte will not include this.
+
+When the string is being compiled in, a single string is provided,
+ and this is interpreted as an array of chars.
+They will be double packed into the cells.
+
+At runtime, DOSTR will push the address of the pfa on the stack, which
+ is the address of the count byte and first byte of data.
+
+It will calculate the pfa beyond the end of the string and adjust the ip
+accordingly so the main loop can return to it.
+
+Given the address on the stack, the programmer can use COUNT to turn this
+into a count byte and an address on the stack, if that is the form they
+wish to use.
+
+# work out the return cell
+# l   (l/2)+1 cells
+# 0   1       1
+# 1   1       1
+# 2   2       2
+# 3   2       2
+# 4   3       3
+# 5   3       3
+ip += cellbytes*2
+
+
+----- test design
+
+: TEST " DOSTR", "Hello World", COUNT, SHOW ;
+
+note: SHOW might be renamed to TYPE later, not sure  yet.
+
+note: At the moment it prints the string. We want to just get the address
+of it.
+
+===== END =====================================================================
 

@@ -1736,7 +1736,24 @@ class Machine():
         self.rs.pushn(ip)
 
     def n_dostr(self):
-        Debug.fail("not implemented")
+        """Get the address of a string encoded inline in the pf"""
+        # Get the address of the PFA, which is the start of the count preceeded string
+        ip = self.rs.popn()
+        pfa = ip
+        self.ds.pushn(pfa)
+
+        # work out how many cells of data to jump for the return point
+        # This includes an optional pad byte at the end, which is not accounted
+        # for in the length byte, but required to 16-bit align all cells.
+
+        l = self.mem.readb(ip)
+        cellbytes = (l/2)+1 # account for length byte, and optional pad at end
+        #for a in range(pfa+1, pfa+l+1):
+        #    ch = chr(self.mem.readb(a))
+        #    sys.stdout.write(ch)
+
+        ip += cellbytes*2
+        self.rs.pushn(ip)
 
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
@@ -1779,7 +1796,7 @@ class Forth():
             elif type(a) == str or type(a) == int:
                 r.append(a)
             else:
-                Debug.fail("Unhandled arg type:%s %s" % (type(a), str(a)))
+                Debug.fail("Unhandled arg type:%s %s" % (str(type(a)), str(a)))
         #print("flattened:%s" % str(r))
         return r
 
@@ -1831,7 +1848,7 @@ class Forth():
             Debug.fail("Cannot encode strings longer than 255 characters")
 
         # first should be the length
-        s = ord(l) + string
+        s = chr(l) + string
         # List should be an even number of bytes long
         if (len(s) % 2) != 0: # odd length including length byte
             s = s + chr(0) # pad byte
@@ -1841,12 +1858,13 @@ class Forth():
         nlist = []
         for i in range(0, l, 2): # encode pairs of numbers
             # Using from_bytes means it works with any endianness
-            n = Number.from_bytes(ord(s[i]), ord(s[i+1]))
+            n = Number.from_bytes((ord(s[i]), ord(s[i+1])))
             nlist.append(n)
 
         # build a list of 16 bit numbers, numbers ready for word encoding
-        wlist = [" DOSTR"].append(nlist)
-        print("Will encode as:%s" % str(wlist))
+        wlist = [" DOSTR"]
+        wlist.append(nlist)
+        #print("Will encode as:%s" % str(wlist))
         return wlist
 
 

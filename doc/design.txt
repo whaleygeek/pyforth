@@ -5,32 +5,12 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-SHOW recoded to not use COUNT (as it is no longer a variable)
+coded and tested SPACES
 
 
 TODO
 Read brodie about TYPE, says something about moved to PAD first??
 Then probably rename SHOW as TYPE
-
-
---------------------------------------------------------------------------------
-
----- spec: SPACES
-
-output a specified number of spaces to the output stream
-: SPACES ( n -- )
-
----- design: SPACES
-
-: SPACES                            ( n -- )
-    \ loop                          \ ( n)
-        DUP                         \ ( n n)
-        0BRANCH  7 ( exit)          \ ( n)
-        32 EMIT                     \ ( n)
-        1 -   ( n-1)                \ ( n)
-        BRANCH -9 ( loop)           \ ( n)
-    \ exit                          \ ( n)
-    DROP                            \ ( )
 
 
 ===============================================================================
@@ -72,39 +52,28 @@ the user pressed RETURN
 # word, where the in ptr address and the end buffer address are passed in?
 # can then pass in addresses relevant to TIB or BLK accordingly.
 
+We are ignoring the block reading here until the basic word is working.
+We don't have blocks yet anyway.
+
 : WORD \ word ( c -- a)
-    0 COUNT !  (note, COUNT is a function, not a variable)
+    \ zero counter
     \ store separator char somewhere
     \ create pointer into PAD buffer, init to 1 (skip over count byte)
-    TIB 0BRANCH blk
-        \ targettibskiploop
-            \ if no chars left in TIB, BRANCH exit
-            \ consume next char from TIB (>IN)
-        \ if char matches separator, BRANCH tibskiploop
-        \ target tibcopyloop
-            \ if no chars left in TIB, BRANCH exit
-            \ consume next char from TIB (>IN)
-            \ copy char to next PAD buffer
-            \ inc PAD ptr
-            \ inc COUNT  not a variable!!
-            \ if char is separator, BRANCH exit
-        BRANCH tibcopyloop
-    \ target blk
-        \ target blkskiploop
-            \ if no chars left in BLK, branch exit
-            \ consume next char from block
-        \ if char matches separator, BRANCH blkskiploop
-        \ target blkcopyloop
-            \ if no chars left in block, BRANCH exit
-            \ consume next char in block
-            \ copy char to next PAD buffer
-            \ inc PAD ptr
-            \ inc COUNT  not a variable!!
-            \ if char is separator, BRANCH exit
-        BRANCH blkcopyloop
-    \ target exit
-    \ copy COUNT into first byte of PAD buffer  this is not a variable!!
-    \ push address of PAD buffer on stack
+    \ target:tibskiploop
+        \ if no chars left in TIB, BRANCH ( exit)
+        \ consume next char from TIB (>IN)  ## is there something that reads and advances pointer in one go??
+    \ if char matches separator, BRANCH ( tibskiploop)
+
+    \ target:tibcopyloop
+        \ if no chars left in TIB, BRANCH exit
+        \ consume next char from TIB (>IN)
+        \ copy char to next PAD buffer
+        \ inc PAD ptr
+        \ inc counter
+    \ if char is not separator, BRANCH ( tibcopyloop)
+    \ target:exit
+    \ copy counter into first byte of PAD buffer
+    \ push address of PAD buffer start onto stack
     ;
 
 ===============================================================================
@@ -1681,3 +1650,24 @@ Converts address of a counted string, to stack ( a #)
 ----- design: COUNT
 
 : COUNT DUP C@ SWAP 1 + SWAP ;
+
+
+--------------------------------------------------------------------------------
+
+---- spec: SPACES
+
+output a specified number of spaces to the output stream
+: SPACES ( n -- )
+
+---- design: SPACES
+
+: SPACES                            ( n -- )
+    \ loop                          \ ( n)
+        DUP                         \ ( n n)
+        0BRANCH  7 ( exit)          \ ( n)
+        32 EMIT                     \ ( n)
+        1 -   ( n-1)                \ ( n)
+        BRANCH -9 ( loop)           \ ( n)
+    \ exit                          \ ( n)
+    DROP                            \ ( )
+

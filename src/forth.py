@@ -2009,6 +2009,17 @@ class Forth():
                 " DOLIT", 1, "+",                           # ( # a)
                 "SWAP",                                     # ( a #)
             ]),
+            #----- SPACES
+            ("SPACES", [                                    # ( n -- )
+                # loop                                      # ( n)
+                    "DUP",                                  # ( n n)
+                    "0BRANCH", 9,                           # ( n)      to:exit
+                    " DOLIT", 32, "EMIT",                   # ( n)
+                    " DOLIT", 1, "-",                       # ( n-1)
+                    "BRANCH", -10,                          # ( n)      to:loop
+                # exit                                      # ( n)
+                "DROP"                                      # ( )
+            ]),
         ]
 
         for w in words:

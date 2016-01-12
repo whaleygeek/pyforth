@@ -16,7 +16,8 @@ class x:#Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-
+    #def test_dumpdict(self):
+    #    self.f.machine.dict.dump()
 
 
 class TestForth(unittest.TestCase):
@@ -289,10 +290,13 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("TEST")
         self.assertEquals("8 32769 ", self.f.outs.get())
 
+    def test_83_spaces(self):
+        """Output a number of spaces"""
+        self.f.create_word("TEST", " DOLIT", 20, "SPACES")
+        self.f.execute_word("TEST")
+        self.assertEquals("                    ", self.f.outs.get())
 
 
-    #def test_99_dumpdict(self):
-    #    self.f.machine.dict.dump()
 
     #TODO: need smoke tests for
     #native NIP, TUCK
@@ -318,12 +322,12 @@ class TestForth(unittest.TestCase):
     #: SP@   ( -- a)                      SP @ ;
     #: ?DUP   ( n -- n n or 0 -- 0)       DUP 0BRANCH 2 DUP ;
     #: 2SWAP   ( d1 d2 -- d2 d1)          ROT >R ROT R> ;
-    ##: 2DUP   ( d -- d d)                 OVER OVER ;
+    #: 2DUP   ( d -- d d)                 OVER OVER ;
     #: 2OVER   ( d1 d2 -- d1 d2 d1)       2SWAP 2DUP >R >R 2SWAP R> R> ;
     #: 2DROP   ( d --)                    DROP DROP ;
     #----- GENERAL I/O
     #: HEX   ( -- )                       16 BASE ! ;
-    ##: OCTAL   ( -- )                     8 BASE ! ;
+    #: OCTAL   ( -- )                      8 BASE ! ;
     #: DECIMAL   ( -- )                   10 BASE ! ;
     #: CR   ( -- )                        13 EMIT ;
     #: SPACE   ( -- )                     32 EMIT ;

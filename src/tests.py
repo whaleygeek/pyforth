@@ -55,7 +55,7 @@ class TestForth(unittest.TestCase):
     def test_02_hello(self):
         """Output a Hello world! message"""
         msg = "Hello world!\n"
-        self.f.create_word("TEST", STR(msg), "COUNT", "SHOW")
+        self.f.create_word("TEST", STR(msg), "COUNT", "TYPE")
         self.f.execute_word("TEST")
         self.assertEquals(msg, self.f.outs.get())
 
@@ -251,21 +251,21 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("KEYS")
         self.assertEquals("*", self.f.outs.get())
 
-    def test_80_show(self): #TODO should rename as TYPE?? (check relationship with PAD though)
-        """SHOW what is in a buffer"""
+    def test_80_type(self):
+        """TYPE what is in a buffer onto the output stream"""
         # fill TIB with some test data
         data = [i for i in range(ord('0'), ord('9')+1)]
         self.f.machine.tib.fwd(len(data))
         self.f.machine.tib.write(0, data)
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
 
-        self.f.create_word("TEST", "TIB", LIT(10), "SHOW")
+        self.f.create_word("TEST", "TIB", LIT(10), "TYPE")
         self.f.execute_word("TEST")
         self.assertEquals("0123456789", self.f.outs.get())
 
     def test_81_expect(self):
         """EXPECT a line"""
-        self.f.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW" )
+        self.f.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "TYPE" )
         self.f.ins.set("HELLO\n")
         self.f.execute_word("TEST")
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)

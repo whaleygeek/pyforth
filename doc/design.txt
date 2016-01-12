@@ -5,39 +5,8 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-designed and coded DOSTR
-tested and it works with "Hello World!\n"
+SHOW -> TYPE ( a #)
 
-TODO - review and take on the notes below...
-
-DOSTR is now the runtime code part of ."
-and our python wrapper STR() is the compile time part of it without the parser.
-we've not written a parser yet, that comes later. It's good enough for now.
-
-Note that more up to date standardised versions have a different version of TYPE to that
-in the original Brodie book (which just put an address on the stack), and the #TIB has
-been added in the online version of Starting Forth.
-
-Interestingly, the 94 standard says this about TIB and #TIB...
-
-"This Standard designates the following words as obsolescent:
-        6.2.0060  #TIB       15.6.2.1580  FORGET        6.2.2240  SPAN
-        6.2.0970  CONVERT    6.2.2040     QUERY         6.2.2290  TIB
-        6.2.1390  EXPECT
-"
-
-I'm not too worried about that. This is not going to be a standardised forth
-implementation, it's more an exercise in working out the minimum subset that
-needs to be implemented to allow the rest to be booted using high level words.
-It's an exercise in identifying the boundary of a minimum viable machine,
-using Python as a way to prototype it - nothing more. It's language research,
-informed by one trial implementation that is *probably* throwaway.
-
-
-"The word TYPE prints an entire string of characters at your terminal, given the starting address
-of the string in memory AND the count, in this form:"
-
-( addr u -- )
 
 TIB #TIB @ TYPE
 
@@ -47,6 +16,29 @@ TIB #TIB @ TYPE
 
 
 ===============================================================================
+
+---- spec TIB
+
+TIB  - constant address of start of buffer
+TIBZ - constant max size of buffer
+IN>  - var pointer to next read character
+TIB# - var of chars in TIB buffer total for processing
+IN@+ - read next char from buffer onto stack, inc ptr. zero marks end of buffer.
+
+---- design (read next char from buffer and put onto stack, zero if nothing left)
+: IN@+                              \ ( -- c)
+    TIB @ TIB# @ +                  \ ( a)          address of first unused byte at end of buffer
+    IN> @ =                         \ ( ?)          is IN ptr at end of buffer?  TRUE if at end
+    0 SWAP NOT 0BRANCH +12 DROP     \ ( -- or 0)    to:exit with 0 on stack if end, stack empty if chars
+    IN> @ C@ DUP                    \ ( c c)        read next char at ptr
+    IN> @ 1 + IN> !                 \ ( c )         advance IN ptr
+    \ exit                          \ ( c or 0)
+
+---- test
+setup TIB='hello', TIB#=5, IN>=TIB
+: TEST IN@+ DUP 0BRANCH +4 EMIT BRANCH -6
+TEST
+
 
 
 WORD
@@ -98,13 +90,14 @@ We are ignoring the block reading here until the basic word is working.
 We don't have blocks yet anyway.
 
 : WORD \ word ( c -- a)
-    \ zero counter
     \ store separator char somewhere
-    \ create pointer into PAD buffer, init to 1 (skip over count byte)
     \ target:tibskiploop
         \ if no chars left in TIB, BRANCH ( exit)
         \ consume next char from TIB (>IN)  ## is there something that reads and advances pointer in one go??
     \ if char matches separator, BRANCH ( tibskiploop)
+
+    \ zero counter
+    \ init write ptr into PAD buffer (skip over count byte reserved space)
 
     \ target:tibcopyloop
         \ if no chars left in TIB, BRANCH exit
@@ -113,6 +106,7 @@ We don't have blocks yet anyway.
         \ inc PAD ptr
         \ inc counter
     \ if char is not separator, BRANCH ( tibcopyloop)
+
     \ target:exit
     \ copy counter into first byte of PAD buffer
     \ push address of PAD buffer start onto stack
@@ -1789,6 +1783,40 @@ note: SHOW might be renamed to TYPE later, not sure  yet.
 
 note: At the moment it prints the string. We want to just get the address
 of it.
+
+
+DOSTR is now the runtime code part of ."
+and our python wrapper STR() is the compile time part of it without the parser.
+we've not written a parser yet, that comes later. It's good enough for now.
+
+Note that more up to date standardised versions have a different version of TYPE to that
+in the original Brodie book (which just put an address on the stack), and the #TIB has
+been added in the online version of Starting Forth.
+
+Interestingly, the 94 standard says this about TIB and #TIB...
+
+"This Standard designates the following words as obsolescent:
+        6.2.0060  #TIB       15.6.2.1580  FORGET        6.2.2240  SPAN
+        6.2.0970  CONVERT    6.2.2040     QUERY         6.2.2290  TIB
+        6.2.1390  EXPECT
+"
+
+I'm not too worried about that. This is not going to be a standardised forth
+implementation, it's more an exercise in working out the minimum subset that
+needs to be implemented to allow the rest to be booted using high level words.
+It's an exercise in identifying the boundary of a minimum viable machine,
+using Python as a way to prototype it - nothing more. It's language research,
+informed by one trial implementation that is *probably* throwaway.
+
+(note, for things like TIB, need the start address, the maximum size, the next
+read position, and the count of active characters - i.e. 2 constants 2 variables)
+
+
+"The word TYPE prints an entire string of characters at your terminal, given the starting address
+of the string in memory AND the count, in this form:"
+
+( addr u -- )
+
 
 ===== END =====================================================================
 

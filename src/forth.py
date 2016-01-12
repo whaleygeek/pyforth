@@ -2056,10 +2056,8 @@ class Forth():
             ]),
 
 
-            #----- SHOW: show a string given address and length
-            #TODO this might be a version of TYPE or (TYPE)
-            #note TYPE assumes moved to PAD first??
-            ("SHOW", [                                      # ( a # -- )
+            #----- TYPE: show a string given address and length
+            ("TYPE", [                                      # ( a # -- )
                                                             # target:read
                 "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
                 "SWAP", "DUP", "C@",                        # ( # a c)      read char at address
@@ -2130,10 +2128,10 @@ def test_echoloop():
     #forth.create_word(
     #    "RUN",
     #        "TIB", "TIBZ", "EXPECT",
-    #        #"TIB", "SPAN", "@", "SHOW",
+    #        #"TIB", "SPAN", "@", "TYPE",
     #        "BRANCH", -4
     #)
-    forth.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "SHOW", "BRANCH", -8 )
+    forth.create_word("TEST", "TIB", "TIBZ", "EXPECT" , "TIB", "SPAN", "@", "TYPE", "BRANCH", -8 )
     #forth.machine.dict.dump()
     forth.execute_word("TEST")
 

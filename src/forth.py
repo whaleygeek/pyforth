@@ -1767,6 +1767,21 @@ class Forth():
         return self
 
     # High level forth actions
+    @staticmethod
+    def flatten(args):
+        #print("flatten:%s" % str(args))
+        r = []
+        for a in args:
+            if type(a) == list or type(a) == tuple:
+                a = Forth.flatten(a)
+                for i in a:
+                    r.append(i)
+            elif type(a) == str or type(a) == int:
+                r.append(a)
+            else:
+                Debug.fail("Unhandled arg type:%s %s" % (type(a), str(a)))
+        #print("flattened:%s" % str(r))
+        return r
 
     def create_word(self, name, *args):
         """Create a new high level dictionary entry containing a list of words.
@@ -1776,6 +1791,8 @@ class Forth():
         # Build the PF entries (all should contain CFAs)
         plist  = []
         DODOES = self.machine.getNativeRoutineAddress(" DODOES")
+
+        args = self.flatten(args)
 
         for word in args:
             if type(word) == str:
@@ -1801,6 +1818,37 @@ class Forth():
             finish=True
         )
         #self.machine.dict.dumpraw()
+
+    @staticmethod
+    def LITERAL(number):
+        return " DOLIT", (number & 0xFFFF)
+
+    @staticmethod
+    def STRING(string):
+        # Length is stored in a byte, so can't be too big. But it can be zero.
+        l = len(string)
+        if l > 255:
+            Debug.fail("Cannot encode strings longer than 255 characters")
+
+        # first should be the length
+        s = ord(l) + string
+        # List should be an even number of bytes long
+        if (len(s) % 2) != 0: # odd length including length byte
+            s = s + chr(0) # pad byte
+
+        # Encode bytestream, two bytes per cell, note first byte encoded is length
+        # last byte encoded might be last char, or a pad char of 0
+        nlist = []
+        for i in range(0, l, 2): # encode pairs of numbers
+            # Using from_bytes means it works with any endianness
+            n = Number.from_bytes(ord(s[i]), ord(s[i+1]))
+            nlist.append(n)
+
+        # build a list of 16 bit numbers, numbers ready for word encoding
+        wlist = [" DOSTR"].append(nlist)
+        print("Will encode as:%s" % str(wlist))
+        return wlist
+
 
     def create_const(self, name, number):
         """Create a constant with a given 16 bit value"""
@@ -1913,6 +1961,9 @@ class Forth():
 
 
         # CODE WORDS ----------------------------------------------------------
+        # aliases, for brevity
+        LIT = Forth.LITERAL
+        STR = Forth.STRING
 
         words = [
             #name      parts                  stack effects
@@ -1968,9 +2019,9 @@ class Forth():
                 # loop                                          # ( a)
                     "KEY", "DUP",                               # ( a c c)    read a char
                     ">IN", "@", "C!",                           # ( a c)        write via INP ptr
-                    ">IN", "@", " DOLIT", 1, "+", ">IN", "!",   # ( a c)     advance write pointer
-                    "SPAN", "@", " DOLIT", 1, "-", "SPAN", "!", # ( a c)     dec counter
-                    " DOLIT", 10, "=", "NOT",                   # ( a ?)     is char a LF?
+                    ">IN", "@", LIT(1), "+", ">IN", "!",        # ( a c)     advance write pointer
+                    "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a c)     dec counter
+                    LIT(10), "=", "NOT",                        # ( a ?)     is char a LF?
                     "0BRANCH", 6,                               # ( a)       if it is, exit
                     "SPAN", "@", "0=",                          # ( a ?)     is span=0 (buffer full)
                     "0BRANCH", -29,                             # ( a)       (loop) go round again if it isn't
@@ -1995,9 +2046,9 @@ class Forth():
                 "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
                 "SWAP", "DUP", "C@",                        # ( # a c)      read char at address
                 "EMIT",                                     # ( # a)        show char
-                " DOLIT", 1, "+",                           # ( # a)        advance address
+                LIT(1), "+",                                # ( # a)        advance address
                 "SWAP",                                     # ( a #)
-                " DOLIT", 1, "-",                           # ( a #)        dec count
+                LIT(1), "-",                                # ( a #)        dec count
                 "BRANCH", -17,                              # (read)        go round for another
                                                             # target:exit
                 "DROP", "DROP",
@@ -2007,7 +2058,7 @@ class Forth():
                 "DUP",                                      # ( a a)
                 "C@",                                       # ( a #)
                 "SWAP",                                     # ( # a)
-                " DOLIT", 1, "+",                           # ( # a)
+                LIT(1), "+",                                # ( # a)
                 "SWAP",                                     # ( a #)
             ]),
             #----- SPACES
@@ -2015,8 +2066,8 @@ class Forth():
                 # loop                                      # ( n)
                     "DUP",                                  # ( n n)
                     "0BRANCH", 9,                           # ( n)      to:exit
-                    " DOLIT", 32, "EMIT",                   # ( n)
-                    " DOLIT", 1, "-",                       # ( n-1)
+                    LIT(32), "EMIT",                        # ( n)
+                    LIT(1), "-",                            # ( n-1)
                     "BRANCH", -10,                          # ( n)      to:loop
                 # exit                                      # ( n)
                 "DROP"                                      # ( )
@@ -2028,6 +2079,7 @@ class Forth():
             self.create_word(name, *parts)
 
         #self.machine.dict.dump()
+
 
 
 #----- RUNNER -----------------------------------------------------------------
@@ -2045,6 +2097,7 @@ def test_hello():
 
     msg = "Hello world!\n"
     pfa = []
+    #TODO: Use Forth.STRING here
     for ch in msg:
         pfa.append(" DOLIT")
         pfa.append(ord(ch))

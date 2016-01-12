@@ -5,6 +5,9 @@
 import unittest
 import forth
 
+# Aliases, for brevity
+LIT = forth.Forth.LITERAL
+STR = forth.Forth.STRING
 
 class x:#Experiment(unittest.TestCase):
     """A small smoke test - non exhaustive"""
@@ -45,13 +48,14 @@ class TestForth(unittest.TestCase):
 
     def test_01_star(self):
         """Output a single * on stdout"""
-        self.f.create_word("TEST", " DOLIT", 42, "EMIT")
+        self.f.create_word("TEST", LIT(42), "EMIT")
         self.f.execute_word("TEST")
         self.assertEquals("*", self.f.outs.get())
 
     def test_02_hello(self):
         """Output a Hello world! message"""
 
+        #TODO use Forth.STRING here
         msg = "Hello world!\n"
         pfa = []
         for ch in msg:
@@ -65,73 +69,73 @@ class TestForth(unittest.TestCase):
 
     def test_03_add(self):
         """Add 1 and 2"""
-        self.f.create_word("TEST", " DOLIT", 1, " DOLIT", 2, "+", ".")
+        self.f.create_word("TEST", LIT(1), LIT(2), "+", ".")
         self.f.execute_word("TEST")
         self.assertEquals("3 ", self.f.outs.get())
 
     def test_04_sub(self):
         """Subtract"""
-        self.f.create_word("TEST", " DOLIT", 2, " DOLIT", 1, "-", ".")
+        self.f.create_word("TEST", LIT(2), LIT(1), "-", ".")
         self.f.execute_word("TEST")
         self.assertEquals("1 ", self.f.outs.get())
 
     def test_05_and(self):
-        self.f.create_word("TEST", " DOLIT", 0xFFFF, " DOLIT", 0x8000, "AND", ".")
+        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "AND", ".")
         self.f.execute_word("TEST")
         self.assertEquals("32768 ", self.f.outs.get())
 
     def test_06_or(self):
-        self.f.create_word("TEST", " DOLIT", 0xFFFF, " DOLIT", 0x8000, "OR", ".")
+        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "OR", ".")
         self.f.execute_word("TEST")
         self.assertEquals("65535 ", self.f.outs.get())
 
     def test_07_xor(self):
-        self.f.create_word("TEST", " DOLIT", 0x0001, " DOLIT", 0x8000, "XOR", ".")
+        self.f.create_word("TEST", LIT(0x0001), LIT(0x8000), "XOR", ".")
         self.f.execute_word("TEST")
         self.assertEquals("32769 ", self.f.outs.get())
 
     def test_08_mult(self):
-        self.f.create_word("TEST", " DOLIT", 2, " DOLIT", 4, "*", ".")
+        self.f.create_word("TEST", LIT(2), LIT(4), "*", ".")
         self.f.execute_word("TEST")
         self.assertEquals("8 ", self.f.outs.get())
 
     def test_09_div(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 3, "/", ".")
+        self.f.create_word("TEST", LIT(10), LIT(3), "/", ".")
         self.f.execute_word("TEST")
         self.assertEquals("3 ", self.f.outs.get())
 
     def test_10_mod(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 3, "MOD", ".")
+        self.f.create_word("TEST", LIT(10), LIT(3), "MOD", ".")
         self.f.execute_word("TEST")
         self.assertEquals("1 ", self.f.outs.get())
 
     def test_20_dot(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, ".", ".")
+        self.f.create_word("TEST", LIT(10), LIT(20), ".", ".")
         self.f.execute_word("TEST")
         self.assertEquals("20 10 ", self.f.outs.get())
 
     def test_21_swap(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "SWAP", ".", ".")
+        self.f.create_word("TEST", LIT(10), LIT(20), "SWAP", ".", ".")
         self.f.execute_word("TEST")
         self.assertEquals("10 20 ", self.f.outs.get()) # . shoudl have space after it
 
     def test_22_dup(self):
-        self.f.create_word("TEST", " DOLIT", 10, "DUP", ".", ".")
+        self.f.create_word("TEST", LIT(10), "DUP", ".", ".")
         self.f.execute_word("TEST")
         self.assertEquals("10 10 ", self.f.outs.get())
 
     def test_23_over(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "OVER", ".", ".", ".")
+        self.f.create_word("TEST", LIT(10), LIT(20), "OVER", ".", ".", ".")
         self.f.execute_word("TEST")
         self.assertEquals("10 20 10 ", self.f.outs.get())
 
     def test_24_rot(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, " DOLIT", 30, "ROT", ".", ".", ".")
+        self.f.create_word("TEST", LIT(10), LIT(20), LIT(30), "ROT", ".", ".", ".")
         self.f.execute_word("TEST")
         self.assertEquals("10 30 20 ", self.f.outs.get())
 
     def test_25_drop(self):
-        self.f.create_word("TEST", " DOLIT", 10, " DOLIT", 20, "DROP", ".", ".")
+        self.f.create_word("TEST", LIT(10), LIT(20), "DROP", ".", ".")
         #should be a 'data stack underflow' exception
         try:
             self.f.execute_word("TEST")
@@ -147,8 +151,8 @@ class TestForth(unittest.TestCase):
     #
     #   #TODO Addresses must not be manifsets, they must be related to actual spare space
     #   otherwise we trash our dictionary between each test
-    #    self.f.create_word("W", " DOLIT", 0, " DOLIT", 1024, "WBLK") # probably DICT
-    #    self.f.create_word("R", " DOLIT", 0, " DOLIT", 65536-1024, "RBLK")
+    #    self.f.create_word("W", LIT(0), LIT(1024), "WBLK") # probably DICT
+    #    self.f.create_word("R", LIT(0), LIT(65536-1024), "RBLK")
     #    self.f.execute_word("W")
     #
     #    # rblk ( n a -- )  i.e. blocknum addr
@@ -159,50 +163,50 @@ class TestForth(unittest.TestCase):
 
     def test_40_branch(self):
         """Test unconditional branch feature"""
-        self.f.create_word("B", " DOLIT", 42, "EMIT", "BRANCH", -4)
+        self.f.create_word("B", LIT(42), "EMIT", "BRANCH", -4)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
         self.assertEquals("******", self.f.outs.get())
 
     def test_41_0branch_taken(self):
         """Test conditional branch always taken"""
-        self.f.create_word("B", " DOLIT", 43, "EMIT", " DOLIT", 1, "0BRANCH", -6)
+        self.f.create_word("B", LIT(43), "EMIT", LIT(1), "0BRANCH", -6)
         self.f.machine.limit = 20 # limit number of times round execute loop
         self.f.execute_word("B")
         self.assertEquals("+", self.f.outs.get())
 
     def test_42_0branch_nottaken(self):
         """Test conditional branch always not taken"""
-        self.f.create_word("B", " DOLIT", 44, "EMIT", " DOLIT", 0, "0BRANCH", -6)
+        self.f.create_word("B", LIT(44), "EMIT", LIT(0), "0BRANCH", -6)
         self.f.machine.limit = 20 # limit to 10 times round DODOES
         self.f.execute_word("B")
         self.assertEquals(",,,,,", self.f.outs.get())
 
     def test_50_0eq(self):
         """Test 0= relational operator"""
-        self.f.create_word("RF", " DOLIT", 10, "0=", ".")
+        self.f.create_word("RF", LIT(10), "0=", ".")
         self.f.execute_word("RF")
         self.assertEquals("0 ", self.f.outs.get())
         self.f.outs.clear()
 
-        self.f.create_word("RT", " DOLIT", 0, "0=", ".")
+        self.f.create_word("RT", LIT(0), "0=", ".")
         self.f.execute_word("RT")
         self.assertEquals("65535 ", self.f.outs.get())
 
     def test_51_not(self):
         """Test NOT boolean operator"""
-        self.f.create_word("NF", " DOLIT", 0, "NOT", ".")
+        self.f.create_word("NF", LIT(0), "NOT", ".")
         self.f.execute_word("NF")
         self.assertEquals("65535 ", self.f.outs.get())
         self.f.outs.clear()
 
-        self.f.create_word("NT", " DOLIT", 1, "NOT", ".")
+        self.f.create_word("NT", LIT(1), "NOT", ".")
         self.f.execute_word("NT")
         self.assertEquals("0 ", self.f.outs.get())
 
     def test_52_0lt(self):
         """Test 0< relational operator"""
-        self.f.create_word("LF", " DOLIT", 0, "0<", ".") #TODO: which way round is this?
+        self.f.create_word("LF", LIT(0), "0<", ".") #TODO: which way round is this?
         self.f.execute_word("LF")
         self.assertEquals("0 ", self.f.outs.get())
         self.f.outs.clear()
@@ -210,7 +214,7 @@ class TestForth(unittest.TestCase):
         #TODO: This fails due to incorrect handling of -1 in Machine
         #it comes out as 0xFFFF which is not less than 0.
         #This should be a SIGNED COMPARISON
-        self.f.create_word("LT", " DOLIT", -1, "0<", ".") #TODO: which way round is this?
+        self.f.create_word("LT", LIT(-1), "0<", ".") #TODO: which way round is this?
         self.f.execute_word("LT")
         self.assertEquals("0 ", self.f.outs.get())
 
@@ -263,7 +267,7 @@ class TestForth(unittest.TestCase):
         self.f.machine.tib.write(0, data)
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
 
-        self.f.create_word("TEST", "TIB", " DOLIT", 10, "SHOW")
+        self.f.create_word("TEST", "TIB", LIT(10), "SHOW")
         self.f.execute_word("TEST")
         self.assertEquals("0123456789", self.f.outs.get())
 
@@ -292,7 +296,7 @@ class TestForth(unittest.TestCase):
 
     def test_83_spaces(self):
         """Output a number of spaces"""
-        self.f.create_word("TEST", " DOLIT", 20, "SPACES")
+        self.f.create_word("TEST", LIT(20), "SPACES")
         self.f.execute_word("TEST")
         self.assertEquals("                    ", self.f.outs.get())
 

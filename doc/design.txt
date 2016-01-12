@@ -17,6 +17,16 @@ TODO
 
 ===============================================================================
 
+--- IDEA
+
+f.create_word(f.LITERAL(1)) - puts in the DOLIT
+f.create_word(f.STRING("Hello World") - puts in the DOSTR and encodes
+
+This will be a closer step towards compile time code that can be ported
+into Forth later.
+
+
+
 ---- spec DOSTR
 a way to embed string literals into the pfa list.
 pack two chars per cell so it is just like any other string in memory.
@@ -42,6 +52,9 @@ accordingly so the main loop can return to it.
 Given the address on the stack, the programmer can use COUNT to turn this
 into a count byte and an address on the stack, if that is the form they
 wish to use.
+
+
+
 
 ----- test design
 

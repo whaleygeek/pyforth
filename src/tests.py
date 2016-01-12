@@ -6,7 +6,7 @@ import unittest
 import forth
 
 
-class xx:#QuickTest(unittest.TestCase):
+class x:#Experiment(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
@@ -16,11 +16,7 @@ class xx:#QuickTest(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-    def test_01_star(self):
-        """Output a single * on stdout"""
-        self.f.create_word("TEST", " DOLIT", 42, "EMIT")
-        self.f.execute_word("TEST")
-        self.assertEquals("*", self.f.outs.get())
+
 
 
 class TestForth(unittest.TestCase):
@@ -258,30 +254,16 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("KEYS")
         self.assertEquals("*", self.f.outs.get())
 
-    def test_80_show(self):
+    def test_80_show(self): #TODO should rename as TYPE?? (check relationship with PAD though)
+        """SHOW what is in a buffer"""
         # fill TIB with some test data
-        self.f.create_word("TEST",
-            " DOLIT", 0x30, "SPAN", "!",                    # () init value to 48
-            "TIB", ">IN", "!",                              # () init ptr to TIB
-            " DOLIT", 10, "COUNT", "!",                     # () init count to 9
-                                                            # target:loop
-            "COUNT", "@", "0=", "NOT", "0BRANCH", 29,       # () if count 0, exit
-            "SPAN", "@", ">IN", "@", "C!",                  # () store value at addr
-            ">IN", "@", " DOLIT", 1, "+", ">IN", "!",       # () inc ptr
-            "COUNT", "@", " DOLIT", 1, "-", "COUNT", "!",   # () dec count
-            "SPAN", "@", " DOLIT", 1, "+", "SPAN", "!",     # () add one to char
-            "BRANCH", -33,                                  # to:loop
-                                                            # target:exit
-            "TIB", ">IN", "!",                              # ()
-            " DOLIT", 10, "COUNT", "!"                      # ()
-            )
-
-        self.f.execute_word("TEST")
+        data = [i for i in range(ord('0'), ord('9')+1)]
+        self.f.machine.tib.fwd(len(data))
+        self.f.machine.tib.write(0, data)
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
 
-        # Now use: TIB COUNT SHOW to test show works
-        self.f.create_word("TEST2", "TIB", "COUNT", "@", "SHOW")
-        self.f.execute_word("TEST2")
+        self.f.create_word("TEST", "TIB", " DOLIT", 10, "SHOW")
+        self.f.execute_word("TEST")
         self.assertEquals("0123456789", self.f.outs.get())
 
     def test_81_expect(self):
@@ -291,6 +273,22 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("TEST")
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
         self.assertEquals("HELLO\n", self.f.outs.get())
+
+    def test_82_count(self):
+        """Convert counted string into address and count"""
+        # create a counted string
+        TESTDATA = "MyString"
+        data = [len(TESTDATA)]
+        for ch in TESTDATA:
+            data.append(ord(ch))
+        self.f.machine.tib.fwd(len(data))
+        self.f.machine.tib.write(0, data)
+        #self.f.machine.tib.dump(self.f.machine.tibstart, len(data)+4)
+
+        self.f.create_word("TEST", "TIB", "COUNT", ".", ".")
+        self.f.execute_word("TEST")
+        self.assertEquals("8 32769 ", self.f.outs.get())
+
 
 
     #def test_99_dumpdict(self):
@@ -334,20 +332,6 @@ class TestForth(unittest.TestCase):
     #: +!   ( n a -- )                    DUP @ ROT + ! ;
     #: 2!   ( d a -- )                    ROT SWAP DUP ROT SWAP ! 2 + ! ;
     #: 2@   ( a -- d)                     DUP @ SWAP 2 + @ ;
-
-
-
-
-class x:#TestNew(unittest.TestCase):
-    def setUp(self):
-        #print("setup")
-        self.f = forth.Forth(outs=forth.Output()).boot()
-
-    def tearDown(self):
-        #print("teardown")
-        self.f = None
-
-
 
 
 if __name__ == "__main__":

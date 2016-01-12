@@ -390,7 +390,7 @@ class IndexedBuffer(Buffer):
     def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
         size = len(bytes)
-        ptr = self.absaddr(rel, size)
+        ptr = self.absaddr(rel, size) # is sensitive to ptr growdirn
         for b in bytes:
             self.bytes[ptr] = b
             ptr += 1
@@ -1894,7 +1894,6 @@ class Forth():
         vars = [
             #name     size,   init
             (">IN",),
-            ("COUNT",),
             ("BLK",),
             #("BINDEX", 2*2),
             ("BASE",    2,    10),
@@ -1960,7 +1959,6 @@ class Forth():
             ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
 
 
-            #TODO if buffer overflows, it goes wrong (i.e. more than 80 chars)
             #----- EXPECT
             ("EXPECT", [                                        # ( a # -- )
                 "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
@@ -1989,6 +1987,8 @@ class Forth():
 
 
             #----- SHOW: show a string given address and length
+            #TODO this might be a version of TYPE or (TYPE)
+            #note TYPE assumes moved to PAD first??
             ("SHOW", [                                      # ( a # -- )
                                                             # target:read
                 "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
@@ -2000,6 +2000,14 @@ class Forth():
                 "BRANCH", -17,                              # (read)        go round for another
                                                             # target:exit
                 "DROP", "DROP",
+            ]),
+            #----- COUNT
+            ("COUNT", [                                     # ( a)
+                "DUP",                                      # ( a a)
+                "C@",                                       # ( a #)
+                "SWAP",                                     # ( # a)
+                " DOLIT", 1, "+",                           # ( # a)
+                "SWAP",                                     # ( a #)
             ]),
         ]
 

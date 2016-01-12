@@ -5,10 +5,32 @@ overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
 JUST DONE
-Resolved the duff recursiveness.
-All tests now pass, and echoloop in forth.py also works.
-EXPECT and SHOW are now completely working.
+SHOW recoded to not use COUNT (as it is no longer a variable)
 
+
+TODO
+Read brodie about TYPE, says something about moved to PAD first??
+Then probably rename SHOW as TYPE
+
+
+--------------------------------------------------------------------------------
+
+---- spec: SPACES
+
+output a specified number of spaces to the output stream
+: SPACES ( n -- )
+
+---- design: SPACES
+
+: SPACES                            ( n -- )
+    \ loop                          \ ( n)
+        DUP                         \ ( n n)
+        0BRANCH  7 ( exit)          \ ( n)
+        32 EMIT                     \ ( n)
+        1 -   ( n-1)                \ ( n)
+        BRANCH -9 ( loop)           \ ( n)
+    \ exit                          \ ( n)
+    DROP                            \ ( )
 
 
 ===============================================================================
@@ -17,8 +39,9 @@ EXPECT and SHOW are now completely working.
 
 : WORD   ( c -- a)
 
-Character on stack indicates the terminator, at end, a is address of word scanned in.
-ignores initial occurences of the separatar char
+Character on stack indicates the terminator, at end,
+a is address of word scanned in.
+Ignores initial occurences of the separator char
 Moves it to a "temporary buffer of it's own"
 count is in first byte preceeding it.
 moves the blank at the end also, but does not include it in the count.
@@ -26,24 +49,11 @@ Note that the temporary buffer is overwritten very quickly, so you should store
 it more permanently as quickly as possible.
 WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
 the user pressed RETURN
-What does it do if there are no words left in the input buffer??
-Presumably a points to a zero (zero chars consumed), but what about any separator chars
-that might have been seen, presumably these were before the word, not after the non existent
-word, so length 0 makes sense.
 
-
-COUNT converts address of counted string, to stack (a #)
-
->IN "into input" is a relative offset into the input stream buffer.
-TIB is the text input buffer used for keyboard input.
-
-BLK is a flag and a pointer. If it is zero, then there is no block being loaded,
-and WORD will scan the input stream. If it is non zero, then input will be scanned
-from the block number indicated in BLK. This is how input redirection occurs.
-
-WORD invokes BLOCK to guarantee that the block of interest is actually loaded
-into a buffer.
-
+?? What does it do if there are no words left in the input buffer??
+  Presumably a points to a zero (zero chars consumed), but what about any separator chars
+  that might have been seen, presumably these were before the word, not after the non existent
+  word, so length 0 makes sense.
 
 
 ---- design: WORD
@@ -63,7 +73,7 @@ into a buffer.
 # can then pass in addresses relevant to TIB or BLK accordingly.
 
 : WORD \ word ( c -- a)
-    0 COUNT !
+    0 COUNT !  (note, COUNT is a function, not a variable)
     \ store separator char somewhere
     \ create pointer into PAD buffer, init to 1 (skip over count byte)
     TIB 0BRANCH blk
@@ -76,7 +86,7 @@ into a buffer.
             \ consume next char from TIB (>IN)
             \ copy char to next PAD buffer
             \ inc PAD ptr
-            \ inc COUNT
+            \ inc COUNT  not a variable!!
             \ if char is separator, BRANCH exit
         BRANCH tibcopyloop
     \ target blk
@@ -89,11 +99,11 @@ into a buffer.
             \ consume next char in block
             \ copy char to next PAD buffer
             \ inc PAD ptr
-            \ inc COUNT
+            \ inc COUNT  not a variable!!
             \ if char is separator, BRANCH exit
         BRANCH blkcopyloop
     \ target exit
-    \ copy COUNT into first byte of PAD buffer
+    \ copy COUNT into first byte of PAD buffer  this is not a variable!!
     \ push address of PAD buffer on stack
     ;
 
@@ -125,40 +135,19 @@ into a buffer.
 ===============================================================================
 
 
+add to word later: processing IN from a non keyboard stream
+BLK is a flag and a pointer. If it is zero, then there is no block being loaded,
+and WORD will scan the input stream. If it is non zero, then input will be scanned
+from the block number indicated in BLK. This is how input redirection occurs.
 
---------------------------------------------------------------------------------
-#TODO need ( and \ commenting before this will work
+WORD invokes BLOCK to guarantee that the block of interest is actually loaded
+into a buffer.
 
-: SPACES   ( n -- )
-    \ loop
-        DUP   ( n n)
-        0=   ( n ?)
-        0BRANCH  7 ( exit)   ( n)
-        SPACE EMIT
-        1 -   ( n-1)
-        BRANCH -9 ( loop)
-    \ exit
-    DROP ;
-
-: TYPE   ( a # -- )
-    \ loop   ( a #)
-        DUP   ( a # #)
-        0=   ( a # ?)
-        0BRANCH 11 ( exit)   ( a #)
-        SWAP   ( # a)
-        DUP   ( # a a)
-        C@    ( # a c)
-        EMIT   ( # a)
-        1 +   ( # a+1)
-        SWAP   ( a+1 #)
-        1 -   ( a+1 #-1)
-        BRANCH -14   ( loop)
-    \ exit ( a #)
-    DROP DROP   ( )
 
 ================================================================================
 
 NATIVES STILL REQUIRED
+(number will be needed for a proper parser to work)
 
 n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
 
@@ -236,7 +225,6 @@ could maintain the count on TOS for a naive initial implementation.
 
 ----- STRING PROCESSING
 #### Needs loops
-: COUNT   ( a -- a+1 #)              /P254 n_DODOES convert counted string into TYPE expected format
 : -TRAILING   (a #1 -- a #2)         /P254 n_DODOES eliminates trailing blanks from string
 : -TEXT   ( a1 # a2 -- ?)            /P254 n_DODOES compare strings
 : -MATCH   ( d # s # -- a ?)         /P254 n_DODOES search for string
@@ -1682,3 +1670,14 @@ TIB >IN !
 self.f.machine.tib.dumpraw()
 
 TIB COUNT SHOW
+
+
+----- spec: COUNT
+
+Converts address of a counted string, to stack ( a #)
+: COUNT   ( a -- a+1 #)              /P254 n_DODOES convert counted string into TYPE expected format
+
+
+----- design: COUNT
+
+: COUNT DUP C@ SWAP 1 + SWAP ;

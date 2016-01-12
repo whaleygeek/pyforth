@@ -44,9 +44,7 @@ class Debug():
     def fail(msg):
         """Display a failure message on stdout and stop the progra"""
         Debug.out("fail", msg)
-        #TODO need to flush stdout to prevent loosing it?
-        #import sys
-        #sys.exit(1)
+        raise RuntimeError("FAIL: %s:", str(msg))
 
 
 #----- NUMBER and DOUBLE accessors --------------------------------------------
@@ -189,7 +187,7 @@ class Memory(Buffer):
     def call(self, addr):
         handler, start = self.handlerfor(addr)
         if handler == None:
-            raise RuntimeError("Address not callable:0x%x" % addr)
+            Debug.fail("Address not callable:0x%x" % addr)
         handler.call(addr-start)
 
     def handlerfor(self, addr):
@@ -270,7 +268,7 @@ class IndexedBuffer(Buffer):
     def __init__(self, storage, start, size, growdirn=1, ptrtype=None):
         Buffer.__init__(self, storage, start, size)
         if size < 0:
-            raise RuntimeError("must not see -ve size here:0x%x" % size)
+            Debug.fail("must not see -ve size here:0x%x" % size)
         # IndexedBuffer
         if growdirn > 0: # growdirn +ve
             growdirn = 1
@@ -385,7 +383,7 @@ class IndexedBuffer(Buffer):
         return u
 
     def getfree(self):
-        raise RuntimeError("Unimplemented") #TODO
+        Debug.fail("Unimplemented") #TODO
 
     def write(self, rel, bytes):
         """Write a list of bytes, at a specific byte index from TOS"""
@@ -526,7 +524,7 @@ class Stack(IndexedBuffer):
 
     def dumpraw(self):
         if self.growdirn != 1:
-            raise RuntimeError("negative growth not dumpable yet")
+            Debug.fail("negative growth not dumpable yet")
 
         for addr in range(self.start, self.ptr+1):
             b = self.storage[addr]
@@ -588,10 +586,10 @@ class ForthStack(Stack):
 
     # All entries on a ForthStack are at least 1 cell in size.
     def pushb(self, byte):
-        raise RuntimeError("Byte push on to a Forth stack is not supported")
+        Debug.fail("Byte push on to a Forth stack is not supported")
 
     def popb(self):
-        raise RuntimeError("Byte pop from a Forth stack is not supported")
+        Debug.fail("Byte pop from a Forth stack is not supported")
 
     def dup(self): # ( n -- n n)
         """Forth DUP top of stack"""
@@ -756,7 +754,7 @@ class Dictionary(Stack):
         # get FFA
         # clear 'defining' bit
         if self.defining_ffa == None:
-            raise RuntimeError("Trying to finish an already finished dict defn at:%d", self.last_ffa)
+            Debug.fail("Trying to finish an already finished dict defn at:%d", self.last_ffa)
 
         ff = self.bytes.readb(self.defining_ffa)
         self.bytes.writeb(self.defining_ffa, ff & ~ Dictionary.FLAG_DEFINING)
@@ -929,7 +927,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.bytes.readb(ffa)
             if ff == 0:
-                raise RuntimeError("Could not find word in dict:%s", name)
+                Debug.fail("Could not find word in dict:%s", name)
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
                 # check if name in NFA matches
@@ -949,7 +947,7 @@ class Dictionary(Stack):
 
         ffa = self.find(name)
         if ffa == 0:
-            raise RuntimeError("Could not find word to forget it:%s", name)
+            Debug.fail("Could not find word to forget it:%s", name)
 
         # ffa is the FFA of the first item to delete (the new dict ptr)
         prev = self.prev(ffa) # addr of FFA of the item we want to be the last defined item
@@ -1010,7 +1008,7 @@ class Input():
             return c
         if wait:
             if len(self.buf) == 0:
-                raise RuntimeError("WAIT on mock buffer called")
+                Debug.fail("WAIT on mock buffer called")
         return None # nothing in buffer
 
 
@@ -1018,12 +1016,12 @@ class KeyboardInput(Input):
     """A way to poll and get characters from the keyboard"""
 
     def waiting(self):
-        raise RuntimeError("Not yet implemented")
+        Debug.fail("Not yet implemented")
 
     def getch(self):
         ch = sys.stdin.read(1) # blocking, line buffered
         if ch == "": # EOF
-            raise RuntimeError("EOF on Keyboard input stream")
+            Debug.fail("EOF on Keyboard input stream")
         return ch
 
 class Output():
@@ -1129,7 +1127,7 @@ class NvMem():
             raise ValueError("Unknown offset in region: 0x%x" % offset)
         name, start, ofs, rd, wr = item
         if wr==None:
-            raise RuntimeError("set: NvMem offset 0x%x does not support write function" % offset)
+            Debug.fail("set: NvMem offset 0x%x does not support write function" % offset)
         wr(offset, value)
 
     def __getitem__(self, offset):
@@ -1138,7 +1136,7 @@ class NvMem():
             raise ValueError("Unknown offset in region: 0x%x" % offset)
         name, start, ofs, rd, wr = item
         if rd==None:
-            raise RuntimeError("get: NvMem offset 0x%x does not support read function" % offset)
+            Debug.fail("get: NvMem offset 0x%x does not support read function" % offset)
         return rd(offset)
 
 
@@ -1146,42 +1144,45 @@ class NvRoutine():
     """Provides access to native routines mapped into memory"""
     def __init__(self, parent, start):
         self.map = [
-            ("NOP",        parent.n_nop),      # 00 must always be first entry
-            ("ABORT",      parent.n_abort),    # 01
-            ("!",          parent.n_store),    # 02
-            ("@",          parent.n_fetch),    # 03
-            ("C!",         parent.n_store8),   # 04
-            ("C@",         parent.n_fetch8),   # 05
-            ("EMIT",       parent.n_emit),     # 06
-            (".",          parent.n_printtos), # 07
-            ("SWAP",       parent.ds.swap),    # 08
-            ("DUP",        parent.ds.dup),     # 09
-            ("OVER",       parent.ds.over),    # 0A
-            ("ROT",        parent.ds.rot),     # 0B
-            ("DROP",       parent.ds.drop),    # 0C
-            ("NIP",        parent.ds.nip),
-            ("TUCK",       parent.ds.tuck),
-            ("+",          parent.n_add),
-            ("-",          parent.n_sub),
-            ("AND",        parent.n_and),
-            ("OR",         parent.n_or),
-            ("XOR",        parent.n_xor),
-            ("*",          parent.n_mult),
-            ("/",          parent.n_div),
-            ("MOD",        parent.n_mod),
-            ("0=",         parent.n_0eq),
-            ("NOT",        parent.n_not),
-            ("0<",         parent.n_0lt),
-            ("0>",         parent.n_0gt),
-            ("RBLK",       parent.n_rblk),
-            ("WBLK",       parent.n_wblk),
-            ("BRANCH",     parent.n_branch),
-            ("0BRANCH",    parent.n_0branch),
+            ("NOP",        parent.n_nop),       # 00 must always be first entry
+            ("ABORT",      parent.n_abort),     # 01
+            ("!",          parent.n_store),     # 02
+            ("@",          parent.n_fetch),     # 03
+            ("C!",         parent.n_store8),    # 04
+            ("C@",         parent.n_fetch8),    # 05
+            ("EMIT",       parent.n_emit),      # 06
+            (".",          parent.n_printtos),  # 07
+            ("SWAP",       parent.ds.swap),     # 08
+            ("DUP",        parent.ds.dup),      # 09
+            ("OVER",       parent.ds.over),     # 0A
+            ("ROT",        parent.ds.rot),      # 0B
+            ("DROP",       parent.ds.drop),     # 0C
+            ("NIP",        parent.ds.nip),      # 0D
+            ("TUCK",       parent.ds.tuck),     # 0E
+            ("+",          parent.n_add),       # 0F
+            ("-",          parent.n_sub),       # 10
+            ("AND",        parent.n_and),       # 11
+            ("OR",         parent.n_or),        # 12
+            ("XOR",        parent.n_xor),       # 13
+            ("*",          parent.n_mult),      # 14
+            ("/",          parent.n_div),       # 15
+            ("MOD",        parent.n_mod),       # 16
+            ("0=",         parent.n_0eq),       # 17
+            ("NOT",        parent.n_not),       # 18
+            ("0<",         parent.n_0lt),       # 19
+            ("0>",         parent.n_0gt),       # 1A
+            ("RBLK",       parent.n_rblk),      # 1B
+            ("WBLK",       parent.n_wblk),      # 1C
+            ("BRANCH",     parent.n_branch),    # 1D
+            ("0BRANCH",    parent.n_0branch),   # 1E
             (" RDPFA",     parent.n_rdpfa),     # 1F
             (" DODOES",    parent.n_dodoes),    # 20
-            (" DOLIT",     parent.n_dolit),
-            ("EXECUTE",    parent.n_execute),
-            ("EXIT",       parent.n_exit),      # 23
+            (" DOLIT",     parent.n_dolit),     # 21
+            (" DOSTR",     parent.n_dostr),     # 22
+            ("EXECUTE",    parent.n_execute),   # 23
+            ("EXIT",       parent.n_exit),      # 24
+            ("KEY",        parent.n_key),       # 25
+            #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
             #(" DOVAR",     parent.n_dovar),
@@ -1195,8 +1196,6 @@ class NvRoutine():
             #("CONSTANT",   parent.n_constant),
             #("U<",         parent.n_ult),
             #("FLAGS",      parent.n_flags),
-            ("KEY",        parent.n_key),
-            #("KEYQ",       parent.n_keyq),
         ]
         
         self.register_in_dict(parent, start)
@@ -1223,7 +1222,7 @@ class NvRoutine():
             n = (self.map[i])[0]
             if n == name:
                 return i
-        raise RuntimeError("native function not found:%s", name)
+        Debug.fail("native function not found:%s", name)
 
     def call(self, index):
         """Look up the call index in the dispatch table, and dispatch if known"""
@@ -1234,13 +1233,12 @@ class NvRoutine():
                 execfn()
                 return
         Debug.fail("call to unknown native address offset: 0x%x" % index)
-        raise RuntimeError("CALL FAILED")
 
     def __setitem__(self, key, value):
-        raise RuntimeError("Tried to write to NvRoutine memory offset:0x%x value:0x%x" % (key, value))
+        Debug.fail("Tried to write to NvRoutine memory offset:0x%x value:0x%x" % (key, value))
 
     def __getitem__(self, key):
-        raise RuntimeError("Tried to read from NvRoutine memory offset:0x%x" % key)
+        Debug.fail("Tried to read from NvRoutine memory offset:0x%x" % key)
 
 
 class Machine():
@@ -1737,6 +1735,9 @@ class Machine():
         ip += 2
         self.rs.pushn(ip)
 
+    def n_dostr(self):
+        Debug.fail("not implemented")
+
     def n_exit(self):
         """EXIT word - basically a high level Forth return"""
         #print("****EXIT")
@@ -1817,7 +1818,7 @@ class Forth():
     def create_var(self, name, size=2, init=0):
         """Create a variable with a given 16 bit default value"""
         if size!=2:
-            raise RuntimeError("var size != 2 not yet supported")
+            Debug.fail("var size != 2 not yet supported")
 
         addr=self.machine.uv.pushn(init)
         RDPFA = self.machine.getNativeRoutineAddress(" RDPFA")

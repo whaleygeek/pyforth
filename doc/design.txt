@@ -78,27 +78,51 @@ We don't have blocks yet anyway.
 
 ===============================================================================
 
+---- spec DOSTRLIT
+TODO a way to embed string literals into the pfa list. Do we pack two
+chars per cell so it is just like any other string in memory?
+
+---- spec DOSTR (native handler for ."
+This is probably a native function
+But note, parser support required to find the ending "???
+
+Show a string literal that follows in pfa
+The string is packed 2 chars per cell in logical byte order so it is just
+another memory string. The length of the string is in the first byte index.
+." will already have the PFA of the start of the string, which will be the
+count byte. So all it then has to do is output to the output stream
+using the PFA address, i.e. a TYPE/SHOW would do this also?
+
+
+---- spec REPL
+A read, execute, print, loop.
+Useful for a simple interactive shell.
+
+
 ---- design: read/interpret "shell" loop (REPL)
 
 : REPL
     \ nextline
-    TIB TIBZ EXPECT                   \ read in a whole line up to CR
-    SPAN 0BRANCH ( nextline) -        \ empty lines are ignored
+    TIB TIBZ EXPECT                     \ read in a whole line up to CR
+    SPAN 0BRANCH ( nextline) -          \ empty lines are ignored
 
     \ nextword
-    BL WORD   ( a)                    \ get a word
-    DUP C@    ( a #)                  \ get count at address, if zero, there was no word
-    0= NOT 0BRANCH ( gotword) - ( a)
+    BL WORD   ( a)                      \ get a word
+    COUNT     ( a+1 #)                  \ how long is word?
+    0= NOT 0BRANCH ( gotword) -         \ ( a)
     DROP ( )
-    ." Ok"                            \ TODO: not written this word yet (SHOWSTR DOSTR 2Ok)
+    ." Ok"                              \ TODO: not written this word yet ("SHOWSTR", " DOSTRLIT", " Ok")
     BRANCH ( nextline) -
 
-    \ gotword ( a)
-    \ TODO form the word into a string of correct format (addr and count? add 1 to addr?)
-    \ TODO find address of word in dict, push addr on stack, 0 if not found
-    \ if not found, show word and " Err", skip to end of line, nextline
-    EXECUTE                            \ execute the word whose address info is on the DS
-    BRANCH ( nextword) - ;
+    \ gotword                           \ ( a)
+    FIND                                \ find address of word in dict, 0 is not found?
+    \ if nonzero, branch run
+    ." Err"
+    BRANCH ( nextline) -
+    \ run
+    EXECUTE                             \ execute the word whose address info is on the DS
+    BRANCH ( nextword) -
+    ;
 
 
 ===============================================================================

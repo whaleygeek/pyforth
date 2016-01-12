@@ -8,15 +8,54 @@ JUST DONE
 designed and coded DOSTR
 tested and it works with "Hello World!\n"
 
+TODO - review and take on the notes below...
 
-TODO
-Use STR() in any other test cases
+DOSTR is now the runtime code part of ."
+and our python wrapper STR() is the compile time part of it without the parser.
+we've not written a parser yet, that comes later. It's good enough for now.
 
-* Read brodie about TYPE, says something about moved to PAD first??
-  Then probably rename SHOW as TYPE
+Note that more up to date standardised versions have a different version of TYPE to that
+in the original Brodie book (which just put an address on the stack), and the #TIB has
+been added in the online version of Starting Forth.
+
+Interestingly, the 94 standard says this about TIB and #TIB...
+
+"This Standard designates the following words as obsolescent:
+        6.2.0060  #TIB       15.6.2.1580  FORGET        6.2.2240  SPAN
+        6.2.0970  CONVERT    6.2.2040     QUERY         6.2.2290  TIB
+        6.2.1390  EXPECT
+"
+
+I'm not too worried about that. This is not going to be a standardised forth
+implementation, it's more an exercise in working out the minimum subset that
+needs to be implemented to allow the rest to be booted using high level words.
+It's an exercise in identifying the boundary of a minimum viable machine,
+using Python as a way to prototype it - nothing more. It's language research,
+informed by one trial implementation that is *probably* throwaway.
+
+
+"The word TYPE prints an entire string of characters at your terminal, given the starting address
+of the string in memory AND the count, in this form:"
+
+( addr u -- )
+
+TIB #TIB @ TYPE
+
+' TEST >BODY CELL+ 1+ 7 TYPE
+
+#TIB @, the count of received characters.
 
 
 ===============================================================================
+
+
+WORD
+
+( c -- addr )
+
+Reads one word from the input stream, using the character (usually blank) as a delimiter.
+Moves the string to the address (HERE) with the count in the first byte, leaving the address on the stack.
+
 
 ----- spec: WORD
 
@@ -253,7 +292,7 @@ could maintain the count on TOS for a naive initial implementation.
 : ERASE   ( a u -- )                 /P190 n_DODOES zeros n bytes of memory
 : DUMP   ( a u -- )                  /P190 n_DODOES display u bytes of memory
 
-: >TYPE   ( a # -- )                 \ P254 n_DODOES output string moved to PAD before output
+: >TYPE   ( a # -- )                 \ P254 n_DODOES output string moved to PAD before output (stdver uses ( a u)
 \ probably uses CMOVE??
 
 

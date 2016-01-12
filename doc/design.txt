@@ -9,8 +9,45 @@ coded and tested SPACES
 
 
 TODO
-Read brodie about TYPE, says something about moved to PAD first??
-Then probably rename SHOW as TYPE
+* Implement DOSTR and test it
+
+* Read brodie about TYPE, says something about moved to PAD first??
+  Then probably rename SHOW as TYPE
+
+
+===============================================================================
+
+---- spec DOSTR
+a way to embed string literals into the pfa list.
+pack two chars per cell so it is just like any other string in memory.
+Count byte preceeded.
+
+---- design DOSTR (native, a way to embed string literals in PFA)
+
+" DOSTR" [<count> <byte0>] [<byte1> <byte2>] [<byte3> <zero>]
+
+If the string has an even number of characters, the last
+char is set to zero. The count byte will not include this.
+
+When the string is being compiled in, a single string is provided,
+ and this is interpreted as an array of chars.
+They will be double packed into the cells.
+
+At runtime, DOSTR will push the address of the pfa on the stack, which
+ is the address of the count byte and first byte of data.
+
+It will calculate the pfa beyond the end of the string and adjust the ip
+accordingly so the main loop can return to it.
+
+Given the address on the stack, the programmer can use COUNT to turn this
+into a count byte and an address on the stack, if that is the form they
+wish to use.
+
+----- test design
+
+: TEST " DOSTR", "Hello World", COUNT, SHOW ;
+
+note: SHOW might be renamed to TYPE later, not sure  yet.
 
 
 ===============================================================================
@@ -76,23 +113,9 @@ We don't have blocks yet anyway.
     \ push address of PAD buffer start onto stack
     ;
 
+
+
 ===============================================================================
-
----- spec DOSTRLIT
-TODO a way to embed string literals into the pfa list. Do we pack two
-chars per cell so it is just like any other string in memory?
-
----- spec DOSTR (native handler for ."
-This is probably a native function
-But note, parser support required to find the ending "???
-
-Show a string literal that follows in pfa
-The string is packed 2 chars per cell in logical byte order so it is just
-another memory string. The length of the string is in the first byte index.
-." will already have the PFA of the start of the string, which will be the
-count byte. So all it then has to do is output to the output stream
-using the PFA address, i.e. a TYPE/SHOW would do this also?
-
 
 ---- spec REPL
 A read, execute, print, loop.

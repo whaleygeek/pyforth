@@ -4,19 +4,41 @@ PLAN
 overall goal, get to the point we can get an interactive REPL booted.
 This will make it easier to test and develop new words.
 
+We're trying to get just a minimal VM booted, to see what the minimum
+VM actually needs to be for execute only semantics.
+
+Interpretation comes next
+
+Then compilation.
+
+
 JUST DONE
-IN@+ coded, will read and advance pointer.
-A useful building block for WORD
+SKIP, WORD and REPL coded
 
+TODO
+test SKIP
+test WORD
+test EXECUTE
+test REPL
 
-Just a thought, if TIB is an indexed buffer and IN> is the ptr,
-if we memory mapped IN> to the ptr and TIB# to the size,
-the code at both ends will be simpler, because we're just
-reusing the normal IndexedBuffer behaviour.
+================================================================================
 
-Or, if we are not using the internal pointer, might be worth
-just defining it as a Buffer()
+: BL 32 ;
 
+: SKIP                                          # ( s)              skip until end or not c
+    # skip                                      # ( s)
+        >IN@+                                   # ( s c or c 0)     read next from input stream, returns 0 if empty
+        DUP ( s c c) 0BRANCH +n exitskip        # ( s c)            exit if at end of buffer??
+        OVER ( s c s) = NOT 0BRANCH -nn skip    # ( s )             if matches separator
+    >IN @ 1 - >IN !                             # ( s )             just seen non separator, wind back to first non sep char
+    DUP                                         # ( s s)            two items on stack
+    # exitskip                                  # (s c)
+    DROP DROP                                   # ( )
+
+---- test
+setup: word in ins buffer with spaces at start
+BL SKIP
+TYPE # show rest of buffer
 
 ================================================================================
 
@@ -63,53 +85,44 @@ the user pressed RETURN
 We are ignoring the block reading here until the basic word is working.
 We don't have blocks yet anyway.
 
-Note: this could be a 'SKIP' word (BL SKIP) that skips the given character
-on the input stream. Means that it has to deal with end of buffer, and
-it has to read ahead, which means it must wind the pointer back one if
-it finds a non separator
 
-Remember, PAD is start of buffer and that is where the counter goes!
+: WORD                                      # ( c -- a)
+    DUP SKIP                                # ( s)          leave separator on stack, need it later
 
-Might just about arrange for SEP to stay on the stack in these.
-
-: WORD                                  # ( c -- a)
-    SEP !                               # ( )           store separator char (or put on stack?)
-    # skip
-        >IN@+                           # ( c or 0)     read next from input stream, returns 0 if empty
-        0BRANCH +n exitskip             # ( )           exit if at end of buffer??
-        SEP = NOT 0BRANCH -nn skip      # ( )           if matches separator
-        >IN @ 1 - >IN !                 # ( )           just seen non separator, wind back to first non sep char
-    # exitskip
-
-    0 PAD !                             # ( )           counted zero chars
-    PAD 1 + PAD> !                      # ( )           PAD write ptr to start of PAD buffer, skip count
+    0 PAD !                                 # ( s)          counted zero chars
+    PAD 1 + PAD> !                          # ( s)          PAD write ptr to start of PAD buffer, skip count
 
     # copy
-        >IN@+                           # ( c or 0)     try to consume next char
-        DUP 0BRANCH +nn exit            # ( c)          zero marks end of buffer
-        PAD> @ !                        # ( )           write char to next pad ptr
-        PAD> DUP @ 1 + PAD> !           # ( a)          inc PAD write ptr (a is addr of last written char)
-        PAD @ 1 + PAD !                 # ( )           inc counter
-        SEP = 0BRANCH -nn copy          # ( )           if not separator, go round again
+        >IN@+                               # ( s c or s 0) try to consume next char
+        DUP ( s c c) 0BRANCH +nn exit       # ( s c)        zero marks end of buffer
+        DUP PAD> @ !                        # ( s c)        write char to next pad ptr
+        PAD> @ 1 + PAD> !                   # ( s c)        inc PAD write ptr (a is addr of last written char)
+        PAD @ 1 + PAD !                     # ( s c)        inc counter
+        OVER ( s c s) = 0BRANCH -nn copy    # ( s c)        if not separator, go round again
 
-    # exit
-    PAD                                 # ( )           address of PAD returned on stack
+    # exit                                  # ( s c)
+    DROP                                    # ( )
+    PAD                                     # ( a)          address of PAD returned on stack
     ;
 
+---- test
+reads a line, displays each word.
+This strips any extraneous whitespace around each word and tidies it up.
+
+TIB TIBZ EXPECT                 # ( )       read a whole line
+# loop                          # ( )
+BL WORD ( a) COUNT              # ( a #)    get next word
+DUP ( a # #) 0BRANCH +4 ( exit) # ( a #)    zero len word means no more words
+TYPE                            # ( )       Show the word on the output stream
+BRANCH -8 ( loop)               # ( )
+# exit                          # ( a #)
+DROP DROP                       # ( )
 
 
-===============================================================================
-
-Think, if we are able to implement ." message" yet?
-Not sure, it needs compiler support. Really it is STR(msg) COUNT SHOW,
-but would require that create_word actually interpreted the words rather than
-compiling them into the words - don't want to do too much of this until the
-compiler framework is working, as otherwise we'll be doing everything twice
-
-===============================================================================
-
+================================================================================
 
 ---- spec REPL
+
 A read, execute, print, loop.
 Useful for a simple interactive shell.
 
@@ -117,33 +130,49 @@ Useful for a simple interactive shell.
 ---- design: read/interpret "shell" loop (REPL)
 
 : REPL
-    \ nextline
-    TIB TIBZ EXPECT                     \ read in a whole line up to CR
-    SPAN 0BRANCH ( nextline) -          \ empty lines are ignored
+    # nextline
+    TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
 
-    \ nextword
-    BL WORD   ( a)                      \ get a word
-    COUNT     ( a+1 #)                  \ how long is word?
-    0= NOT 0BRANCH ( gotword) -         \ ( a)
-    DROP ( )
-    ." Ok"                              \ TODO: not written this word yet ("SHOWSTR", " DOSTRLIT", " Ok")
-    BRANCH ( nextline) -
+    # nextword                          # ( )
+    BL WORD COUNT                       # ( a #)
+    0= NOT 0BRANCH ( gotword) -         # ( a)
+    DROP                                # ( )
+    STR(" Ok") COUNT TYPE               # ( )
+    BRANCH ( nextline) -                # ( )
 
-    \ gotword                           \ ( a)
-    FIND                                \ find address of word in dict, 0 is not found?
-    \ if nonzero, branch run
-    ." Err"
-    BRANCH ( nextline) -
-    \ run
-    EXECUTE                             \ execute the word whose address info is on the DS
-    BRANCH ( nextword) -
+    # gotword                           # ( a)
+    # subtract one to point to count byte? what does FIND expect?
+    # It's not FIND though, what is it that takes a name and gets it's address?
+    # what address is returned, the ffa?, cfa?, pfa?
+    FIND                                # ( a)      TODO: len??find address of word in dict, 0 is not found?
+    DUP                                 # ( a a)
+    NOT 0BRANCH + ( run)                # ( a)
+    DROP                                # ( )
+    STR("Err") COUNT TYPE               # ( )
+    BRANCH ( nextline) -                # ( )
+
+    # run                               # ( a)
+    # what address does EXECUTE need? ffa, cfa, pfa?
+    EXECUTE                             # ( )       execute the word whose address info is on the DS
+    BRANCH ( nextword) -                # ( )
     ;
 
 
 ===============================================================================
 
+Think, if we are able to implement ." message" yet?
+
+Not sure, it needs compiler support. Really it is STR(msg) COUNT TYPE.
+
+For a full syntactic version, would need create_word to actually interpret
+the words rather than compiling them into the words - don't want to do too
+much of this until the compiler framework is working, as otherwise we'll
+be doing everything twice
+
+===============================================================================
 
 add to word later: processing IN from a non keyboard stream
+
 BLK is a flag and a pointer. If it is zero, then there is no block being loaded,
 and WORD will scan the input stream. If it is non zero, then input will be scanned
 from the block number indicated in BLK. This is how input redirection occurs.
@@ -161,6 +190,9 @@ n_NUMBER  ( a -- d)                  using any base, convert string at a, to bin
 
 DICT WRAPPERS FOR NATIVES
 : NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+
+================================================================================
+
 
 \ : FLAGS  ( -- n)                     /ADD  n_RDPFA  CONST  Address of flags variable
 \ : BINDEX   ( -- a)                   /ADD  n_RDPFA  VAR    array of block buffer index info (0=>not loaded)
@@ -215,6 +247,7 @@ DICT WRAPPERS FOR NATIVES
 
 
 #### Gets hard from here downwards ********************************************
+
 # Need to build up some more support in proper loops and proper conditions
 # and possibly using a parser first,
 to make all of this 'real algorithmic code' easier to bootstrap
@@ -223,9 +256,6 @@ Those that need loops could probably be bootstrapped using the BRANCH and 0BRANC
 with the various comparisons, and rewritten later when proper parsing and compiling
 and IF/LOOP target resolution is working. Counted loops would help, although
 could maintain the count on TOS for a naive initial implementation.
-
-
-
 
 
 #### Needs input parser
@@ -373,12 +403,6 @@ could maintain the count on TOS for a naive initial implementation.
 : EDITOR   ( -- )                    /P221 n_DODOES Make editor the context vocab
 : ASSEMBLER   ( -- )                 /P221 n_DODOES Make assembler the context vocab
 : DEFINITIONS   ( -- )               /P221 n_DODOES sets current vocab to context vocab
-
-
-
-
-
-
 
 
 ------ DODOES -----------------------------------------------------------------
@@ -1830,6 +1854,16 @@ IN@+ - read next char from buffer onto stack, inc ptr. zero marks end of buffer.
 setup TIB='hello', TIB#=5, IN>=TIB
 : TEST IN@+ DUP 0BRANCH +4 EMIT BRANCH -6
 TEST
+
+
+
+Just a thought, if TIB is an indexed buffer and IN> is the ptr,
+if we memory mapped IN> to the ptr and TIB# to the size,
+the code at both ends will be simpler, because we're just
+reusing the normal IndexedBuffer behaviour.
+
+Or, if we are not using the internal pointer, might be worth
+just defining it as a Buffer()
 
 
 ===== END =====================================================================

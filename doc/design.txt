@@ -13,32 +13,13 @@ Then compilation.
 
 
 JUST DONE
-SKIP, WORD and REPL coded
+SKIP coded and tested ok.
 
 TODO
-test SKIP
-test WORD
-test EXECUTE
-test REPL
+code/test WORD
+code/test EXECUTE
+code/test REPL
 
-================================================================================
-
-: BL 32 ;
-
-: SKIP                                          # ( s)              skip until end or not c
-    # skip                                      # ( s)
-        >IN@+                                   # ( s c or c 0)     read next from input stream, returns 0 if empty
-        DUP ( s c c) 0BRANCH +n exitskip        # ( s c)            exit if at end of buffer??
-        OVER ( s c s) = NOT 0BRANCH -nn skip    # ( s )             if matches separator
-    >IN @ 1 - >IN !                             # ( s )             just seen non separator, wind back to first non sep char
-    DUP                                         # ( s s)            two items on stack
-    # exitskip                                  # (s c)
-    DROP DROP                                   # ( )
-
----- test
-setup: word in ins buffer with spaces at start
-BL SKIP
-TYPE # show rest of buffer
 
 ================================================================================
 
@@ -1864,6 +1845,22 @@ reusing the normal IndexedBuffer behaviour.
 
 Or, if we are not using the internal pointer, might be worth
 just defining it as a Buffer()
+
+
+
+================================================================================
+
+: BL 32 ; (done)
+
+: SKIP                                          # ( s)              skip until end or not c
+    # skip                                      # ( s)
+        IN@+                                    # ( s c or c 0)     read next from input stream, returns 0 if empty
+        DUP ( s c c) 0BRANCH +n exitskip        # ( s c)            exit if at end of buffer??
+        OVER ( s c s) = NOT 0BRANCH -nn skip    # ( s )             if matches separator
+    >IN @ 1 - >IN !                             # ( s )             just seen non separator, wind back to first non sep char
+    DUP                                         # ( s s)            two items on stack
+    # exitskip                                  # (s c)
+    DROP DROP                                   # ( )
 
 
 ===== END =====================================================================

@@ -309,6 +309,28 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("TEST")
         self.assertEquals("HELLO", self.f.outs.get())
 
+    def test_85_skip(self):
+        """Test the SKIP word, that skips a separator character"""
+
+        self.f.machine.tib.appends("   HELLO")
+        #self.f.machine.tib.dump(0, 10)
+
+        self.f.create_word("TEST",
+            "TIB", ">IN", "!",
+            LIT(8), "TIB#", "!",
+            "BL", "SKIP",
+            "IN@+", "EMIT",
+            "IN@+", "EMIT",
+            "IN@+", "EMIT",
+            "IN@+", "EMIT",
+            "IN@+", "EMIT",
+            "IN@+", "EMIT",
+        )
+
+        self.f.execute_word("TEST")
+        self.assertEquals("HELLO\x00", self.f.outs.get())
+
+
 
 
 

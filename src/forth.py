@@ -405,9 +405,21 @@ class IndexedBuffer(Buffer):
 
     def appendn(self, number):
         pass #TODO: call write
+        Debug.fail("unimplemented")
 
     def appendb(self, number):
         pass #TODO: call write
+        Debug.fail("unimplemented")
+
+    def appends(self, string):
+        """Append a string to the buffer"""
+        l = len(string)
+        self.fwd(l)
+        bytes = []
+        for ch in string:
+            bytes.append(ord(ch))
+        self.write(0, bytes)
+
 
     def setb(self, index, byte):
         """Write to an 8 bit number at an 8 bit position relative to top of stack"""
@@ -1087,7 +1099,7 @@ class NvMem():
     def __init__(self, parent, start):
         self.map = [
             # name,   o, l,   rd,                   wr
-            ("TEST",  0, 2,   parent.rd_test,       parent.wr_test),
+            #("TREG",  0, 2,   parent.rd_test,       parent.wr_test),
             ("IP",    2, 2,   parent.rd_ip,         parent.wr_ip),
             ("H",     4, 2,   parent.dict.rd_p,     parent.dict.wr_p),
             ("SP",    6, 2,   parent.ds.rd_p,       parent.ds.wr_p),
@@ -1945,6 +1957,7 @@ class Forth():
             #("PADZ", self.machine.pad.size),
             ("FALSE", 0x0000),
             ("TRUE",  0xFFFF),
+            ("BL",    32),
         ]
 
         for c in consts:
@@ -2095,6 +2108,17 @@ class Forth():
                 ">IN", "@", "C@",                               # ( c)          read next char at ptr
                 ">IN", "@", LIT(1), "+", ">IN", "!",            # ( c)          advance IN ptr
                 # exit                                          # ( c or 0)
+            ]),
+            #-----
+            ("SKIP", [                                  # ( s)                  skip until end or not c
+            # skip                                      # ( s)
+                "IN@+",                                 # ( s c or c 0)         read next from input stream, returns 0 if empty
+                "DUP", "0BRANCH", +14,                  # ( s c) to:exitskip    exit if at end of buffer??
+                "OVER", "=", "NOT", "0BRANCH", -8,      # ( s )  to:skip        if matches separator
+            ">IN", "@", LIT(1), "-", ">IN", "!",        # ( s )                 just seen non separator, wind back to first non sep char
+            "DUP",                                      # ( s s)                two items on stack
+            # exitskip                                  # ( s c)
+            "DROP", "DROP",                             # ( )
             ]),
         ]
 

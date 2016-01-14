@@ -2120,6 +2120,15 @@ class Forth():
             # exitskip                                  # ( s c)
             "DROP", "DROP",                             # ( )
             ]),
+            #-----
+            ("0PAD>", [                                 # ( -- )
+                LIT(0), "PAD", "!"                      # ( )          write zero to first entry in PAD buffer
+            ]),
+            #-----
+            ("PAD>+", [                                 # ( c -- )
+                "PAD", "@", LIT(1), "+", "PAD", "!",    # ( c )         advance count by 1 (no range check? PADZ??)
+                "PAD", "@", "PAD", "+", "C!"            # ( )           write char to next free location
+            ]),
         ]
 
         for w in words:

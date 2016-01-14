@@ -7,29 +7,80 @@ This will make it easier to test and develop new words.
 We're trying to get just a minimal VM booted, to see what the minimum
 VM actually needs to be for execute only semantics.
 
-Interpretation comes next
-
-Then compilation.
+Then might explore compilation, so that user can interactively
+compile words (and later we can read compilation instructions from
+a disk file and replace all the API calls in the words table with
+just streaming those definitions from a file - but need better
+support for parsing strings and numbers before that will work.
 
 
 JUST DONE
 TEST for WORD works fine, with separator end conditions ok
 
 TODO
-code/test EXECUTE
-
+code/test FIND
+fix EXECUTE
+fix SPAN TIB# discrepancy
 code/test REPL
+Run some manual interactive tests and make sure it basically works.
+
+At this point, take stock of where we are and what we might want to
+do next. Might want to implement NUMBER, so we can have a proper
+interactive calculator session with it.
 
 
 ================================================================================
 
-Need a word that given a counted string at an address, finds that in the
-dictionary, either returning 0 if not found, or the address of some aspect
-of it if it is found. This address can then be incremented appropriately to
-get the address required by EXECUTE to actually run the word.
+FIND ( a1 -- a2)   a1 is a counted string of name, a2 is 0 if not found, cfa if found
 
-Check in Brodie what this word actually is, it forms a key part of the
-interpreter loop.
+---- spec
+
+Given the address of a counted string, find the CFA address of that string
+in the DICT, 0 if not found.
+
+---- design
+
+This is a chain of natives:
+
+So FIND has to take a counted string, and pass it to dict.find, then
+call ffa2cfa on it. That can be done as a high level, or pushed into the
+native n_find directly.
+
+dict.find(name) -> ffa
+dict.ffa2cfa(ffa) -> cfa
+
+---- test
+
+: TEST STR("NOP") FIND . ;
+
+compare against self.f.dict.find("NOP")
+
+
+================================================================================
+
+EXECUTE  ( a -- )  a is cfa of word to execute, stack effects depend on word
+
+---- spec
+
+Given an address address of a word, execute it
+
+---- design
+
+this is a native
+At the moment EXECUTE takes pfa on the stack
+converts to cfa
+then calls the cfa routine.
+
+Check if we take advantage of this elsewhere, and perhaps change it
+to take the cfa, which makes more sense. Some forths do this anyway.
+Fix any existing code or tests that pass the pfa, to use cfa instead.
+makes more sense, because it's the first address you need to read,
+and in subroutine threaded implementations you would just jump to this
+anyway.
+
+make sure the PFA reference is set up correctly (set ip to pfa??)
+Yes, already done in n_execute.
+
 
 ================================================================================
 
@@ -39,37 +90,48 @@ A read, execute, print, loop.
 Useful for a simple interactive shell.
 
 
----- design: read/interpret "shell" loop (REPL)
+---- design: read execute print loop (REPL)
+
+TODO: SPAN and TIB# are same thing, choose one and resolve all references
+and tests to use it consistently.
+
 
 : REPL
-    # nextline
+    # getline
     TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
-    #TODO do we have to reset the IN ptr and TIB#, or does EXPECT do that?
+    #EXPECT sets up >IN to start of user buffer.
+    #but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
 
-    # nextword                          # ( )
+    # getword                           # ( )
     BL WORD COUNT                       # ( a #)
-    0= NOT 0BRANCH ( gotword) -         # ( a)
+    0= NOT 0BRANCH +nn                  # ( a)      to: findword
     DROP                                # ( )
     STR(" Ok") COUNT TYPE               # ( )
-    BRANCH ( nextline) -                # ( )
+    BRANCH -nn                          # ( )       to: getline
 
-    # gotword                           # ( a)
-    # subtract one to point to count byte? what does FIND expect?
-    # It's not FIND though, what is it that takes a name and gets it's address?
-    # what address is returned, the ffa?, cfa?, pfa?
-    FIND                                # ( a)      TODO: len??find address of word in dict, 0 is not found?
-    DUP                                 # ( a a)
-    NOT 0BRANCH + ( run)                # ( a)
+    # findword                          # ( a)
+    1 -                                 # ( a)      subtract one to point to count byte for FIND
+    FIND                                # ( a)      0 if not found, cfa if found
+    DUP NOT 0BRANCH +nn                 # ( a)      to: run
+
+    # unknown                           # ( a)      TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
     DROP                                # ( )
-    STR("Err") COUNT TYPE               # ( )
-    BRANCH ( nextline) -                # ( )
+    STR("nErr") COUNT TYPE              # ( )
+    BRANCH -nn                          # ( )       to: getline
 
-    # run                               # ( a)
-    # what address does EXECUTE need? ffa, cfa, pfa?
+    # run                               # ( a)      addr is cfa of word to exec
     EXECUTE                             # ( )       execute the word whose address info is on the DS
-    BRANCH ( nextword) -                # ( )
+    BRANCH -nn                          # ( )       to: getword
     ;
 
+---- test
+
+Ideally, in forth.py... with ins and outs to stdin and stdout
+   f.execute_word("REPL")
+
+   Then just type in a line and press return, and it shoudl execute it.
+
+   KeyboardInput() class is finished (blocking) so should just work.
 
 ===============================================================================
 

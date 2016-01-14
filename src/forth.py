@@ -1194,6 +1194,7 @@ class NvRoutine():
             ("EXECUTE",    parent.n_execute),   # 23
             ("EXIT",       parent.n_exit),      # 24
             ("KEY",        parent.n_key),       # 25
+            ("FIND",       parent.n_find),      # 26
             #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
@@ -1674,9 +1675,28 @@ class Machine():
 
     #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
 
+    def n_find(self):
+        """Given address of a counted string, find CFA of word, 0 if not found"""
+        #TODO: might refactor into a helper read_cstr(addr)
+        acstr = self.ds.popn()
+        count = self.mem.readn(acstr)
+        addr  = acstr+2
+        name = ""
+        for i in range(count):
+            name += chr(self.mem.readb(addr+i))
+        print("FIND name: %s" % name)
+
+        ffa = self.dict.find(name)
+        if ffa == 0: # NOT FOUND
+            self.ds.pushn(0) # NOT FOUND
+            return
+
+        cfa = self.dict.ffa2cfa(ffa)
+        self.ds.pushn(cfa)
+
     def n_execute(self):
         """EXECUTE a high level address"""
-        # ( pfa -- )
+        # ( pfa -- ) # TODO: this might change to cfa on stack
         #Debug.trace("EXECUTE")
         pfa = self.ds.popn()
         #Debug.trace(" pfa:0x%x" % pfa)

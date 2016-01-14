@@ -16,6 +16,8 @@ JUST DONE
 SKIP coded and tested ok.
 
 TODO
+code/test 0PAD> and PAD>+
+
 code/test WORD
 code/test EXECUTE
 code/test REPL
@@ -23,21 +25,25 @@ code/test REPL
 
 ================================================================================
 
+TODO: Need to place PAD in memory somewhere, even if statically placed
+for now, so that we can test this.
+
+-----
+
+Support routines before writing WORD:
+
 PAD - this is a variable that holds the dynamic start of PAD, which is
 a fixed offset from the end of the dictionary. It's not implemented yet
 in the underlying python code.
 
-When copying chars to the pad buffer, what keeps a track of the number of chars
-in that buffer and/or the next write pointer? PAD> could be the next write
-pointer?
+When copying chars to the pad buffer, we live maintain the count byte,
+you can calculate it every write by adding this onto start address of PAD,
+and don't need PAD> variable.
 
-Or if we live maintain the count byte, you can calculate it every write
-by adding this onto start address of PAD, and don't need PAD> variable.
-
+----- design
 reset pad pointer
 : 0PAD> ( -- )
     0 PAD !                                 # ( )          write zero to first entry in PAD buffer
-
 
 write to pad pointer and increment
 : PAD>+ ( c -- )
@@ -45,6 +51,13 @@ write to pad pointer and increment
         PAD @ PAD + ( c a) C!               # ( )           write char to next free location
 
 
+----- test
+
+: TEST 0PAD> 'H' PAD>+ 'E' PAD>+ 'L' PAD>+ 'L' PAD>+ 'O' PAD>+
+PAD ( a) COUNT ( a+1 #) TYPE ( )
+
+
+================================================================================
 WORD
 
 from online Brodie:
@@ -52,7 +65,7 @@ from online Brodie:
 ( c -- a )
 
 Reads one word from the input stream, using the character (usually blank) as a delimiter.
-Moves the string to the address (HERE) with the count in the first byte, leaving the address on the stack.
+Moves the string to the address  with the count in the first byte, leaving the address on the stack.
 
 Note, the new forth might use HERE rather than TIB, because HERE is always just past the end of the
 dictionary? Sounds dangerous though if the side effect of a compiling word is to define something
@@ -74,24 +87,11 @@ it more permanently as quickly as possible.
 WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
 the user pressed RETURN
 
-?? What does it do if there are no words left in the input buffer??
-  Presumably a points to a zero (zero chars consumed), but what about any separator chars
-  that might have been seen, presumably these were before the word, not after the non existent
-  word, so length 0 makes sense.
-
 
 ---- design: WORD
 
-# probably also worth factoring out writing to the PAD buffer into a helper,
-# as that is a common routine that may be used elsewhere in other words.
-
-Probably worth having a PAD reset, assuming zero counted string,
-that's a common operation too.
-
 We are ignoring the block reading here until the basic word is working.
 We don't have blocks yet anyway.
-
-
 
 : WORD                                      # ( cs -- a)
     DUP SKIP                                # ( cs)             leave separator on stack, need it later
@@ -108,6 +108,7 @@ We don't have blocks yet anyway.
     ;
 
 ---- test
+
 reads a line, displays each word.
 This strips any extraneous whitespace around each word and tidies it up.
 

@@ -1283,7 +1283,9 @@ class Machine():
         RS_MEM   = (0xA000,          -1024)    # return stack
         UV_MEM   = (0xA000,          +1024)    # user variables
 
-        #PAD_MEM   = (2048,            +80       )    # pad
+        # static buffer for now, eventually it will have to float dynamically
+        PAD_MEM  = (0xB000,          +80       )    # pad
+
         #BB_MEM   = (65536-(1024*2),  +(1024*2)  )    # block buffers
         #SV_MEM    = (0,               +1024     )    # system variables
         #EL_MEM    = (1024,            +0        )    # electives
@@ -1303,8 +1305,8 @@ class Machine():
         self.dict = Dictionary(self.mem, self.dictstart, self.dictsize)
 
         # Init pad
-        #padstart, padsize = self.mem.region("PAD", PAD_MEM)
-        #self.pad = Pad(self.mem, padstart, padptr, padsize)
+        self.padstart, self.padsize = self.mem.region("PAD", PAD_MEM)
+        self.pad = Buffer(self.mem, self.padstart, self.padsize)
 
         # Init data stack
         self.dsstart, self.dssize = self.mem.region("DS", DS_MEM)
@@ -1952,12 +1954,13 @@ class Forth():
             ("RZ",   self.machine.rs.size),
             ("TIB",  self.machine.tibstart),
             ("TIBZ", self.machine.tibsize),
-            #("BB0",  self.machine.bb.start),
-            #("BBZ",  self.machine.bb.size),
-            #("PADZ", self.machine.pad.size),
+            ("PAD",  self.machine.padstart),
+            ("PADZ", self.machine.padsize),
             ("FALSE", 0x0000),
             ("TRUE",  0xFFFF),
             ("BL",    32),
+            #("BB0",  self.machine.bb.start),
+            #("BBZ",  self.machine.bb.size),
         ]
 
         for c in consts:
@@ -2126,8 +2129,8 @@ class Forth():
             ]),
             #-----
             ("PAD>+", [                                 # ( c -- )
-                "PAD", "@", LIT(1), "+", "PAD", "!",    # ( c )         advance count by 1 (no range check? PADZ??)
-                "PAD", "@", "PAD", "+", "C!"            # ( )           write char to next free location
+                "PAD", "C@", LIT(1), "+", "PAD", "C!",  # ( c )         advance count by 1 (no range check? PADZ??)
+                "PAD", "C@", "PAD", "+", "C!"           # ( )           write char to next free location
             ]),
         ]
 

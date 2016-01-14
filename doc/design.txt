@@ -13,48 +13,14 @@ Then compilation.
 
 
 JUST DONE
-SKIP coded and tested ok.
+PAD reset and write coded and tested ok.
 
 TODO
-code/test 0PAD> and PAD>+
-
 code/test WORD
+
 code/test EXECUTE
 code/test REPL
 
-
-================================================================================
-
-TODO: Need to place PAD in memory somewhere, even if statically placed
-for now, so that we can test this.
-
------
-
-Support routines before writing WORD:
-
-PAD - this is a variable that holds the dynamic start of PAD, which is
-a fixed offset from the end of the dictionary. It's not implemented yet
-in the underlying python code.
-
-When copying chars to the pad buffer, we live maintain the count byte,
-you can calculate it every write by adding this onto start address of PAD,
-and don't need PAD> variable.
-
------ design
-reset pad pointer
-: 0PAD> ( -- )
-    0 PAD !                                 # ( )          write zero to first entry in PAD buffer
-
-write to pad pointer and increment
-: PAD>+ ( c -- )
-        PAD @ 1 + PAD !                     # ( c )         advance count by 1 (no range check? PADZ??)
-        PAD @ PAD + ( c a) C!               # ( )           write char to next free location
-
-
------ test
-
-: TEST 0PAD> 'H' PAD>+ 'E' PAD>+ 'L' PAD>+ 'L' PAD>+ 'O' PAD>+
-PAD ( a) COUNT ( a+1 #) TYPE ( )
 
 
 ================================================================================
@@ -1884,6 +1850,35 @@ just defining it as a Buffer()
     # exitskip                                  # (s c)
     DROP DROP                                   # ( )
 
+
+
+-----
+
+Support routines before writing WORD:
+
+PAD - this is a variable that holds the dynamic start of PAD, which is
+a fixed offset from the end of the dictionary. It's not implemented yet
+in the underlying python code.
+
+When copying chars to the pad buffer, we live maintain the count byte,
+you can calculate it every write by adding this onto start address of PAD,
+and don't need PAD> variable.
+
+----- design
+reset pad pointer
+: 0PAD> ( -- )
+    0 PAD !                                 # ( )          write zero to first entry in PAD buffer
+
+write to pad pointer and increment
+: PAD>+ ( c -- )
+        PAD @ 1 + PAD !                     # ( c )         advance count by 1 (no range check? PADZ??)
+        PAD @ PAD + ( c a) C!               # ( )           write char to next free location
+
+
+----- test
+
+: TEST 0PAD> 'H' PAD>+ 'E' PAD>+ 'L' PAD>+ 'L' PAD>+ 'O' PAD>+
+PAD ( a) COUNT ( a+1 #) TYPE ( )
 
 ===== END =====================================================================
 

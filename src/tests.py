@@ -22,7 +22,7 @@ class Experiment(unittest.TestCase):
     def test_padwrite(self):
         """Test writing via the PAD pointer"""
         self.f.create_word("TEST",
-            "0PAD>",
+            "0PAD>", "PAD",
             LIT(ord('H')), "PAD>+",
             LIT(ord('E')), "PAD>+",
             LIT(ord('L')), "PAD>+",
@@ -31,8 +31,10 @@ class Experiment(unittest.TestCase):
             "PAD", "COUNT", "TYPE"
         )
         self.f.execute_word("TEST")
-        self.assertEquals("x", self.f.outs.get())
-        
+
+        #self.f.machine.pad.dump(0, 10)
+        self.assertEquals("HELLO", self.f.outs.get())
+
 
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()

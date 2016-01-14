@@ -23,11 +23,33 @@ code/test REPL
 
 ================================================================================
 
+PAD - this is a variable that holds the dynamic start of PAD, which is
+a fixed offset from the end of the dictionary. It's not implemented yet
+in the underlying python code.
+
+When copying chars to the pad buffer, what keeps a track of the number of chars
+in that buffer and/or the next write pointer? PAD> could be the next write
+pointer?
+
+Or if we live maintain the count byte, you can calculate it every write
+by adding this onto start address of PAD, and don't need PAD> variable.
+
+reset pad pointer
+: 0PAD> ( -- )
+    0 PAD !                                 # ( )          write zero to first entry in PAD buffer
+
+
+write to pad pointer and increment
+: PAD>+ ( c -- )
+        PAD @ 1 + PAD !                     # ( c )         advance count by 1 (no range check? PADZ??)
+        PAD @ PAD + ( c a) C!               # ( )           write char to next free location
+
+
 WORD
 
 from online Brodie:
 
-( c -- addr )
+( c -- a )
 
 Reads one word from the input stream, using the character (usually blank) as a delimiter.
 Moves the string to the address (HERE) with the count in the first byte, leaving the address on the stack.
@@ -63,41 +85,40 @@ the user pressed RETURN
 # probably also worth factoring out writing to the PAD buffer into a helper,
 # as that is a common routine that may be used elsewhere in other words.
 
+Probably worth having a PAD reset, assuming zero counted string,
+that's a common operation too.
+
 We are ignoring the block reading here until the basic word is working.
 We don't have blocks yet anyway.
 
 
-: WORD                                      # ( c -- a)
-    DUP SKIP                                # ( s)          leave separator on stack, need it later
 
-    0 PAD !                                 # ( s)          counted zero chars
-    PAD 1 + PAD> !                          # ( s)          PAD write ptr to start of PAD buffer, skip count
-
-    # copy
-        >IN@+                               # ( s c or s 0) try to consume next char
-        DUP ( s c c) 0BRANCH +nn exit       # ( s c)        zero marks end of buffer
-        DUP PAD> @ !                        # ( s c)        write char to next pad ptr
-        PAD> @ 1 + PAD> !                   # ( s c)        inc PAD write ptr (a is addr of last written char)
-        PAD @ 1 + PAD !                     # ( s c)        inc counter
-        OVER ( s c s) = 0BRANCH -nn copy    # ( s c)        if not separator, go round again
-
-    # exit                                  # ( s c)
-    DROP                                    # ( )
-    PAD                                     # ( a)          address of PAD returned on stack
+: WORD                                      # ( cs -- a)
+    DUP SKIP                                # ( cs)             leave separator on stack, need it later
+    0PAD>                                   # ( cs)             reset PAD pointer/count
+    # copy                                  # ( cs)
+        >IN@+                               # ( cs c or cs 0)   try to consume next char
+        DUP ( cs c c) 0BRANCH +nn exit      # ( cs c)           zero marks end of buffer
+        DUP PAD>+                           # ( cs c)           write char to next pad, advance ptr
+        OVER ( cs c cs) = 0BRANCH -nn copy  # ( cs)             if not separator, go round again
+        DUP                                 # ( cs c)
+    # exit                                  # ( cs c)
+    DROP DROP                               # ( )
+    PAD                                     # ( a)              address of PAD (count in ofs 0) returned on stack
     ;
 
 ---- test
 reads a line, displays each word.
 This strips any extraneous whitespace around each word and tidies it up.
 
-TIB TIBZ EXPECT                 # ( )       read a whole line
-# loop                          # ( )
-BL WORD ( a) COUNT              # ( a #)    get next word
-DUP ( a # #) 0BRANCH +4 ( exit) # ( a #)    zero len word means no more words
-TYPE                            # ( )       Show the word on the output stream
-BRANCH -8 ( loop)               # ( )
-# exit                          # ( a #)
-DROP DROP                       # ( )
+TIB TIBZ EXPECT                     # ( )       read a whole line into TIB, len in SPAN
+# loop                              # ( )
+  BL WORD ( a) COUNT                # ( a #)    get next word
+  DUP ( a # #) 0BRANCH +4 ( exit)   # ( a #)    zero len word means no more words
+  TYPE                              # ( )       Show the word on the output stream
+  BRANCH -8 ( loop)                 # ( )
+# exit                              # ( a #)
+DROP DROP                           # ( )
 
 
 ================================================================================

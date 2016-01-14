@@ -13,22 +13,23 @@ Then compilation.
 
 
 JUST DONE
-BL WORD gets the words fine.
+TEST for WORD works fine, with separator end conditions ok
 
 TODO
-Separator end condition as returned by WORD???
-
 code/test EXECUTE
+
 code/test REPL
 
 
 ================================================================================
-WORD
 
-Need to just understand if WORD should return the separator after the last
-char or not (it does return it at moment, seem to remember reading that somewhere,
-but not sure about it)
+Need a word that given a counted string at an address, finds that in the
+dictionary, either returning 0 if not found, or the address of some aspect
+of it if it is found. This address can then be incremented appropriately to
+get the address required by EXECUTE to actually run the word.
 
+Check in Brodie what this word actually is, it forms a key part of the
+interpreter loop.
 
 ================================================================================
 
@@ -1885,5 +1886,22 @@ TIB TIBZ EXPECT                     # ( )       read a whole line into TIB, len 
   BRANCH -8 ( loop)                 # ( )
 # exit                              # ( a #)
 DROP DROP                           # ( )
+
+
+================================================================================
+WORD
+
+Need to just understand if WORD should return the separator after the last
+char or not (it does return it at moment, seem to remember reading that somewhere,
+but not sure about it)
+
+Just checked Brodie p241
+
+WORD copies the delimiter at the end to the output buffer, but it does not
+include it in the count.
+
+So, when we terminate on the delimiter rather than end of buffer,
+we need to take one off the count value before exit.
+
 ===== END =====================================================================
 

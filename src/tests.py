@@ -19,31 +19,6 @@ class x:#Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-    def test_word(self):
-        """Test WORD - read a word separated by a separator"""
-
-        self.f.machine.tib.appends("  HELLO  d  a  b")
-        #self.f.machine.tib.dump(0, 16)
-        self.f.create_word("TEST",
-            "TIB", ">IN", "!",                          # set IN read ptr to start of TIB
-            LIT(16), "TIB#", "!",                       # set how many chars actually are in TIB
-            # loop                                      # ( )
-                "BL", "WORD",
-                "COUNT",                                # ( a #)    get next word
-                "DUP", "0BRANCH", +4,                   # ( a #)    to:exit zero len word means no more words
-                "TYPE",                                 # ( )       Show the word on the output stream
-                "BRANCH", -8,
-            # exit                                      # ( a #)
-            "DROP", "DROP"                              # ( )
-        )
-        self.f.execute_word("TEST")
-
-        #self.f.machine.pad.dump(0, 10)
-        #TODO check brodie, should it consume the separator at end also??
-        self.assertEquals("HELLO d a b", self.f.outs.get())
-
-
-
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()
 
@@ -390,8 +365,8 @@ class TestForth(unittest.TestCase):
         self.f.execute_word("TEST")
 
         #self.f.machine.pad.dump(0, 10)
-        #TODO check brodie, should it consume the separator at end also??
-        self.assertEquals("HELLO d a b", self.f.outs.get())
+        self.assertEquals("HELLOdab", self.f.outs.get())
+
 
 
 

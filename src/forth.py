@@ -2132,6 +2132,20 @@ class Forth():
                 "PAD", "C@", LIT(1), "+", "PAD", "C!",  # ( c )         advance count by 1 (no range check? PADZ??)
                 "PAD", "C@", "PAD", "+", "C!"           # ( )           write char to next free location
             ]),
+            #-----
+            ("WORD", [                                  # ( cs -- a)
+                "DUP", "SKIP",                          # ( cs)             leave separator on stack, need it later
+                "0PAD>",                                # ( cs)             reset PAD pointer/count
+                # copy                                  # ( cs)
+                    "IN@+",                             # ( cs c or cs 0)   try to consume next char
+                    "DUP", "0BRANCH", +8,               # ( cs c)  to:exit  zero marks end of buffer
+                    "DUP", "PAD>+",                     # ( cs c)           write char to next pad, advance ptr
+                    "OVER", "=", "0BRANCH", -9,         # ( cs)  to:copy    if not separator, go round again
+                    "DUP",                              # ( cs c)
+                # exit                                  # ( cs c)
+                "DROP", "DROP",                         # ( )
+                "PAD"                                   # ( a)              address of PAD (count in ofs 0) returned on stack
+            ]),
         ]
 
         for w in words:

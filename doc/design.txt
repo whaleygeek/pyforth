@@ -13,79 +13,21 @@ Then compilation.
 
 
 JUST DONE
-PAD reset and write coded and tested ok.
+BL WORD gets the words fine.
 
 TODO
-code/test WORD
+Separator end condition as returned by WORD???
 
 code/test EXECUTE
 code/test REPL
 
 
-
 ================================================================================
 WORD
 
-from online Brodie:
-
-( c -- a )
-
-Reads one word from the input stream, using the character (usually blank) as a delimiter.
-Moves the string to the address  with the count in the first byte, leaving the address on the stack.
-
-Note, the new forth might use HERE rather than TIB, because HERE is always just past the end of the
-dictionary? Sounds dangerous though if the side effect of a compiling word is to define something
-in the dictionary and move the HERE pointer??
-
-
------ spec: WORD
-
-: WORD   ( c -- a)
-
-Character on stack indicates the terminator, at end,
-a is address of word scanned in.
-Ignores initial occurences of the separator char
-Moves it to a "temporary buffer of it's own"
-count is in first byte preceeding it.
-moves the blank at the end also, but does not include it in the count.
-Note that the temporary buffer is overwritten very quickly, so you should store
-it more permanently as quickly as possible.
-WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
-the user pressed RETURN
-
-
----- design: WORD
-
-We are ignoring the block reading here until the basic word is working.
-We don't have blocks yet anyway.
-
-: WORD                                      # ( cs -- a)
-    DUP SKIP                                # ( cs)             leave separator on stack, need it later
-    0PAD>                                   # ( cs)             reset PAD pointer/count
-    # copy                                  # ( cs)
-        >IN@+                               # ( cs c or cs 0)   try to consume next char
-        DUP ( cs c c) 0BRANCH +nn exit      # ( cs c)           zero marks end of buffer
-        DUP PAD>+                           # ( cs c)           write char to next pad, advance ptr
-        OVER ( cs c cs) = 0BRANCH -nn copy  # ( cs)             if not separator, go round again
-        DUP                                 # ( cs c)
-    # exit                                  # ( cs c)
-    DROP DROP                               # ( )
-    PAD                                     # ( a)              address of PAD (count in ofs 0) returned on stack
-    ;
-
----- test
-
-reads a line, displays each word.
-This strips any extraneous whitespace around each word and tidies it up.
-
-TIB TIBZ EXPECT                     # ( )       read a whole line into TIB, len in SPAN
-# loop                              # ( )
-  BL WORD ( a) COUNT                # ( a #)    get next word
-  DUP ( a # #) 0BRANCH +4 ( exit)   # ( a #)    zero len word means no more words
-  TYPE                              # ( )       Show the word on the output stream
-  BRANCH -8 ( loop)                 # ( )
-# exit                              # ( a #)
-DROP DROP                           # ( )
+Need to just understand if WORD should return the separator after the last
+char or not (it does return it at moment, seem to remember reading that somewhere,
+but not sure about it)
 
 
 ================================================================================
@@ -101,6 +43,7 @@ Useful for a simple interactive shell.
 : REPL
     # nextline
     TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
+    #TODO do we have to reset the IN ptr and TIB#, or does EXPECT do that?
 
     # nextword                          # ( )
     BL WORD COUNT                       # ( a #)
@@ -1880,5 +1823,67 @@ write to pad pointer and increment
 : TEST 0PAD> 'H' PAD>+ 'E' PAD>+ 'L' PAD>+ 'L' PAD>+ 'O' PAD>+
 PAD ( a) COUNT ( a+1 #) TYPE ( )
 
+
+
+from online Brodie:
+
+( c -- a )
+
+Reads one word from the input stream, using the character (usually blank) as a delimiter.
+Moves the string to the address  with the count in the first byte, leaving the address on the stack.
+
+Note, the new forth might use HERE rather than TIB, because HERE is always just past the end of the
+dictionary? Sounds dangerous though if the side effect of a compiling word is to define something
+in the dictionary and move the HERE pointer??
+
+
+----- spec: WORD
+
+: WORD   ( c -- a)
+
+Character on stack indicates the terminator, at end,
+a is address of word scanned in.
+Ignores initial occurences of the separator char
+Moves it to a "temporary buffer of it's own"
+count is in first byte preceeding it.
+moves the blank at the end also, but does not include it in the count.
+Note that the temporary buffer is overwritten very quickly, so you should store
+it more permanently as quickly as possible.
+WORD will terminate when it hits the end of the input buffer sequence, i.e. the point
+the user pressed RETURN
+
+
+---- design: WORD
+
+We are ignoring the block reading here until the basic word is working.
+We don't have blocks yet anyway.
+
+: WORD                                      # ( cs -- a)
+    DUP SKIP                                # ( cs)             leave separator on stack, need it later
+    0PAD>                                   # ( cs)             reset PAD pointer/count
+    # copy                                  # ( cs)
+        >IN@+                               # ( cs c or cs 0)   try to consume next char
+        DUP ( cs c c) 0BRANCH +nn exit      # ( cs c)           zero marks end of buffer
+        DUP PAD>+                           # ( cs c)           write char to next pad, advance ptr
+        OVER ( cs c cs) = 0BRANCH -nn copy  # ( cs)             if not separator, go round again
+        DUP                                 # ( cs c)
+    # exit                                  # ( cs c)
+    DROP DROP                               # ( )
+    PAD                                     # ( a)              address of PAD (count in ofs 0) returned on stack
+    ;
+
+---- test
+
+reads a line, displays each word.
+This strips any extraneous whitespace around each word and tidies it up.
+
+TIB TIBZ EXPECT                     # ( )       read a whole line into TIB, len in SPAN
+# loop                              # ( )
+  BL WORD ( a) COUNT                # ( a #)    get next word
+  DUP ( a # #) 0BRANCH +4 ( exit)   # ( a #)    zero len word means no more words
+  TYPE                              # ( )       Show the word on the output stream
+  BRANCH -8 ( loop)                 # ( )
+# exit                              # ( a #)
+DROP DROP                           # ( )
 ===== END =====================================================================
 

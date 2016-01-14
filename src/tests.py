@@ -9,7 +9,7 @@ import forth
 LIT = forth.Forth.LITERAL
 STR = forth.Forth.STRING
 
-class Experiment(unittest.TestCase):
+class x:#Experiment(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
@@ -19,28 +19,36 @@ class Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-    def test_padwrite(self):
-        """Test writing via the PAD pointer"""
+    def test_word(self):
+        """Test WORD - read a word separated by a separator"""
+
+        self.f.machine.tib.appends("  HELLO  d  a  b")
+        #self.f.machine.tib.dump(0, 16)
         self.f.create_word("TEST",
-            "0PAD>", "PAD",
-            LIT(ord('H')), "PAD>+",
-            LIT(ord('E')), "PAD>+",
-            LIT(ord('L')), "PAD>+",
-            LIT(ord('L')), "PAD>+",
-            LIT(ord('O')), "PAD>+",
-            "PAD", "COUNT", "TYPE"
+            "TIB", ">IN", "!",                          # set IN read ptr to start of TIB
+            LIT(16), "TIB#", "!",                       # set how many chars actually are in TIB
+            # loop                                      # ( )
+                "BL", "WORD",
+                "COUNT",                                # ( a #)    get next word
+                "DUP", "0BRANCH", +4,                   # ( a #)    to:exit zero len word means no more words
+                "TYPE",                                 # ( )       Show the word on the output stream
+                "BRANCH", -8,
+            # exit                                      # ( a #)
+            "DROP", "DROP"                              # ( )
         )
         self.f.execute_word("TEST")
 
         #self.f.machine.pad.dump(0, 10)
-        self.assertEquals("HELLO", self.f.outs.get())
+        #TODO check brodie, should it consume the separator at end also??
+        self.assertEquals("HELLO d a b", self.f.outs.get())
+
 
 
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()
 
 
-class x:#TestForth(unittest.TestCase):
+class TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
@@ -345,6 +353,45 @@ class x:#TestForth(unittest.TestCase):
 
         self.f.execute_word("TEST")
         self.assertEquals("HELLO\x00", self.f.outs.get())
+
+    def test_86_padwrite(self):
+        """Test writing via the PAD pointer"""
+        self.f.create_word("TEST",
+            "0PAD>", "PAD",
+            LIT(ord('H')), "PAD>+",
+            LIT(ord('E')), "PAD>+",
+            LIT(ord('L')), "PAD>+",
+            LIT(ord('L')), "PAD>+",
+            LIT(ord('O')), "PAD>+",
+            "PAD", "COUNT", "TYPE"
+        )
+        self.f.execute_word("TEST")
+
+        #self.f.machine.pad.dump(0, 10)
+        self.assertEquals("HELLO", self.f.outs.get())
+
+    def test_word(self):
+        """Test WORD - read a word separated by a separator"""
+
+        self.f.machine.tib.appends("  HELLO  d  a  b")
+        #self.f.machine.tib.dump(0, 16)
+        self.f.create_word("TEST",
+            "TIB", ">IN", "!",                          # set IN read ptr to start of TIB
+            LIT(16), "TIB#", "!",                       # set how many chars actually are in TIB
+            # loop                                      # ( )
+                "BL", "WORD",
+                "COUNT",                                # ( a #)    get next word
+                "DUP", "0BRANCH", +4,                   # ( a #)    to:exit zero len word means no more words
+                "TYPE",                                 # ( )       Show the word on the output stream
+                "BRANCH", -8,
+            # exit                                      # ( a #)
+            "DROP", "DROP"                              # ( )
+        )
+        self.f.execute_word("TEST")
+
+        #self.f.machine.pad.dump(0, 10)
+        #TODO check brodie, should it consume the separator at end also??
+        self.assertEquals("HELLO d a b", self.f.outs.get())
 
 
 

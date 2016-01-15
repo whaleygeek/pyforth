@@ -293,14 +293,14 @@ class TestForth(unittest.TestCase):
         self.assertEquals("                    ", self.f.outs.get())
 
     def test_84_rd_in(self):
-        #setup TIB='hello', TIB#=5, IN>=TIB
+        #setup TIB='hello', SPAN=5, IN>=TIB
         self.f.machine.tib.fwd(5)
         self.f.machine.tib.write(0, [ord('H'),ord('E'), ord('L'), ord('L'), ord('O')])
         #self.f.machine.tib.dump(0, 10)
 
         self.f.create_word("TEST",
                             "TIB", ">IN", "!",
-                            LIT(5), "TIB#", "!",
+                            LIT(5), "SPAN", "!",
                             "IN@+", "DUP", "0BRANCH", +4, "EMIT", "BRANCH", -6
         )
 
@@ -316,7 +316,7 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("TEST",
             "TIB", ">IN", "!",
-            LIT(8), "TIB#", "!",
+            LIT(8), "SPAN", "!",
             "BL", "SKIP",
             "IN@+", "EMIT",
             "IN@+", "EMIT",
@@ -352,7 +352,7 @@ class TestForth(unittest.TestCase):
         #self.f.machine.tib.dump(0, 16)
         self.f.create_word("TEST",
             "TIB", ">IN", "!",                          # set IN read ptr to start of TIB
-            LIT(16), "TIB#", "!",                       # set how many chars actually are in TIB
+            LIT(16), "SPAN", "!",                       # set how many chars actually are in TIB
             # loop                                      # ( )
                 "BL", "WORD",
                 "COUNT",                                # ( a #)    get next word

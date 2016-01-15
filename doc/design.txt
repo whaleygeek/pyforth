@@ -15,11 +15,9 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-EXECUTE now takes CFA on stack
-No need to write a test for EXECUTE, it is used in all create_word calls anyway.
+Removed TIB# and replaced with SPAN
 
 TODO
-fix SPAN TIB# discrepancy
 code/test REPL
 Turn the forth.py main into a call to the REPL.
 Run some manual interactive tests and make sure it basically works.
@@ -27,18 +25,6 @@ Might want to add a prompt.
 Test what happens on ABORT, does it exit the REPL completely?
 
 Write the native NUMBER parser
-
-
-================================================================================
-TODO: SPAN and TIB# are same thing, choose one and resolve all references
-and tests to use it consistently.
-
-As this is 83 forth, based on an early version of Brodie, we should probably
-just use SPAN throughout. We can always rename it all later once it is
-conceptually working.
-
-#EXPECT sets up >IN to start of user buffer.
-#but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
 
 
 ================================================================================
@@ -1985,6 +1971,18 @@ anyway.
 
 make sure the PFA reference is set up correctly (set ip to pfa??)
 Yes, already done in n_execute.
+
+
+================================================================================
+TODO: SPAN and TIB# are same thing, choose one and resolve all references
+and tests to use it consistently.
+
+As this is 83 forth, based on an early version of Brodie, we should probably
+just use SPAN throughout. We can always rename it all later once it is
+conceptually working.
+
+#EXPECT sets up >IN to start of user buffer.
+#but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
 
 
 ===== END =====================================================================

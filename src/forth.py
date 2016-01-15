@@ -2019,7 +2019,6 @@ class Forth():
             #("BINDEX", 2*2),
             ("BASE",    2,    10),
             ("SPAN",),
-            ("TIB#",),
         ]
         for v in vars:
             name = v[0]
@@ -2143,7 +2142,7 @@ class Forth():
             ]),
             #-----
             ("IN@+", [                                          # ( -- c)
-                "TIB", "TIB#", "@", "+",                        # ( a)          address of first unused byte at end of buffer
+                "TIB", "SPAN", "@", "+",                        # ( a)          address of first unused byte at end of buffer
                 ">IN", "@", "=",                                # ( ?)          is IN ptr at end of buffer?  TRUE if at end
                 LIT(0), "SWAP", "NOT", "0BRANCH", +12, "DROP",  # ( -- or 0)    to:exit with 0 on stack if end, stack empty if chars
                 ">IN", "@", "C@",                               # ( c)          read next char at ptr

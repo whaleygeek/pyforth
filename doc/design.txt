@@ -15,14 +15,9 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Now no longer puts newline in EXPECT.
-
+No longer re runs last command from buffer on blank line
 
 TODO
-If just press return, it runs the last command from the buffer.
-Is this a TIB thing or a PAD thing?
-
-
 
 Test what happens on ABORT, does it exit the REPL completely?
 

@@ -269,7 +269,7 @@ class TestForth(unittest.TestCase):
         self.f.ins.set("HELLO\n")
         self.f.execute_word("TEST")
         #self.f.machine.tib.dump(self.f.machine.tibstart, 10)
-        self.assertEquals("HELLO\n", self.f.outs.get())
+        self.assertEquals("HELLO", self.f.outs.get())
 
     def test_82_count(self):
         """Convert counted string into address and count"""

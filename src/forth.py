@@ -2115,10 +2115,11 @@ class Forth():
                     "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a)          dec counter
                     "SPAN", "@", "0=",                          # ( a ?)        is span=0 (buffer full)
                     "0BRANCH", -29,                             # ( a)          to:loop go round again if it isn't
-                # done                                          # ( a)          address on stack is of start of buffer
+                # done                                          # ( a c)          address on stack is of start of buffer
                 #                                               #               >IN points to char after last written
                 #                                               #               a on stack is start of user buffer
                 #                                               #               >IN - a is the true SPAN including optional CR
+                "DROP",                                         # (aTIB)
                 "DUP",                                          # ( aTIB aTIB)
                 ">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
                 "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
@@ -2238,11 +2239,10 @@ class Forth():
                 LIT(0), "SPAN", "!",                        # ( )       clear span so we don't get repeat on blank line
                 "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
                 "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
-                STR("Run"), "COUNT", "TYPE",                # ( )       strcells=(dolit)(n,R)(u,n)=3
                 "INTERPRET",                                # ()
                 STR(" Ok"), "COUNT", "TYPE",                # ()        strcells=3 (dostr)(count,spc)(O,k)
                 "CR",
-                "BRANCH", -23                               # ()        to:start
+                "BRANCH", -18                               # ()        to:start
             ]),
         ]
 

@@ -1989,16 +1989,16 @@ class Forth():
 
         consts = [
             # name,  value (all size 2)
-            ("D0",   self.machine.dict.start),
-            ("DZ",   self.machine.dict.size),
-            ("S0",   self.machine.ds.start),
-            ("SZ",   self.machine.ds.size),
-            ("R0",   self.machine.rs.start),
-            ("RZ",   self.machine.rs.size),
-            ("TIB",  self.machine.tibstart),
-            ("TIBZ", self.machine.tibsize),
-            ("PAD",  self.machine.padstart),
-            ("PADZ", self.machine.padsize),
+            ("D0",    self.machine.dict.start),
+            ("DZ",    self.machine.dict.size),
+            ("S0",    self.machine.ds.start),
+            ("SZ",    self.machine.ds.size),
+            ("R0",    self.machine.rs.start),
+            ("RZ",    self.machine.rs.size),
+            ("TIB",   self.machine.tibstart),
+            ("TIBZ",  self.machine.tibsize),
+            ("PAD",   self.machine.padstart),
+            ("PADZ",  self.machine.padsize),
             ("FALSE", 0x0000),
             ("TRUE",  0xFFFF),
             ("BL",    32),
@@ -2043,6 +2043,7 @@ class Forth():
 
 
         # CODE WORDS ----------------------------------------------------------
+
         # aliases, for brevity
         LIT = Forth.LITERAL
         CHR = Forth.CHARACTER
@@ -2057,41 +2058,41 @@ class Forth():
             (">",      ["-", "0<"]),
             #----- ALU
             ("/MOD",   ["DUP", "DUP", "/", "ROT", "ROT", "MOD", "SWAP"]),   # ( n1 n2 -- n-rem n-quot)
-            ("1+",     [1,  "+"]),                                          # ( n -- n+1)
-            ("1-",     [1,  "-"]),                                          # ( n -- n-1)
-            ("2+",     [2,  "+"]),                                          # ( n -- n+2)
-            ("2-",     [2,  "-"]),                                          # ( n -- n-2)
-            ("2*",     [2,  "*"]),                                          # ( n -- n*2)
-            ("2/",     [2,  "/"]),                                          # ( n -- n/2)
-            ("NEGATE", [-1, "*"]),                                          # ( n -- -n)
+            ("1+",     [LIT(1),  "+"]),                                          # ( n -- n+1)
+            ("1-",     [LIT(1),  "-"]),                                          # ( n -- n-1)
+            ("2+",     [LIT(2),  "+"]),                                          # ( n -- n+2)
+            ("2-",     [LIT(2),  "-"]),                                          # ( n -- n-2)
+            ("2*",     [LIT(2),  "*"]),                                          # ( n -- n*2)
+            ("2/",     [LIT(2),  "/"]),                                          # ( n -- n/2)
+            ("NEGATE", [LIT(-1), "*"]),                                          # ( n -- -n)
 
-            ("ABS",    ["DUP", "0<", "0BRANCH", 2, "NEGATE"]),                          # ( n -- |n|)
-            ("MIN",    ["OVER", "OVER", "<", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- min)
-            ("MAX",    ["OVER", "OVER", ">", "NOT", "0BRANCH", 2, "SWAP", "DROP"]),     # ( n1 n2 -- max)
+            ("ABS",    ["DUP", "0<", "0BRANCH", +2, "NEGATE"]),                          # ( n -- |n|)
+            ("MIN",    ["OVER", "OVER", "<", "NOT", "0BRANCH", +2, "SWAP", "DROP"]),     # ( n1 n2 -- min)
+            ("MAX",    ["OVER", "OVER", ">", "NOT", "0BRANCH", +2, "SWAP", "DROP"]),     # ( n1 n2 -- max)
 
             #----- STACK OPS
-            (">R",      ["RP", "@", 1, "+", "DUP", "ROT", "!", "RP", "!"]),             # ( n -- )
-            ("R>",      ["RP", "DUP", "@", "@", "SWAP", 1, "-", "RP", "!"]),            # ( -- n)
+            (">R",      ["RP", "@", LIT(1), "+", "DUP", "ROT", "!", "RP", "!"]),             # ( n -- )
+            ("R>",      ["RP", "DUP", "@", "@", "SWAP", LIT(1), "-", "RP", "!"]),            # ( -- n)
             ("R@",      ["RP", "@", "@"]),                                              # ( -- n)
             ("SP@",     ["SP", "@"]),                                                   # ( -- a)
-            ("?DUP",    ["DUP", "0BRANCH", 2, "DUP"]),                                  # ( n -- n n or 0 -- 0)
+            ("?DUP",    ["DUP", "0BRANCH", +2, "DUP"]),                                  # ( n -- n n or 0 -- 0)
             ("2SWAP",   ["ROT", ">R", "ROT", "R>"]),                                    # ( d1 d2 -- d2 d1)
             ("2DUP",    ["OVER", "OVER"]),                                              # ( d -- d d)
             ("2OVER",   ["2SWAP", "2DUP", ">R", ">R", "2SWAP", "R>", "R>"]),            # ( d1 d2 -- d1 d2 d1)
             ("2DROP",   ["DROP", "DROP"]),                                              # ( d --)
 
             #----- GENERAL I/O
-            ("HEX",      [16, "BASE", "!"]),                                            #( -- )
-            ("OCTAL",    [8,  "BASE", "!"]),                                            #( -- )
-            ("DECIMAL",  [10, "BASE", "!"]),                                            #( -- )
-            ("CR",       [13, "EMIT"]),                                                 #( -- )
-            ("SPACE",    [32, "EMIT"]),                                                 #( -- )
-            ("PAGE",     [12, "EMIT"]),                                                 #( -- )
+            ("HEX",      [LIT(16), "BASE", "!"]),                                            #( -- )
+            ("OCTAL",    [LIT(8),  "BASE", "!"]),                                            #( -- )
+            ("DECIMAL",  [LIT(10), "BASE", "!"]),                                            #( -- )
+            ("CR",       [LIT(13), "EMIT", LIT(10), "EMIT"]),                                #( -- )
+            ("SPACE",    [LIT(32), "EMIT"]),                                                 #( -- )
+            ("PAGE",     [LIT(12), "EMIT"]),                                                 #( -- )
 
             #---- SIMPLE MEMORY OPS
-            ("+!",       ["DUP", "@", "ROT", "+", "!"]),                                #( n a -- )
-            ("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", 2, "+", "!"]),      #( d a -- )
-            ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                            #( a -- d)
+            ("+!",       ["DUP", "@", "ROT", "+", "!"]),                                    #( n a -- )
+            ("2!",       ["ROT", "SWAP", "DUP", "ROT", "SWAP", "!", LIT(2), "+", "!"]),     #( d a -- )
+            ("2@",       ["DUP", "@", "SWAP", 2, "+", "@"]),                                #( a -- d)
 
 
             #-----
@@ -2105,7 +2106,7 @@ class Forth():
                     ">IN", "@", LIT(1), "+", ">IN", "!",        # ( a c)     advance write pointer
                     "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a c)     dec counter
                     LIT(10), "=", "NOT",                        # ( a ?)     is char a LF?
-                    "0BRANCH", 6,                               # ( a)       if it is, exit
+                    "0BRANCH", +6,                              # ( a)       if it is, exit
                     "SPAN", "@", "0=",                          # ( a ?)     is span=0 (buffer full)
                     "0BRANCH", -29,                             # ( a)       (loop) go round again if it isn't
                 # exit                                          # ( a)       address on stack is of start of buffer
@@ -2122,7 +2123,7 @@ class Forth():
             #-----
             ("TYPE", [                                      # ( a # -- )
                                                             # target:read
-                "DUP", "0=", "NOT", "0BRANCH", 14,          # (exit) ( a #) if counter zero, exit
+                "DUP", "0=", "NOT", "0BRANCH", +14,         # (exit) ( a #) if counter zero, exit
                 "SWAP", "DUP", "C@",                        # ( # a c)      read char at address
                 "EMIT",                                     # ( # a)        show char
                 LIT(1), "+",                                # ( # a)        advance address
@@ -2144,7 +2145,7 @@ class Forth():
             ("SPACES", [                                    # ( n -- )
                 # loop                                      # ( n)
                     "DUP",                                  # ( n n)
-                    "0BRANCH", 9,                           # ( n)      to:exit
+                    "0BRANCH", +9,                          # ( n)      to:exit
                     LIT(32), "EMIT",                        # ( n)
                     LIT(1), "-",                            # ( n-1)
                     "BRANCH", -10,                          # ( n)      to:loop
@@ -2198,19 +2199,15 @@ class Forth():
                 "PAD"                                       # ( a)              address of PAD (count in ofs 0) returned on stack
             ]),
             #-----
-            ("STAR", [CHR('*')]),
+            ("STAR", [CHR('*')]), # could do as a CONSTANT
             #-----
-            ("REPL", [
-                # getline
-                "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
-                "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
-
+            ("INTERPRET", [
                 # getword                                   # ( )
                 "BL", "WORD", "COUNT",                      # ( a #)
                 "0=", "0BRANCH", +9,                        # ( a)      to: findword
                 "DROP",                                     # ( )
                 STR(" Ok"), "COUNT", "TYPE",                # ( )       strcells=3: dostr(1) "n Ok"(2)
-                "BRANCH", -19,                              # ( )       to: getline
+                "BRANCH", +18,                              # ( )       to: exit
 
                 # findword                                  # ( a)
                 LIT(1), "-",                                # ( a)      litcells=2: subtract one to point to count byte for FIND
@@ -2222,11 +2219,21 @@ class Forth():
                 "DROP",                                     # ( )
                 CHR("?"), "EMIT",                           # ( )       chrcells=2
                 #TODO keep addr of name, need to print ?name
-                "BRANCH", -33,                              # ( )       to: getline
+                "BRANCH", +4,                               # ( )       to: exit
 
                 # run                                       # ( a)      addr is cfa of word to exec
                 "EXECUTE",                                  # ( )       execute the word whose address info is on the DS
                 "BRANCH", -30,                              # ( )       to: getword
+            ]),
+            #-----
+            ("REPL", [
+                #TODO clear return stack
+                "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
+                "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
+                "INTERPRET",                                # ()
+                STR(" Ok"), "COUNT", "TYPE",                # ()        strcells=3 (dostr)(count,spc)(O,k)
+                "CR",
+                "BRANCH", -14                               # ()        to:start
             ]),
         ]
 

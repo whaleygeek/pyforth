@@ -15,16 +15,13 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Factored out INTERPRET
-
+Now no longer puts newline in EXPECT.
 
 
 TODO
-If type "BL" rather than "BL " it does not find it,
-suggesting something odd with buffer termination,
-or perhaps the newline is being merged into the word?
+If just press return, it runs the last command from the buffer.
+Is this a TIB thing or a PAD thing?
 
-Get it to print the length of WORD result, and work it out from that.
 
 
 Test what happens on ABORT, does it exit the REPL completely?

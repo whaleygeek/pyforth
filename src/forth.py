@@ -942,7 +942,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.bytes.readb(ffa)
             if ff == 0:
-                Debug.trace("Could not find word in dict:%s" % name)
+                Debug.trace("Could not find word in dict:'%s'" % name)
                 return 0 # NOT FOUND
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
@@ -1035,10 +1035,14 @@ class KeyboardInput(Input):
         Debug.fail("Not yet implemented")
 
     def getch(self):
-        ch = sys.stdin.read(1) # blocking, line buffered
-        if ch == "": # EOF
-            Debug.fail("EOF on Keyboard input stream")
-        return ch
+        while True:
+            ch = sys.stdin.read(1) # blocking, line buffered
+            if ch == "": # EOF
+                Debug.fail("EOF on Keyboard input stream")
+            if ch == '\r':
+                #print("strip return char")
+                pass # strip return(13), interpret newline(10) #TODO: is this correct?
+            return ch
 
 class Output():
     def __init__(self):
@@ -1862,6 +1866,8 @@ class Forth():
             if type(word) == str:
                 # It's a word, so lookup it's address in DICT
                 ffa = self.machine.dict.find(word)
+                if ffa == 0:
+                    Debug.fail("Word not in dictionary:%s" % word)
                 #TODO if not found, should pass to NUMBER to see if it parses,
                 # and then just append it if it does.
                 cfa = self.machine.dict.ffa2cfa(ffa)
@@ -2097,28 +2103,28 @@ class Forth():
 
             #-----
             ("EXPECT", [                                        # ( a # -- )
-                "SPAN", "!",                                    # ( a)        use SPAN as the char counter while in loop
-                "DUP",                                          # ( a a)      leave user buffer start on stack, for later cleanup
-                ">IN", "!",                                     # ( a)        set INP to start of user buffer, use as write ptr in loop
+                "SPAN", "!",                                    # ( a)          use SPAN as the char counter while in loop
+                "DUP",                                          # ( a a)        leave user buffer start on stack, for later cleanup
+                ">IN", "!",                                     # ( a)          set INP to start of user buffer, use as write ptr in loop
                 # loop                                          # ( a)
-                    "KEY", "DUP",                               # ( a c c)    read a char
-                    ">IN", "@", "C!",                           # ( a c)        write via INP ptr
-                    ">IN", "@", LIT(1), "+", ">IN", "!",        # ( a c)     advance write pointer
-                    "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a c)     dec counter
-                    LIT(10), "=", "NOT",                        # ( a ?)     is char a LF?
-                    "0BRANCH", +6,                              # ( a)       if it is, exit
-                    "SPAN", "@", "0=",                          # ( a ?)     is span=0 (buffer full)
-                    "0BRANCH", -29,                             # ( a)       (loop) go round again if it isn't
-                # exit                                          # ( a)       address on stack is of start of buffer
-                #                                               #            >IN points to char after last written
-                #                                               #            a on stack is start of user buffer
-                #                                               #            >IN - a is the true SPAN including optional CR
+                    "KEY", "DUP",                               # ( a c c)      read a char
+                    LIT(10), "=", "NOT",                        # ( a c ?)      is char a LF?
+                    "0BRANCH", +23,                             # ( a c)        to:done if it is LF
+                    ">IN", "@", "C!",                           # ( a)          write via INP ptr
+                    ">IN", "@", LIT(1), "+", ">IN", "!",        # ( a)          advance write pointer
+                    "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a)          dec counter
+                    "SPAN", "@", "0=",                          # ( a ?)        is span=0 (buffer full)
+                    "0BRANCH", -29,                             # ( a)          to:loop go round again if it isn't
+                # done                                          # ( a)          address on stack is of start of buffer
+                #                                               #               >IN points to char after last written
+                #                                               #               a on stack is start of user buffer
+                #                                               #               >IN - a is the true SPAN including optional CR
                 "DUP",                                          # ( aTIB aTIB)
                 ">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
                 "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
                 "-",                                            # ( aTIB #read)
-                "SPAN", "!",                                    # ( aTIB)     SPAN holds number of chars read in
-                ">IN", "!",                                     # ( )         INP points to first char to read in buffer
+                "SPAN", "!",                                    # ( aTIB)       SPAN holds number of chars read in
+                ">IN", "!",                                     # ( )           INP points to first char to read in buffer
             ]),
             #-----
             ("TYPE", [                                      # ( a # -- )
@@ -2174,7 +2180,7 @@ class Forth():
             ]),
             #-----
             ("0PAD>", [                                 # ( -- )
-                LIT(0), "PAD", "!"                      # ( )          write zero to first entry in PAD buffer
+                LIT(0), "PAD", "C!"                     # ( )          write zero to first entry in PAD buffer
             ]),
             #-----
             ("PAD>+", [                                 # ( c -- )
@@ -2183,8 +2189,8 @@ class Forth():
             ]),
             #-----
             ("WORD", [                                      # ( cs -- a)
-                "DUP", "SKIP",                              # ( cs)             leave separator on stack, need it later
                 "0PAD>",                                    # ( cs)             reset PAD pointer/count
+                "DUP", "SKIP",                              # ( cs)             leave separator on stack, need it later
                 # copy                                      # ( cs)
                     "IN@+",                                 # ( cs c or cs 0)   try to consume next char
                     "DUP", "0BRANCH", +17,                  # ( cs c)  to:exit  zero marks end of buffer
@@ -2204,36 +2210,39 @@ class Forth():
             ("INTERPRET", [
                 # getword                                   # ( )
                 "BL", "WORD", "COUNT",                      # ( a #)
-                "0=", "0BRANCH", +9,                        # ( a)      to: findword
+                "0=", "0BRANCH", +4,                        # ( a)          to: findword
                 "DROP",                                     # ( )
-                STR(" Ok"), "COUNT", "TYPE",                # ( )       strcells=3: dostr(1) "n Ok"(2)
-                "BRANCH", +18,                              # ( )       to: exit
+                "BRANCH", +23,                              # ( )           to: exit
 
                 # findword                                  # ( a)
-                LIT(1), "-",                                # ( a)      litcells=2: subtract one to point to count byte for FIND
-                "FIND",                                     # ( a)      0 if not found, cfa if found
-                "DUP", "NOT", "0BRANCH", +7,                # ( a)      to: run
+                LIT(1), "-",                                # ( a)          litcells=2: subtract one to point to count byte for FIND
+                "DUP",                                      # ( a:t a:t)    save addr in case we want to print ?name on not found
+                "FIND",                                     # ( a:t a:cfa)  0 if not found, cfa if found
+                "DUP", "NOT", "0BRANCH", +9,                # ( a:t a:cfa)  to: run
 
-                # unknown                                   # ( a)
+                # unknown                                   # ( a:t a:cfa)
                 #TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
-                "DROP",                                     # ( )
-                CHR("?"), "EMIT",                           # ( )       chrcells=2
-                #TODO keep addr of name, need to print ?name
-                "BRANCH", +4,                               # ( )       to: exit
+                "DROP",                                     # ( a:t)
+                CHR("?"), "EMIT",                           # ( a:t)        chrcells=2
+                "COUNT", "TYPE",                            # ( )
+                "BRANCH", +6,                               # ( )           to: exit
 
-                # run                                       # ( a)      addr is cfa of word to exec
-                "EXECUTE",                                  # ( )       execute the word whose address info is on the DS
-                "BRANCH", -30,                              # ( )       to: getword
+                # run                                       # ( a:t a:cfa)  addr is cfa of word to exec
+                "SWAP", "DROP",                             # ( a:cfa)
+                "EXECUTE",                                  # ( )           execute the word whose address info is on the DS
+                "BRANCH", -30,                              # ( )           to: getword
             ]),
             #-----
             ("REPL", [
                 #TODO clear return stack
+                LIT(0), "SPAN", "!",                        # ( )       clear span so we don't get repeat on blank line
                 "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
                 "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
+                STR("Run"), "COUNT", "TYPE",                # ( )       strcells=(dolit)(n,R)(u,n)=3
                 "INTERPRET",                                # ()
                 STR(" Ok"), "COUNT", "TYPE",                # ()        strcells=3 (dostr)(count,spc)(O,k)
                 "CR",
-                "BRANCH", -14                               # ()        to:start
+                "BRANCH", -23                               # ()        to:start
             ]),
         ]
 

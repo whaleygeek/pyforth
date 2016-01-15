@@ -2186,6 +2186,33 @@ class Forth():
                 # ret                                       # ( )
                 "PAD"                                       # ( a)              address of PAD (count in ofs 0) returned on stack
             ]),
+            #-----
+            ("REPL", [
+                # getline
+                "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
+
+                # getword                                   # ( )
+                "BL", "WORD", "COUNT",                      # ( a #)
+                "0=", "NOT", "0BRANCH", +9,                 # ( a)      to: findword
+                "DROP",                                     # ( )
+                STR(" Ok"), "COUNT", "TYPE",                # ( )       cells=3: dostr(1) "n Ok"(2)
+                "BRANCH", -17,                              # ( )       to: getline
+
+                # findword                                  # ( a)
+                LIT(1), "-",                                # ( a)      litcells=2: subtract one to point to count byte for FIND
+                "FIND",                                     # ( a)      0 if not found, cfa if found
+                "DUP", "NOT", "0BRANCH", +10,               # ( a)      to: run
+
+                # unknown                                   # ( a)
+                #TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
+                "DROP",                                     # ( )
+                STR(" Err"), "COUNT", "TYPE",               # ( )       cells=4: dosr(1) "n Err_"(3)
+                "BRANCH", -34,                              # ( )       to: getline
+
+                # run                                       # ( a)      addr is cfa of word to exec
+                "EXECUTE",                                  # ( )       execute the word whose address info is on the DS
+                "BRANCH", -34,                              # ( )       to: getword
+            ]),
         ]
 
         for w in words:
@@ -2233,7 +2260,12 @@ def test_echoloop():
     #forth.machine.dict.dump()
     forth.execute_word("TEST")
 
+def repl():
+    forth.execute_word("REPL")
+    
 if __name__ == "__main__":
     #test_hello()
-    test_echoloop()
+    #test_echoloop()
+    repl()
+
 # END

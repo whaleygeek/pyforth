@@ -1675,23 +1675,33 @@ class Machine():
 
     #---- INTERFACE FOR HIGH-LEVEL FORTH WORDS -----
 
-    def n_find(self):
-        """Given address of a counted string, find CFA of word, 0 if not found"""
-        #TODO: might refactor into a helper read_cstr(addr)
-        acstr = self.ds.popn()
-        count = self.mem.readn(acstr)
-        addr  = acstr+2
+    def read_counted_string(self, addr):
+        count = self.mem.readb(addr)
+        addr  = addr+1
         name = ""
         for i in range(count):
             name += chr(self.mem.readb(addr+i))
-        print("FIND name: %s" % name)
+        #print("FIND name: %s" % name)
+        return name
 
+    def n_find(self):
+        """Given address of a counted string, find CFA of word, 0 if not found"""
+        addr = self.ds.popn()
+        #print("find popped address:%x" % addr)
+        #for a in range(addr, addr+10, 2):
+        #    n = self.mem.readn(a)
+        #    print("%x" % n)
+        name = self.read_counted_string(addr)
         ffa = self.dict.find(name)
+        #print("ffa:0x%x" % ffa)
         if ffa == 0: # NOT FOUND
             self.ds.pushn(0) # NOT FOUND
+            #print("NOT FOUND")
             return
 
         cfa = self.dict.ffa2cfa(ffa)
+        #print("cfa:0x%x" % cfa)
+        #self.dict.dump()
         self.ds.pushn(cfa)
 
     def n_execute(self):
@@ -1877,6 +1887,7 @@ class Forth():
     @staticmethod
     def STRING(string):
         # Length is stored in a byte, so can't be too big. But it can be zero.
+        #print("STR:%s" % string)
         l = len(string)
         if l > 255:
             Debug.fail("Cannot encode strings longer than 255 characters")
@@ -1886,6 +1897,7 @@ class Forth():
         # List should be an even number of bytes long
         if (len(s) % 2) != 0: # odd length including length byte
             s = s + chr(0) # pad byte
+            l += 1
 
         # Encode bytestream, two bytes per cell, note first byte encoded is length
         # last byte encoded might be last char, or a pad char of 0
@@ -1898,7 +1910,11 @@ class Forth():
         # build a list of 16 bit numbers, numbers ready for word encoding
         wlist = [" DOSTR"]
         wlist.append(nlist)
-        #print("Will encode as:%s" % str(wlist))
+        #x = ""
+        #for n in nlist:
+        #    x += "%x " % n
+        #print("Will encode as:%s" % x)
+        #print(wlist)
         return wlist
 
 

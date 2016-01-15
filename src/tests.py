@@ -367,6 +367,14 @@ class TestForth(unittest.TestCase):
         #self.f.machine.pad.dump(0, 10)
         self.assertEquals("HELLOdab", self.f.outs.get())
 
+    def test_find(self):
+        self.f.create_word("TEST", STR("NOP"), "FIND", ".")
+        self.f.execute_word("TEST")
+        NOP_CFA = self.f.machine.dict.ffa2cfa(self.f.machine.dict.find("NOP"))
+        EXPECTED = str(NOP_CFA) + " "
+        self.assertEquals(EXPECTED, self.f.outs.get())
+
+
 
 
 

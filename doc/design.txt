@@ -15,46 +15,19 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-TEST for WORD works fine, with separator end conditions ok
+FIND works
 
 TODO
-code/test FIND
-fix EXECUTE
+fix EXECUTE to use CFA
 fix SPAN TIB# discrepancy
 code/test REPL
 Run some manual interactive tests and make sure it basically works.
 
+================================================================================
+
 At this point, take stock of where we are and what we might want to
 do next. Might want to implement NUMBER, so we can have a proper
 interactive calculator session with it.
-
-
-================================================================================
-
-FIND ( a1 -- a2)   a1 is a counted string of name, a2 is 0 if not found, cfa if found
-
----- spec
-
-Given the address of a counted string, find the CFA address of that string
-in the DICT, 0 if not found.
-
----- design
-
-This is a chain of natives:
-
-So FIND has to take a counted string, and pass it to dict.find, then
-call ffa2cfa on it. That can be done as a high level, or pushed into the
-native n_find directly.
-
-dict.find(name) -> ffa
-dict.ffa2cfa(ffa) -> cfa
-
----- test
-
-: TEST STR("NOP") FIND . ;
-
-compare against self.f.dict.find("NOP")
-
 
 ================================================================================
 
@@ -1964,6 +1937,29 @@ include it in the count.
 
 So, when we terminate on the delimiter rather than end of buffer,
 we need to take one off the count value before exit.
+
+
+================================================================================
+
+FIND ( a1 -- a2)   a1 is a counted string of name, a2 is 0 if not found, cfa if found
+
+---- spec
+
+Given the address of a counted string, find the CFA address of that string
+in the DICT, 0 if not found.
+
+---- design
+
+This is a chain of natives:
+
+So FIND has to take a counted string, and pass it to dict.find, then
+call ffa2cfa on it. That can be done as a high level, or pushed into the
+native n_find directly.
+
+dict.find(name) -> ffa
+dict.ffa2cfa(ffa) -> cfa
+
+---- test
 
 ===== END =====================================================================
 

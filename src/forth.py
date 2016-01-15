@@ -904,6 +904,9 @@ class Dictionary(Stack):
     def pfa2cfa(self, pfa):
         return pfa-2 # back skip to cfa
 
+    def cfa2pfa(self, cfa):
+        return cfa+2 # forward skip to pfa
+
     def ffa2nfa(self, ffa):
         """relative skip from ffa to nfa"""
         return ffa+1
@@ -1706,13 +1709,12 @@ class Machine():
 
     def n_execute(self):
         """EXECUTE a high level address"""
-        # ( pfa -- ) # TODO: this might change to cfa on stack
+        # ( cfa -- )
         #Debug.trace("EXECUTE")
-        pfa = self.ds.popn()
-        #Debug.trace(" pfa:0x%x" % pfa)
-        # Don't assume DODOES, just in case it is a low level word!
-        cfa = self.dict.pfa2cfa(pfa)
+        cfa = self.ds.popn()
         #Debug.trace(" cfa:0x%x" % cfa)
+        pfa = self.dict.cfa2pfa(cfa)
+        #Debug.trace(" pfa:0x%x" % pfa)
         cf = self.mem.readn(cfa)
         self.ip = pfa
         #Debug.trace(" calling cf:0x%x" % cf)
@@ -1781,7 +1783,7 @@ class Machine():
 
     def n_dostr(self):
         """Get the address of a string encoded inline in the pf"""
-        # Get the address of the PFA, which is the start of the count preceeded string
+        # Get the address of the PFA, which is the start of the count preceded string
         ip = self.rs.popn()
         pfa = ip
         self.ds.pushn(pfa)
@@ -1953,10 +1955,10 @@ class Forth():
 
         # Push PFA of word to execute on stack (equivalent to TICK)
         word_ffa = self.machine.dict.find(word)
-        word_pfa = self.machine.dict.ffa2pfa(word_ffa)
-        self.machine.ds.pushn(word_pfa)
+        word_cfa = self.machine.dict.ffa2cfa(word_ffa)
+        self.machine.ds.pushn(word_cfa)
 
-        # Execute word who's PFA is on the stack (actually, EXECUTE)
+        # Execute word who's CFA is on the stack (actually, EXECUTE)
         exec_ffa = self.machine.dict.find("EXECUTE")
         exec_cfa = self.machine.dict.ffa2cfa(exec_ffa)
         exec_cf  = self.machine.mem.readn(exec_cfa)

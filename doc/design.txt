@@ -15,47 +15,34 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-FIND works
+EXECUTE now takes CFA on stack
+No need to write a test for EXECUTE, it is used in all create_word calls anyway.
 
 TODO
-fix EXECUTE to use CFA
 fix SPAN TIB# discrepancy
 code/test REPL
+Turn the forth.py main into a call to the REPL.
 Run some manual interactive tests and make sure it basically works.
+Might want to add a prompt.
+Test what happens on ABORT, does it exit the REPL completely?
 
-================================================================================
-
-At this point, take stock of where we are and what we might want to
-do next. Might want to implement NUMBER, so we can have a proper
-interactive calculator session with it.
-
-================================================================================
-
-EXECUTE  ( a -- )  a is cfa of word to execute, stack effects depend on word
-
----- spec
-
-Given an address address of a word, execute it
-
----- design
-
-this is a native
-At the moment EXECUTE takes pfa on the stack
-converts to cfa
-then calls the cfa routine.
-
-Check if we take advantage of this elsewhere, and perhaps change it
-to take the cfa, which makes more sense. Some forths do this anyway.
-Fix any existing code or tests that pass the pfa, to use cfa instead.
-makes more sense, because it's the first address you need to read,
-and in subroutine threaded implementations you would just jump to this
-anyway.
-
-make sure the PFA reference is set up correctly (set ip to pfa??)
-Yes, already done in n_execute.
+Write the native NUMBER parser
 
 
 ================================================================================
+TODO: SPAN and TIB# are same thing, choose one and resolve all references
+and tests to use it consistently.
+
+As this is 83 forth, based on an early version of Brodie, we should probably
+just use SPAN throughout. We can always rename it all later once it is
+conceptually working.
+
+#EXPECT sets up >IN to start of user buffer.
+#but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
+
+
+================================================================================
+
 
 ---- spec REPL
 
@@ -65,21 +52,15 @@ Useful for a simple interactive shell.
 
 ---- design: read execute print loop (REPL)
 
-TODO: SPAN and TIB# are same thing, choose one and resolve all references
-and tests to use it consistently.
-
-
 : REPL
     # getline
     TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
-    #EXPECT sets up >IN to start of user buffer.
-    #but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
 
     # getword                           # ( )
     BL WORD COUNT                       # ( a #)
-    0= NOT 0BRANCH +nn                  # ( a)      to: findword
+    0= NOT 0BRANCH +nn                  # ( a)      to: findword (note, string(s) length must be known!)
     DROP                                # ( )
-    STR(" Ok") COUNT TYPE               # ( )
+    STR(" Ok") COUNT TYPE               # ( )       cells=3: dostr(1) "n Ok"(2)
     BRANCH -nn                          # ( )       to: getline
 
     # findword                          # ( a)
@@ -89,7 +70,7 @@ and tests to use it consistently.
 
     # unknown                           # ( a)      TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
     DROP                                # ( )
-    STR("nErr") COUNT TYPE              # ( )
+    STR(" Err") COUNT TYPE              # ( )       cells=4: dosr(1) "n Err_"(3)
     BRANCH -nn                          # ( )       to: getline
 
     # run                               # ( a)      addr is cfa of word to exec
@@ -108,14 +89,28 @@ Ideally, in forth.py... with ins and outs to stdin and stdout
 
 ===============================================================================
 
-Think, if we are able to implement ." message" yet?
+NUMBER
 
-Not sure, it needs compiler support. Really it is STR(msg) COUNT TYPE.
+NATIVES STILL REQUIRED
+(number will be needed for a proper parser to work)
 
-For a full syntactic version, would need create_word to actually interpret
-the words rather than compiling them into the words - don't want to do too
-much of this until the compiler framework is working, as otherwise we'll
-be doing everything twice
+n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
+
+DICT WRAPPERS FOR NATIVES
+: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+
+
+----- spec
+given a word buffer, parse it into any kind of number
+and push the number on the stack.
+
+----- design
+
+----- test
+
+===============================================================================
+
+TODO: Integrate NUMBER into REPL, and test that it works.
 
 ===============================================================================
 
@@ -129,15 +124,18 @@ WORD invokes BLOCK to guarantee that the block of interest is actually loaded
 into a buffer.
 
 
+
+
 ================================================================================
 
-NATIVES STILL REQUIRED
-(number will be needed for a proper parser to work)
+At this point, take stock of where we are and what we might want to
+do next. Might want to implement NUMBER, so we can have a proper
+interactive calculator session with it.
 
-n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
 
-DICT WRAPPERS FOR NATIVES
-: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+
+================================================================================
+
 
 ================================================================================
 
@@ -1960,6 +1958,34 @@ dict.find(name) -> ffa
 dict.ffa2cfa(ffa) -> cfa
 
 ---- test
+
+
+
+================================================================================
+
+EXECUTE  ( a -- )  a is cfa of word to execute, stack effects depend on word
+
+---- spec
+
+Given an address address of a word, execute it
+
+---- design
+
+this is a native
+At the moment EXECUTE takes pfa on the stack
+converts to cfa
+then calls the cfa routine.
+
+Check if we take advantage of this elsewhere, and perhaps change it
+to take the cfa, which makes more sense. Some forths do this anyway.
+Fix any existing code or tests that pass the pfa, to use cfa instead.
+makes more sense, because it's the first address you need to read,
+and in subroutine threaded implementations you would just jump to this
+anyway.
+
+make sure the PFA reference is set up correctly (set ip to pfa??)
+Yes, already done in n_execute.
+
 
 ===== END =====================================================================
 

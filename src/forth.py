@@ -942,7 +942,8 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.bytes.readb(ffa)
             if ff == 0:
-                Debug.fail("Could not find word in dict:%s" % name)
+                Debug.trace("Could not find word in dict:%s" % name)
+                return 0 # NOT FOUND
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
                 # check if name in NFA matches
@@ -1883,6 +1884,10 @@ class Forth():
         #self.machine.dict.dumpraw()
 
     @staticmethod
+    def CHARACTER(ch):
+        return Forth.LITERAL(ord(ch))
+
+    @staticmethod
     def LITERAL(number):
         return " DOLIT", (number & 0xFFFF)
 
@@ -1997,6 +2002,11 @@ class Forth():
             ("FALSE", 0x0000),
             ("TRUE",  0xFFFF),
             ("BL",    32),
+            # No number parser yet, so pre-seed a few
+            ("0",     0),
+            ("1",     1),
+            ("10",    10),
+            ("42",    42),
             #("BB0",  self.machine.bb.start),
             #("BBZ",  self.machine.bb.size),
         ]
@@ -2035,6 +2045,7 @@ class Forth():
         # CODE WORDS ----------------------------------------------------------
         # aliases, for brevity
         LIT = Forth.LITERAL
+        CHR = Forth.CHARACTER
         STR = Forth.STRING
 
         words = [
@@ -2187,31 +2198,35 @@ class Forth():
                 "PAD"                                       # ( a)              address of PAD (count in ofs 0) returned on stack
             ]),
             #-----
+            ("STAR", [CHR('*')]),
+            #-----
             ("REPL", [
                 # getline
                 "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
+                "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
 
                 # getword                                   # ( )
                 "BL", "WORD", "COUNT",                      # ( a #)
-                "0=", "NOT", "0BRANCH", +9,                 # ( a)      to: findword
+                "0=", "0BRANCH", +9,                        # ( a)      to: findword
                 "DROP",                                     # ( )
-                STR(" Ok"), "COUNT", "TYPE",                # ( )       cells=3: dostr(1) "n Ok"(2)
-                "BRANCH", -17,                              # ( )       to: getline
+                STR(" Ok"), "COUNT", "TYPE",                # ( )       strcells=3: dostr(1) "n Ok"(2)
+                "BRANCH", -19,                              # ( )       to: getline
 
                 # findword                                  # ( a)
                 LIT(1), "-",                                # ( a)      litcells=2: subtract one to point to count byte for FIND
                 "FIND",                                     # ( a)      0 if not found, cfa if found
-                "DUP", "NOT", "0BRANCH", +10,               # ( a)      to: run
+                "DUP", "NOT", "0BRANCH", +7,                # ( a)      to: run
 
                 # unknown                                   # ( a)
                 #TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
                 "DROP",                                     # ( )
-                STR(" Err"), "COUNT", "TYPE",               # ( )       cells=4: dosr(1) "n Err_"(3)
-                "BRANCH", -34,                              # ( )       to: getline
+                CHR("?"), "EMIT",                           # ( )       chrcells=2
+                #TODO keep addr of name, need to print ?name
+                "BRANCH", -33,                              # ( )       to: getline
 
                 # run                                       # ( a)      addr is cfa of word to exec
                 "EXECUTE",                                  # ( )       execute the word whose address info is on the DS
-                "BRANCH", -34,                              # ( )       to: getword
+                "BRANCH", -30,                              # ( )       to: getword
             ]),
         ]
 
@@ -2262,7 +2277,7 @@ def test_echoloop():
 
 def repl():
     forth.execute_word("REPL")
-    
+
 if __name__ == "__main__":
     #test_hello()
     #test_echoloop()

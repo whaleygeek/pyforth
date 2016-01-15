@@ -15,63 +15,27 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Removed TIB# and replaced with SPAN
+REPL coded and tested.
+Basically working, but problem with terminator char
+that means it doesn't find the word unless it has a space after it?
+
 
 TODO
-code/test REPL
-Turn the forth.py main into a call to the REPL.
-Run some manual interactive tests and make sure it basically works.
-Might want to add a prompt.
+If type "BL" rather than "BL " it does not find it,
+suggesting something odd with buffer termination.
+
 Test what happens on ABORT, does it exit the REPL completely?
 
 Write the native NUMBER parser
 
 
-================================================================================
 
+===============================================================================
 
----- spec REPL
+: INTERPRET   ( -- )                 /P286 n_DODOES text interpret input stream until exhausted
 
-A read, execute, print, loop.
-Useful for a simple interactive shell.
+Change REPL to refactor most of it into this word, with the outer loop around it.
 
-
----- design: read execute print loop (REPL)
-
-: REPL
-    # getline
-    TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
-
-    # getword                           # ( )
-    BL WORD COUNT                       # ( a #)
-    0= NOT 0BRANCH +nn                  # ( a)      to: findword (note, string(s) length must be known!)
-    DROP                                # ( )
-    STR(" Ok") COUNT TYPE               # ( )       cells=3: dostr(1) "n Ok"(2)
-    BRANCH -nn                          # ( )       to: getline
-
-    # findword                          # ( a)
-    1 -                                 # ( a)      subtract one to point to count byte for FIND
-    FIND                                # ( a)      0 if not found, cfa if found
-    DUP NOT 0BRANCH +nn                 # ( a)      to: run
-
-    # unknown                           # ( a)      TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
-    DROP                                # ( )
-    STR(" Err") COUNT TYPE              # ( )       cells=4: dosr(1) "n Err_"(3)
-    BRANCH -nn                          # ( )       to: getline
-
-    # run                               # ( a)      addr is cfa of word to exec
-    EXECUTE                             # ( )       execute the word whose address info is on the DS
-    BRANCH -nn                          # ( )       to: getword
-    ;
-
----- test
-
-Ideally, in forth.py... with ins and outs to stdin and stdout
-   f.execute_word("REPL")
-
-   Then just type in a line and press return, and it shoudl execute it.
-
-   KeyboardInput() class is finished (blocking) so should just work.
 
 ===============================================================================
 
@@ -97,6 +61,8 @@ and push the number on the stack.
 ===============================================================================
 
 TODO: Integrate NUMBER into REPL, and test that it works.
+
+
 
 ===============================================================================
 
@@ -150,7 +116,6 @@ interactive calculator session with it.
 : ( xxx)   ( -- )                    /P26  n_DODOES Comment, terminated by )
 : \                                  comment to end of line being parsed
 
-: INTERPRET   ( -- )                 /P286 n_DODOES text interpret input stream until exhausted
 
 ===============================================================================
 
@@ -1984,6 +1949,53 @@ conceptually working.
 #EXPECT sets up >IN to start of user buffer.
 #but nothing sets TIB# the the active characters. That is in SPAN (version diffs??)
 
+
+
+================================================================================
+
+
+---- spec REPL
+
+A read, execute, print, loop.
+Useful for a simple interactive shell.
+
+
+---- design: read execute print loop (REPL)
+
+: REPL
+    # getline
+    TIB TIBZ EXPECT                     # ( )       read in a whole line up to CR
+
+    # getword                           # ( )
+    BL WORD COUNT                       # ( a #)
+    0= NOT 0BRANCH +nn                  # ( a)      to: findword (note, string(s) length must be known!)
+    DROP                                # ( )
+    STR(" Ok") COUNT TYPE               # ( )       cells=3: dostr(1) "n Ok"(2)
+    BRANCH -nn                          # ( )       to: getline
+
+    # findword                          # ( a)
+    1 -                                 # ( a)      subtract one to point to count byte for FIND
+    FIND                                # ( a)      0 if not found, cfa if found
+    DUP NOT 0BRANCH +nn                 # ( a)      to: run
+
+    # unknown                           # ( a)      TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
+    DROP                                # ( )
+    STR(" Err") COUNT TYPE              # ( )       cells=4: dosr(1) "n Err_"(3)
+    BRANCH -nn                          # ( )       to: getline
+
+    # run                               # ( a)      addr is cfa of word to exec
+    EXECUTE                             # ( )       execute the word whose address info is on the DS
+    BRANCH -nn                          # ( )       to: getword
+    ;
+
+---- test
+
+Ideally, in forth.py... with ins and outs to stdin and stdout
+   f.execute_word("REPL")
+
+   Then just type in a line and press return, and it shoudl execute it.
+
+   KeyboardInput() class is finished (blocking) so should just work.
 
 ===== END =====================================================================
 

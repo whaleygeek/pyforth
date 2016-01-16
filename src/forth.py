@@ -1290,7 +1290,7 @@ class Machine():
         #           base,             dirn/size
         NR_MEM   = (0x0000,          +256)     # native routines
         NV_MEM   = (0x0100,          +256)     # native variables
-        DICT_MEM = (0x0400,          +2048)    # dictionary
+        DICT_MEM = (0x0400,          +4096)    # dictionary
         DS_MEM   = (0x8000,          -1024)    # data stack
         TIB_MEM  = (0x8000,          +80)      # text input buffer
         RS_MEM   = (0xA000,          -1024)    # return stack
@@ -2069,10 +2069,10 @@ class Forth():
             ("TRUE",  0xFFFF),
             ("BL",    32),
             # No number parser yet, so pre-seed a few
-            ("0",     0),
-            ("1",     1),
-            ("10",    10),
-            ("42",    42),
+            #("0",     0),
+            #("1",     1),
+            #("10",    10),
+            #("42",    42),
             #("BB0",  self.machine.bb.start),
             #("BBZ",  self.machine.bb.size),
         ]
@@ -2273,25 +2273,29 @@ class Forth():
                 "BL", "WORD", "COUNT",                      # ( a #)
                 "0=", "0BRANCH", +4,                        # ( a)          to: findword
                 "DROP",                                     # ( )
-                "BRANCH", +23,                              # ( )           to: exit
+                "BRANCH", +19,                              # ( )           to: exit
 
                 # findword                                  # ( a)
                 LIT(1), "-",                                # ( a)          litcells=2: subtract one to point to count byte for FIND
                 "DUP",                                      # ( a:t a:t)    save addr in case we want to print ?name on not found
                 "FIND",                                     # ( a:t a:cfa)  0 if not found, cfa if found
-                "DUP", "NOT", "0BRANCH", +9,                # ( a:t a:cfa)  to: run
+                "DUP", "NOT", "0BRANCH", +5,                # ( a:t a:cfa)  to: run
 
-                # unknown                                   # ( a:t a:cfa)
-                #TODO: Should pass to NUMBER here (what if not valid number, return res?? abort?)
+                # notword                                   # ( a:t a:cfa)
                 "DROP",                                     # ( a:t)
-                CHR("?"), "EMIT",                           # ( a:t)        chrcells=2
-                "COUNT", "TYPE",                            # ( )
-                "BRANCH", +6,                               # ( )           to: exit
+                "NUMBER",                                   # ( n or u or d or ud) note: will ABORT if cannot parse
+                "BRANCH", -21,                              # ( ) to:getword
+
+                #TODO: might have to put this in REPL loop, with a way to trap ABORT??
+                # notnumber
+                #CHR("?"), "EMIT",                           # ( a:t)        chrcells=2
+                #"COUNT", "TYPE",                            # ( )
+                #"BRANCH", +6,                               # ( )           to: exit
 
                 # run                                       # ( a:t a:cfa)  addr is cfa of word to exec
                 "SWAP", "DROP",                             # ( a:cfa)
                 "EXECUTE",                                  # ( )           execute the word whose address info is on the DS
-                "BRANCH", -30,                              # ( )           to: getword
+                "BRANCH", -26,                              # ( )           to: getword
             ]),
             #-----
             ("REPL", [

@@ -25,41 +25,155 @@ class Experiment(unittest.TestCase):
         # zero
         self.f.create_word("T0", STR("0"), "NUMBER", ".")
         self.f.execute_word("T0")
-        self.assertEquals("0 ", self.f.outs.get())
+        self.assertEquals("0 ", self.f.outs.get()) # T0
+        self.f.outs.clear()
 
-        #STR("0"),           "NUMBER", "."       # zero
-        #STR("1"),           "NUMBER", "."       # non zero
-        #STR("1234"),        "NUMBER", "."       # a few digits
-        #STR("123A45"),      "NUMBER", "."       # non digit character
-        #STR("-123"),        "NUMBER", "."       # negative number
-        #
-        #STR("65535"),       "NUMBER", "."       # 16 bit max
-        #STR("65536"),       "NUMBER", "."       # 16 bit  truncation
-        #STR("-32768"),      "NUMBER", "."       # negative number min
-        #STR("-32769"),      "NUMBER", "."       # negative number with 16 bit truncation
-        #
-        #STR("12."),         "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12.1"),        "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12-"),         "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12-1"),        "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12,"),         "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12,1"),        "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12;"),         "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12;1"),        "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12/"),         "NUMBER", "."       # double number triggers (-.,;/)
-        #STR("12/1"),        "NUMBER", "."       # double number triggers (-.,;/)
-        #
-        #STR("4294967295"),  "NUMBER", "."       # positive double without truncation
-        #STR("4294967296"),  "NUMBER", "."       # positive double with truncation
-        #STR("-2147483648"), "NUMBER", "."       # negative double min
-        #STR("-2147483649"), "NUMBER", "."       # negative double with truncation
+        # non zero
+        self.f.create_word("T1", STR("1"), "NUMBER", ".")
+        self.f.execute_word("T1")
+        self.assertEquals("1 ", self.f.outs.get()) # T1
+        self.f.outs.clear()
+
+        # a few digits
+        self.f.create_word("T2", STR("1234"), "NUMBER", ".")
+        self.f.execute_word("T2")
+        self.assertEquals("1234 ", self.f.outs.get()) # T2
+        self.f.outs.clear()
+
+        # non digit character
+        #TODO: ABORT not working well yet
+        #self.f.create_word("T3", STR("123A45"), "NUMBER", ".")
+        #self.f.execute_word("T3")
+        #self.assertEquals("1 ", self.f.outs.get()) # T3
+        #self.f.outs.clear()
+
+        # negative number
+        #TODO: . should interpret TOS as signed, U. should be unsigned
+        #self.f.create_word("T4", STR("-1"), "NUMBER", ".")
+        #self.f.execute_word("T4")
+        #self.assertEquals("-1 ", self.f.outs.get()) # T4
+        #self.f.outs.clear()
+
+        # 16 bit max
+        self.f.create_word("T5", STR("65535"), "NUMBER", ".")
+        self.f.execute_word("T5")
+        self.assertEquals("65535 ", self.f.outs.get()) # T5
+        self.f.outs.clear()
+
+        # 16 bit truncation
+        self.f.create_word("T6", STR("65536"), "NUMBER", ".")
+        self.f.execute_word("T6")
+        self.assertEquals("0 ", self.f.outs.get()) # T6
+        self.f.outs.clear()
+
+        # negative number min
+        #TODO: fails to add sign?
+        #self.f.create_word("T7", STR("-32768"), "NUMBER", ".")
+        #self.f.execute_word("T7")
+        #self.assertEquals("1 ", self.f.outs.get()) # T7
+        #self.f.outs.clear()
+
+        # negative with 16 bit truncation
+        #TODO: . needs to do signed interpret, U. is unsigned interpret
+        #TODO: fails to add sign?
+        #self.f.create_word("T8", STR("-32769"), "NUMBER", ".")
+        #self.f.execute_word("T8")
+        #self.assertEquals("1 ", self.f.outs.get()) # T8
+        #self.f.outs.clear()
+
+        # double number trigger .
+        self.f.create_word("T9", STR("12."), "NUMBER", ".", ".")
+        self.f.execute_word("T9")
+        self.assertEquals("12 0 ", self.f.outs.get()) # T9
+        self.f.outs.clear()
+
+        # double number trigger . in middle
+        self.f.create_word("T10", STR("12.1"), "NUMBER", ".", ".")
+        self.f.execute_word("T10")
+        self.assertEquals("121 0 ", self.f.outs.get()) # T10
+        self.f.outs.clear()
+
+        # double number trigger -
+        self.f.create_word("T11", STR("12-"), "NUMBER", ".", ".")
+        self.f.execute_word("T11")
+        self.assertEquals("12 0 ", self.f.outs.get()) # T11
+        self.f.outs.clear()
+
+        # double number trigger - in middle
+        self.f.create_word("T12", STR("12-1"), "NUMBER", ".", ".")
+        self.f.execute_word("T12")
+        self.assertEquals("121 0 ", self.f.outs.get()) # T12
+        self.f.outs.clear()
+
+        # double number trigger ,
+        self.f.create_word("T13", STR("12,"), "NUMBER", ".", ".")
+        self.f.execute_word("T13")
+        self.assertEquals("12 0 ", self.f.outs.get()) # T13
+        self.f.outs.clear()
+
+        # double number trigger , in middle
+        self.f.create_word("T14", STR("12,1"), "NUMBER", ".", ".")
+        self.f.execute_word("T14")
+        self.assertEquals("121 0 ", self.f.outs.get()) # T14
+        self.f.outs.clear()
+
+        # double number trigger ;
+        self.f.create_word("T15", STR("12;"), "NUMBER", ".", ".")
+        self.f.execute_word("T15")
+        self.assertEquals("12 0 ", self.f.outs.get()) # T15
+        self.f.outs.clear()
+
+        # double number trigger ; in middle
+        self.f.create_word("T16", STR("12;1"), "NUMBER", ".", ".")
+        self.f.execute_word("T16")
+        self.assertEquals("121 0 ", self.f.outs.get()) # T16
+        self.f.outs.clear()
+
+        # double number trigger /
+        self.f.create_word("T17", STR("12/"), "NUMBER", ".", ".")
+        self.f.execute_word("T17")
+        self.assertEquals("12 0 ", self.f.outs.get()) # T17
+        self.f.outs.clear()
+
+        # double number trigger / in middle
+        self.f.create_word("T18", STR("12/1"), "NUMBER", ".", ".")
+        self.f.execute_word("T18")
+        self.assertEquals("121 0 ", self.f.outs.get()) # T18
+        self.f.outs.clear()
+
+        # positive double max
+        self.f.create_word("T19", STR("4294967295."), "NUMBER", ".", ".")
+        self.f.execute_word("T19")
+        self.assertEquals("65535 65535 ", self.f.outs.get()) # T19
+        self.f.outs.clear()
+
+        # positive double with truncation
+        self.f.create_word("T20", STR("4294967296."), "NUMBER", ".", ".")
+        self.f.execute_word("T20")
+        self.assertEquals("0 0 ", self.f.outs.get())
+        self.f.outs.clear()
+
+        # negative double min
+        self.f.create_word("T20", STR("-2147483648."), "NUMBER", ".", ".")
+        self.f.execute_word("T20")
+        self.assertEquals("0 32768 ", self.f.outs.get()) # T20
+        self.f.outs.clear()
+
+        # positive double with truncation
+        #TODO: need U. or UD. to test this
+        #TODO -ve not working?
+        #self.f.create_word("T21", STR("-2147483649."), "NUMBER", ".", ".")
+        #self.f.execute_word("T21")
+        #self.assertEquals("1 32767.. ", self.f.outs.get()) # T21
+        #self.f.outs.clear()
+
 
 
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()
 
 
-class x:#TestForth(unittest.TestCase):
+class TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")

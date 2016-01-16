@@ -9,7 +9,7 @@ import forth
 LIT = forth.Forth.LITERAL
 STR = forth.Forth.STRING
 
-class x:#Experiment(unittest.TestCase):
+class Experiment(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")
@@ -19,11 +19,47 @@ class x:#Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
+    def test_number(self):
+        """Test various NUMBER parsing"""
+
+        # zero
+        self.f.create_word("T0", STR("0"), "NUMBER", ".")
+        self.f.execute_word("T0")
+        self.assertEquals("0 ", self.f.outs.get())
+
+        #STR("0"),           "NUMBER", "."       # zero
+        #STR("1"),           "NUMBER", "."       # non zero
+        #STR("1234"),        "NUMBER", "."       # a few digits
+        #STR("123A45"),      "NUMBER", "."       # non digit character
+        #STR("-123"),        "NUMBER", "."       # negative number
+        #
+        #STR("65535"),       "NUMBER", "."       # 16 bit max
+        #STR("65536"),       "NUMBER", "."       # 16 bit  truncation
+        #STR("-32768"),      "NUMBER", "."       # negative number min
+        #STR("-32769"),      "NUMBER", "."       # negative number with 16 bit truncation
+        #
+        #STR("12."),         "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12.1"),        "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12-"),         "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12-1"),        "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12,"),         "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12,1"),        "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12;"),         "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12;1"),        "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12/"),         "NUMBER", "."       # double number triggers (-.,;/)
+        #STR("12/1"),        "NUMBER", "."       # double number triggers (-.,;/)
+        #
+        #STR("4294967295"),  "NUMBER", "."       # positive double without truncation
+        #STR("4294967296"),  "NUMBER", "."       # positive double with truncation
+        #STR("-2147483648"), "NUMBER", "."       # negative double min
+        #STR("-2147483649"), "NUMBER", "."       # negative double with truncation
+
+
     #def test_dumpdict(self):
     #    self.f.machine.dict.dump()
 
 
-class TestForth(unittest.TestCase):
+class x:#TestForth(unittest.TestCase):
     """A small smoke test - non exhaustive"""
     def setUp(self):
         #print("setup")

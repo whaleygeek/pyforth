@@ -1415,8 +1415,8 @@ class Machine():
 
     def n_abort(self):
         """Empty RS and DS and finish"""
-        self.ds.clear()
-        self.rs.clear()
+        self.ds.reset()
+        self.rs.reset()
         self.running = False #TODO: should return to top level interpreter, not stop the whole machine
 
     def n_docon(self):
@@ -1731,6 +1731,8 @@ class Machine():
         count = self.mem.readb(addr)
         addr += 1
 
+        #print("NUMBER %d %s" % (count, self.mem.readb(addr)))
+
         base = self.base
         index = 0
         negate = False
@@ -1739,18 +1741,19 @@ class Machine():
 
         while count > 0:
             c = self.mem.readb(addr+index)
-            if c == '-':
+            ch = chr(c)
+            if ch == '-':
                 if index == 0:
                     negate = True
                 else:
                     double = True
 
-            elif c in [',', '/', '.', ';']:
+            elif ch in [',', '/', '.', ';']:
                 double = True
 
-            elif c >= '0' and c <= '9':
+            elif ch >= '0' and ch <= '9':
                 accumulator *= base
-                v = ord(c) - 48
+                v = c - 48
                 if v < base:
                     accumulator += v
                 else:

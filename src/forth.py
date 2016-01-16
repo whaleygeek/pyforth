@@ -1113,6 +1113,8 @@ class NvMem():
             ("SP",    6, 2,   parent.ds.rd_p,       parent.ds.wr_p),
             ("RP",    8, 2,   parent.rs.rd_p,       parent.rs.wr_p),
             ("UVP",  10, 2,   parent.uv.rd_p,       parent.uv.wr_p),
+            ("BASE", 12, 1,   parent.rd_base,       parent.wr_base),
+            #13
 
             #("SVP",  12, 2,   parent.sv.rd_p,       parent.sv.wr_p),
             #example of a large buffer
@@ -1203,6 +1205,7 @@ class NvRoutine():
             ("EXIT",       parent.n_exit),      # 24
             ("KEY",        parent.n_key),       # 25
             ("FIND",       parent.n_find),      # 26
+            ("NUMBER",     parent.n_number),    # 27
             #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
@@ -1273,6 +1276,7 @@ class Machine():
         self.outs   = parent.outs
         self.ins    = parent.ins
         self.disk   = parent.disk
+        self.base   = 10
 
     def boot(self):
         self.build_ds()       # builds memory abstractions
@@ -1372,6 +1376,12 @@ class Machine():
         bytes[offset] = byte
         self.ip = Number.from_bytes(bytes)
 
+    def rd_base(self):
+        return self.base
+
+    def wr_base(self, value):
+        self.base = value
+
     # temporary testing
     testvalue = 0
 
@@ -1407,7 +1417,7 @@ class Machine():
         """Empty RS and DS and finish"""
         self.ds.clear()
         self.rs.clear()
-        self.running = False
+        self.running = False #TODO: should return to top level interpreter, not stop the whole machine
 
     def n_docon(self):
         """Reads the 16 bit constant pointed to by PFA and pushes onto DS"""
@@ -1711,6 +1721,53 @@ class Machine():
         #print("cfa:0x%x" % cfa)
         #self.dict.dump()
         self.ds.pushn(cfa)
+
+    def n_number(self):
+        """Parse a number using the current BASE"""
+        # ( a -- n) or ( a -- d)
+        # a is address of a counted string
+
+        addr = self.ds.popn()
+        count = self.mem.readb(addr)
+        addr += 1
+
+        base = self.base
+        index = 0
+        negate = False
+        double = False
+        accumulator = 0
+
+        while count > 0:
+            c = self.mem.readb(addr+index)
+            if c == '-':
+                if index == 0:
+                    negate = True
+                else:
+                    double = True
+
+            elif c in [',', '/', '.', ';']:
+                double = True
+
+            elif c >= '0' and c <= '9':
+                accumulator *= base
+                v = ord(c) - 48
+                if v < base:
+                    accumulator += v
+                else:
+                    Debug.trace("Conversion error in NUMBER, out of range digit for base")
+                    self.n_abort() #TODO: need a way to abort with a message
+            else:
+                Debug.trace("Parse error in NUMBER, non digit found")
+                self.n_abort() #TODO: need a way to abort with a message
+            index += 1
+            count -= 1
+
+        if negate:
+            accumulator = -accumulator
+        if double:
+            self.ds.pushd(accumulator & 0xFFFFFFFF)
+        else:
+            self.ds.pushn(accumulator & 0xFFFF)
 
     def n_execute(self):
         """EXECUTE a high level address"""

@@ -15,36 +15,131 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-No longer re runs last command from buffer on blank line
+Designed and coded NUMBER, tests planned. Added BASE.
 
 TODO
-
+Test NUMBER
 Test what happens on ABORT, does it exit the REPL completely?
+Need a way to clear the return stack
+Need a way to clear the data stack
 
-Write the native NUMBER parser
-
+BASE
+  TODO: Note that '.' should honour BASE when printing numbers,
+  but it does not at the moment. Also it probably uses the #S and
+  <# and #> internally to format the numbers, as does D. and U.
 
 
 ===============================================================================
 
 NUMBER
 
-NATIVES STILL REQUIRED
-(number will be needed for a proper parser to work)
+---- spec
 
-n_NUMBER  ( a -- d)                  using any base, convert string at a, to binary value. Is str count byte preceded??
+P254 brodie
 
-DICT WRAPPERS FOR NATIVES
-: NUMBER   ( a -- d)                 /P254 n_NUMBER  using (any) base, convert string at a, to binary value
+: NUMBER ( a -- n)
 
+Converts text beginning at a+1 using BASE variable.
+May contain leading minus sign, which will negate the variable.
 
------ spec
-given a word buffer, parse it into any kind of number
-and push the number on the stack.
+i.e. it is a counted string in an arbitrary buffer.
+
+No range checking, so can do signed and unsigned numbers with it.
+If you enter a huge number, it will convert that number, then
+only save the least significnt 16 bits.
+
+A dot (in the) number signifies a double length humber.
+Pushes two 16 bit numbers on stack, most significant 16 bits
+on the top of the stack.
+
+Some forth systems also allow , / - ; to generate the same effect
+as dot.
+
+These characters can appear anywhere, so 12.345 is a double length
+number that is actually 12345
+So the extra characters just signal a double length result.
+
 
 ----- design
 
+- Terminate reading string when the count preceeded count of characters
+has been processed.
+- if first char is a minus sign, negate the number at the end
+- if any of . , / - ; occur in the string, signal a double length result
+- as converting, honour the base in the calculations
+- when storing, choose least 16 sig bits, or least 32 sig bits.
+- not sure yet what internal storage format is
+- will write this in python for speed and simplicity
+
+base = n
+char index = 0
+negate = false
+double = false
+accumulator = 0
+count = addr[0]
+addr += 1
+
+while count > 0
+    c = addr[index]
+    if c == '-'
+        if char index == 0:
+            negate = true
+        else
+            double = true
+    else if ch in [',', '/', '.', ';']:
+        double = true
+    else if ch is digit
+        multiply accumulator by base
+        get value of ch as a number
+        if value < base
+            add value onto accumulator
+        else
+            abort, conversion error, out of range digit for base
+    else
+        abort, parse error, non digit in number
+    index++
+    count--
+
+if negate
+    negate accumulator
+if double
+    truncate accumulator to 32 bits
+    push double
+else
+    truncate accumulator to 16 bits
+    push number
+
+
 ----- test
+
+STR("0"),           "NUMBER", "."       # zero
+STR("1"),           "NUMBER", "."       # non zero
+STR("1234"),        "NUMBER", "."       # a few digits
+STR("123A45"),      "NUMBER", "."       # non digit character
+STR("-123"),        "NUMBER", "."       # negative number
+
+STR("65535"),       "NUMBER", "."       # 16 bit max
+STR("65536"),       "NUMBER", "."       # 16 bit  truncation
+STR("-32768"),      "NUMBER", "."       # negative number min
+STR("-32769"),      "NUMBER", "."       # negative number with 16 bit truncation
+
+STR("12."),         "NUMBER", "."       # double number triggers (-.,;/)
+STR("12.1"),        "NUMBER", "."       # double number triggers (-.,;/)
+STR("12-"),         "NUMBER", "."       # double number triggers (-.,;/)
+STR("12-1"),        "NUMBER", "."       # double number triggers (-.,;/)
+STR("12,"),         "NUMBER", "."       # double number triggers (-.,;/)
+STR("12,1"),        "NUMBER", "."       # double number triggers (-.,;/)
+STR("12;"),         "NUMBER", "."       # double number triggers (-.,;/)
+STR("12;1"),        "NUMBER", "."       # double number triggers (-.,;/)
+STR("12/"),         "NUMBER", "."       # double number triggers (-.,;/)
+STR("12/1"),        "NUMBER", "."       # double number triggers (-.,;/)
+
+STR("4294967295"),  "NUMBER", "."       # positive double without truncation
+STR("4294967296"),  "NUMBER", "."       # positive double with truncation
+STR("-2147483648"), "NUMBER", "."       # negative double min
+STR("-2147483649"), "NUMBER", "."       # negative double with truncation
+
+
 
 ===============================================================================
 

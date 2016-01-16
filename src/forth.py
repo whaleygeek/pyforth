@@ -942,7 +942,7 @@ class Dictionary(Stack):
             # check if FFA is zero
             ff = self.bytes.readb(ffa)
             if ff == 0:
-                Debug.trace("Could not find word in dict:'%s'" % name)
+                #Debug.trace("Could not find word in dict:'%s'" % name)
                 return 0 # NOT FOUND
             # check if still defining
             if ff & Dictionary.FLAG_DEFINING == 0:
@@ -1034,11 +1034,17 @@ class KeyboardInput(Input):
     def waiting(self):
         Debug.fail("Not yet implemented")
 
+    eof = False
+
     def getch(self):
+        if self.eof:
+            Debug.fail("EOF followed by another getch()")
         while True:
             ch = sys.stdin.read(1) # blocking, line buffered
             if ch == "": # EOF
-                Debug.fail("EOF on Keyboard input stream")
+                #Debug.trace("EOF on Keyboard input stream")
+                self.eof = True
+                return chr(4) # CTRL-D
             if ch == '\r':
                 #print("strip return char")
                 pass # strip return(13), interpret newline(10) #TODO: is this correct?
@@ -1206,13 +1212,13 @@ class NvRoutine():
             ("KEY",        parent.n_key),       # 25
             ("FIND",       parent.n_find),      # 26
             ("NUMBER",     parent.n_number),    # 27
+            ("BYE",        parent.n_bye),       # 28
             #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
             #(" DOVAR",     parent.n_dovar),
             #(" ADRUV",     parent.n_adruv),
             #(" QUIT",      parent.n_quit),
-            #(" BYE",       parent.n_byte),
             #("DOES>",      parent.n_does),
             #(":",          parent.n_colon),
             #(";",          parent.n_semicolon),
@@ -1772,6 +1778,9 @@ class Machine():
         else:
             self.ds.pushn(accumulator & 0xFFFF)
 
+    def n_bye(self):
+        self.running = False
+
     def n_execute(self):
         """EXECUTE a high level address"""
         # ( cfa -- )
@@ -2167,19 +2176,19 @@ class Forth():
                 "DUP",                                          # ( a a)        leave user buffer start on stack, for later cleanup
                 ">IN", "!",                                     # ( a)          set INP to start of user buffer, use as write ptr in loop
                 # loop                                          # ( a)
-                    "KEY", "DUP",                               # ( a c c)      read a char
-                    LIT(10), "=", "NOT",                        # ( a c ?)      is char a LF?
-                    "0BRANCH", +23,                             # ( a c)        to:done if it is LF
+                    "KEY",                                      # ( a c)        read a char
+                    "DUP", LIT(4), "=", "0BRANCH", +2, "BYE",   # ( a c)        is it EOF? If it is, BYE
+                    "DUP", LIT(10), "=", "NOT", "0BRANCH", +23, # ( a c ?)      is it LF?, to:done
                     ">IN", "@", "C!",                           # ( a)          write via INP ptr
                     ">IN", "@", LIT(1), "+", ">IN", "!",        # ( a)          advance write pointer
                     "SPAN", "@", LIT(1), "-", "SPAN", "!",      # ( a)          dec counter
                     "SPAN", "@", "0=",                          # ( a ?)        is span=0 (buffer full)
-                    "0BRANCH", -29,                             # ( a)          to:loop go round again if it isn't
-                # done                                          # ( a c)          address on stack is of start of buffer
+                    "0BRANCH", -36,                             # ( a)          to:loop go round again if it isn't
+                # done                                          # ( a c)        address on stack is of start of buffer
                 #                                               #               >IN points to char after last written
                 #                                               #               a on stack is start of user buffer
                 #                                               #               >IN - a is the true SPAN including optional CR
-                "DROP",                                         # (aTIB)
+                "DROP",                                         # ( aTIB)
                 "DUP",                                          # ( aTIB aTIB)
                 ">IN", "@",                                     # ( aTIB aTIB aLASTWR+1)
                 "SWAP",                                         # ( aTIB aLASTWR+1 aTIB)
@@ -2304,7 +2313,7 @@ class Forth():
                 "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
                 "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
                 "INTERPRET",                                # ()
-                STR(" Ok"), "COUNT", "TYPE",                # ()        strcells=3 (dostr)(count,spc)(O,k)
+                STR("Ok"), "COUNT", "TYPE",                 # ()        strcells=3 (dostr)(count,O)(k,-)
                 "CR",
                 "BRANCH", -18                               # ()        to:start
             ]),

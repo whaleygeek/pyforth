@@ -15,19 +15,20 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Implemented U. more tests cases passing
+Unsigned number parsing tested working ok
+Implemented D. and UD., but not tested yet
 
 TODO
-Implement D. and UD. to print double and unsigned double
-
 Fix remaining NUMBER tests
+
+================================================================================
 
 Fix problem that ABORT really messes things up
 
-Need a way to clear the return stack
-Need a way to clear the data stack
 
-Note that '.' should honour BASE when printing numbers,
+================================================================================
+
+'.' should honour BASE when printing numbers,
 but it does not at the moment.
 
 Also '.'  probably uses the #S and

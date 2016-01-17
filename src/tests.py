@@ -19,86 +19,17 @@ class Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
-    def test_udot(self):
-        """The U. prints a 16 bit unsigned number"""
-        self.f.create_word("T0", LIT(32768), "U.")
-        self.f.execute_word("T0")
-        self.assertEquals("32768 ", self.f.outs.get()) # T0
-        self.f.outs.clear()
-
-        self.f.create_word("T1", LIT(65535), "U.")
-        self.f.execute_word("T1")
-        self.assertEquals("65535 ", self.f.outs.get()) # T1
-        self.f.outs.clear()
-
-        self.f.create_word("T2", LIT(-1), "U.")
-        self.f.execute_word("T2")
-        self.assertEquals("65535 ", self.f.outs.get()) # T2
-        self.f.outs.clear()
-
-        self.f.create_word("T3", LIT(-32768), "U.")
-        self.f.execute_word("T3")
-        self.assertEquals("32768 ", self.f.outs.get()) # T3
-        self.f.outs.clear()
-
-    def test_number(self):
-        """Test various NUMBER parsing"""
-
-        # zero
-        self.f.create_word("T0", STR("0"), "NUMBER", ".")
-        self.f.execute_word("T0")
-        self.assertEquals("0 ", self.f.outs.get()) # T0
-        self.f.outs.clear()
-
-        # non zero
-        self.f.create_word("T1", STR("1"), "NUMBER", ".")
-        self.f.execute_word("T1")
-        self.assertEquals("1 ", self.f.outs.get()) # T1
-        self.f.outs.clear()
-
-        # a few digits
-        self.f.create_word("T2", STR("1234"), "NUMBER", ".")
-        self.f.execute_word("T2")
-        self.assertEquals("1234 ", self.f.outs.get()) # T2
-        self.f.outs.clear()
-
+    def xtest_number_parse_error(self):
         # non digit character
-        #TODO: ABORT not working well yet
-        #self.f.create_word("T3", STR("123A45"), "NUMBER", ".")
-        #self.f.execute_word("T3")
-        #self.assertEquals("1 ", self.f.outs.get()) # T3
-        #self.f.outs.clear()
-
-        # negative number
-        self.f.create_word("T4", STR("-1"), "NUMBER", ".")
-        self.f.execute_word("T4")
-        self.assertEquals("-1 ", self.f.outs.get()) # T4
+        self.f.create_word("T3", STR("123A45"), "NUMBER", ".")
+        self.f.execute_word("T3")
+        self.assertEquals("1 ", self.f.outs.get()) # T3
         self.f.outs.clear()
 
-        # 16 signed bit max
-        self.f.create_word("T5", STR("32767"), "NUMBER", ".")
-        self.f.execute_word("T5")
-        self.assertEquals("32767 ", self.f.outs.get()) # T5
-        self.f.outs.clear()
+    #TODO: can't test U. and UD. until we have a DLIT()
+    #along with a way to store a double inside the PFA.
 
-        # 16 bit signed truncation
-        self.f.create_word("T6", STR("32768"), "NUMBER", ".")
-        self.f.execute_word("T6")
-        self.assertEquals("-32768 ", self.f.outs.get()) # T6
-        self.f.outs.clear()
-
-        # negative number min
-        self.f.create_word("T7", STR("-32768"), "NUMBER", ".")
-        self.f.execute_word("T7")
-        self.assertEquals("-32768 ", self.f.outs.get()) # T7
-        self.f.outs.clear()
-
-        # negative with 16 bit truncation
-        self.f.create_word("T8", STR("-32769"), "NUMBER", "U.")
-        self.f.execute_word("T8")
-        self.assertEquals("32767 ", self.f.outs.get()) # T8
-        self.f.outs.clear()
-
+    def xtest_number_double(self):
         # double number trigger .
         self.f.create_word("T9", STR("12."), "NUMBER", ".", ".")
         self.f.execute_word("T9")
@@ -160,36 +91,30 @@ class Experiment(unittest.TestCase):
         self.f.outs.clear()
 
         # positive double max
-        #TODO should be signed double here
-        #TODO need D.
-        #self.f.create_word("T19", STR("4294967295."), "NUMBER", ".", ".")
-        #self.f.execute_word("T19")
-        #self.assertEquals("-1 -1 ", self.f.outs.get()) # T19
-        #self.f.outs.clear()
+        self.f.create_word("T19", STR("4294967295."), "NUMBER", "D.")
+        self.f.execute_word("T19")
+        self.assertEquals("x ", self.f.outs.get()) # T19
+        self.f.outs.clear()
 
         # positive double with truncation
-        #TODO should be signed double here
-        #TODO need D.
-        #self.f.create_word("T20", STR("4294967296."), "NUMBER", ".", ".")
-        #self.f.execute_word("T20")
-        #self.assertEquals("0 0 ", self.f.outs.get()) # T20
-        #self.f.outs.clear()
+        self.f.create_word("T20", STR("4294967296."), "NUMBER", "D")
+        self.f.execute_word("T20")
+        self.assertEquals("x ", self.f.outs.get()) # T20
+        self.f.outs.clear()
 
         # negative double min
-        #TODO should be signed double here
-        #TODO need D.
-        #self.f.create_word("T21", STR("-2147483648."), "NUMBER", ".", ".")
-        #self.f.execute_word("T21")
-        #self.assertEquals("0 32768 ", self.f.outs.get()) # T21
-        #self.f.outs.clear()
+        self.f.create_word("T21", STR("-2147483648."), "NUMBER", "D.")
+        self.f.execute_word("T21")
+        self.assertEquals("x ", self.f.outs.get()) # T21
+        self.f.outs.clear()
 
         # positive double with truncation
-        #TODO: need UD. to test this
-        #self.f.create_word("T21", STR("-2147483649."), "NUMBER", ".", ".")
-        #self.f.execute_word("T21")
-        #self.assertEquals("1 32767.. ", self.f.outs.get()) # T21
-        #self.f.outs.clear()
+        self.f.create_word("T22", STR("-2147483649."), "NUMBER", "D.")
+        self.f.execute_word("T22")
+        self.assertEquals("x.. ", self.f.outs.get()) # T22
+        self.f.outs.clear()
 
+        #TODO: check UD also?
 
 
     #def test_dumpdict(self):
@@ -553,10 +478,78 @@ class TestForth(unittest.TestCase):
         EXPECTED = str(NOP_CFA) + " "
         self.assertEquals(EXPECTED, self.f.outs.get())
 
+    def test_udot(self):
+        """The U. prints a 16 bit unsigned number"""
+        self.f.create_word("T0", LIT(32768), "U.")
+        self.f.execute_word("T0")
+        self.assertEquals("32768 ", self.f.outs.get()) # T0
+        self.f.outs.clear()
 
+        self.f.create_word("T1", LIT(65535), "U.")
+        self.f.execute_word("T1")
+        self.assertEquals("65535 ", self.f.outs.get()) # T1
+        self.f.outs.clear()
 
+        self.f.create_word("T2", LIT(-1), "U.")
+        self.f.execute_word("T2")
+        self.assertEquals("65535 ", self.f.outs.get()) # T2
+        self.f.outs.clear()
 
+        self.f.create_word("T3", LIT(-32768), "U.")
+        self.f.execute_word("T3")
+        self.assertEquals("32768 ", self.f.outs.get()) # T3
+        self.f.outs.clear()
 
+    def test_number(self):
+        """Test various NUMBER parsing"""
+
+        # zero
+        self.f.create_word("T0", STR("0"), "NUMBER", ".")
+        self.f.execute_word("T0")
+        self.assertEquals("0 ", self.f.outs.get()) # T0
+        self.f.outs.clear()
+
+        # non zero
+        self.f.create_word("T1", STR("1"), "NUMBER", ".")
+        self.f.execute_word("T1")
+        self.assertEquals("1 ", self.f.outs.get()) # T1
+        self.f.outs.clear()
+
+        # a few digits
+        self.f.create_word("T2", STR("1234"), "NUMBER", ".")
+        self.f.execute_word("T2")
+        self.assertEquals("1234 ", self.f.outs.get()) # T2
+        self.f.outs.clear()
+
+        # negative number
+        self.f.create_word("T4", STR("-1"), "NUMBER", ".")
+        self.f.execute_word("T4")
+        self.assertEquals("-1 ", self.f.outs.get()) # T4
+        self.f.outs.clear()
+
+        # 16 signed bit max
+        self.f.create_word("T5", STR("32767"), "NUMBER", ".")
+        self.f.execute_word("T5")
+        self.assertEquals("32767 ", self.f.outs.get()) # T5
+        self.f.outs.clear()
+
+        # 16 bit signed truncation
+        self.f.create_word("T6", STR("32768"), "NUMBER", ".")
+        self.f.execute_word("T6")
+        self.assertEquals("-32768 ", self.f.outs.get()) # T6
+        self.f.outs.clear()
+
+        # negative number min
+        self.f.create_word("T7", STR("-32768"), "NUMBER", ".")
+        self.f.execute_word("T7")
+        self.assertEquals("-32768 ", self.f.outs.get()) # T7
+        self.f.outs.clear()
+
+        # negative with 16 bit truncation
+        self.f.create_word("T8", STR("-32769"), "NUMBER", "U.")
+        self.f.execute_word("T8")
+        self.assertEquals("32767 ", self.f.outs.get()) # T8
+        self.f.outs.clear()
 
 
     #TODO: need smoke tests for

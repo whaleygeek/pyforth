@@ -1079,6 +1079,11 @@ class Output():
         number = Number.asSigned(number)
         self.buf += str(number)
 
+    def writeu(self, number):
+        """Write a cell sized 16 bit number, as an unsigned quantity"""
+        number = Number.asUnsigned(number)
+        self.buf += str(number)
+
     def get(self):
         return self.buf
 
@@ -1095,12 +1100,15 @@ class ScreenOutput():
         pass
 
     def writech(self, ch):
-        import sys
         sys.stdout.write(ch)
 
     def writen(self, number):
-        print("####")
-        import sys
+        number = number.asSigned(number)
+        sys.stdout.write(str(number))
+
+    def writeu(self, number):
+        """Write a cell sized 16 bit number, as an unsigned quantity"""
+        number = Number.asUnsigned(number)
         sys.stdout.write(str(number))
 
 
@@ -1199,7 +1207,7 @@ class NvRoutine():
             ("C!",         parent.n_store8),    # 04
             ("C@",         parent.n_fetch8),    # 05
             ("EMIT",       parent.n_emit),      # 06
-            (".",          parent.n_printtos),  # 07
+            (".",          parent.n_dot),       # 07
             ("SWAP",       parent.ds.swap),     # 08
             ("DUP",        parent.ds.dup),      # 09
             ("OVER",       parent.ds.over),     # 0A
@@ -1233,6 +1241,7 @@ class NvRoutine():
             ("FIND",       parent.n_find),      # 26
             ("NUMBER",     parent.n_number),    # 27
             ("BYE",        parent.n_bye),       # 28
+            ("U.",         parent.n_udot),      # 29
             #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
@@ -1635,11 +1644,18 @@ class Machine():
         ch = chr(self.ds.popn() & 0xFF)
         self.outs.writech(ch)
 
-    def n_printtos(self):
+    def n_dot(self):
         """: n_PRINTTOS ( n --)
         { printnum(ds_pop16) } ;"""
         n = self.ds.popn()
         self.outs.writen(n)
+        self.outs.writech(' ')
+
+    def n_udot(self):
+        """: n_udot ( u --)
+        { printnum(ds_pop16) } ;"""
+        u = self.ds.popn()
+        self.outs.writeu(u)
         self.outs.writech(' ')
 
     def n_rdpfa(self):

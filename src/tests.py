@@ -19,6 +19,27 @@ class Experiment(unittest.TestCase):
         #print("teardown")
         self.f = None
 
+    def test_udot(self):
+        """The U. prints a 16 bit unsigned number"""
+        self.f.create_word("T0", LIT(32768), "U.")
+        self.f.execute_word("T0")
+        self.assertEquals("32768 ", self.f.outs.get()) # T0
+        self.f.outs.clear()
+
+        self.f.create_word("T1", LIT(65535), "U.")
+        self.f.execute_word("T1")
+        self.assertEquals("65535 ", self.f.outs.get()) # T1
+        self.f.outs.clear()
+
+        self.f.create_word("T2", LIT(-1), "U.")
+        self.f.execute_word("T2")
+        self.assertEquals("65535 ", self.f.outs.get()) # T2
+        self.f.outs.clear()
+
+        self.f.create_word("T3", LIT(-32768), "U.")
+        self.f.execute_word("T3")
+        self.assertEquals("32768 ", self.f.outs.get()) # T3
+        self.f.outs.clear()
 
     def test_number(self):
         """Test various NUMBER parsing"""
@@ -49,10 +70,10 @@ class Experiment(unittest.TestCase):
         #self.f.outs.clear()
 
         # negative number
-        #self.f.create_word("T4", STR("-1"), "NUMBER", ".")
-        #self.f.execute_word("T4")
-        #self.assertEquals("-1 ", self.f.outs.get()) # T4
-        #self.f.outs.clear()
+        self.f.create_word("T4", STR("-1"), "NUMBER", ".")
+        self.f.execute_word("T4")
+        self.assertEquals("-1 ", self.f.outs.get()) # T4
+        self.f.outs.clear()
 
         # 16 signed bit max
         self.f.create_word("T5", STR("32767"), "NUMBER", ".")
@@ -67,19 +88,16 @@ class Experiment(unittest.TestCase):
         self.f.outs.clear()
 
         # negative number min
-        #TODO: fails to add sign?
-        #self.f.create_word("T7", STR("-32768"), "NUMBER", ".")
-        #self.f.execute_word("T7")
-        #self.assertEquals("1 ", self.f.outs.get()) # T7
-        #self.f.outs.clear()
+        self.f.create_word("T7", STR("-32768"), "NUMBER", ".")
+        self.f.execute_word("T7")
+        self.assertEquals("-32768 ", self.f.outs.get()) # T7
+        self.f.outs.clear()
 
         # negative with 16 bit truncation
-        #TODO: . needs to do signed interpret, U. is unsigned interpret
-        #TODO: fails to add sign?
-        #self.f.create_word("T8", STR("-32769"), "NUMBER", ".")
-        #self.f.execute_word("T8")
-        #self.assertEquals("1 ", self.f.outs.get()) # T8
-        #self.f.outs.clear()
+        self.f.create_word("T8", STR("-32769"), "NUMBER", "U.")
+        self.f.execute_word("T8")
+        self.assertEquals("32767 ", self.f.outs.get()) # T8
+        self.f.outs.clear()
 
         # double number trigger .
         self.f.create_word("T9", STR("12."), "NUMBER", ".", ".")
@@ -227,20 +245,17 @@ class TestForth(unittest.TestCase):
         self.assertEquals("1 ", self.f.outs.get())
 
     def test_05_and(self):
-        #TODO dot is signed print, need U.
-        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "AND", ".")
+        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "AND", "U.")
         self.f.execute_word("TEST")
         self.assertEquals("32768 ", self.f.outs.get())
 
     def test_06_or(self):
-        #TODO dot is signed print, need U.
-        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "OR", ".")
+        self.f.create_word("TEST", LIT(0xFFFF), LIT(0x8000), "OR", "U.")
         self.f.execute_word("TEST")
         self.assertEquals("65535 ", self.f.outs.get())
 
     def test_07_xor(self):
-        #TODO dot is signed print, need U.
-        self.f.create_word("TEST", LIT(0x0001), LIT(0x8000), "XOR", ".")
+        self.f.create_word("TEST", LIT(0x0001), LIT(0x8000), "XOR", "U.")
         self.f.execute_word("TEST")
         self.assertEquals("32769 ", self.f.outs.get())
 
@@ -347,15 +362,13 @@ class TestForth(unittest.TestCase):
 
         self.f.create_word("RT", LIT(0), "0=", ".")
         self.f.execute_word("RT")
-        #TODO dot is signed print, need U.
-        self.assertEquals("65535 ", self.f.outs.get())
+        self.assertEquals("-1 ", self.f.outs.get())
 
     def test_51_not(self):
         """Test NOT boolean operator"""
         self.f.create_word("NF", LIT(0), "NOT", ".")
         self.f.execute_word("NF")
-        #TODO dot is signed print, need U.
-        self.assertEquals("65535 ", self.f.outs.get())
+        self.assertEquals("-1 ", self.f.outs.get())
         self.f.outs.clear()
 
         self.f.create_word("NT", LIT(1), "NOT", ".")
@@ -448,8 +461,7 @@ class TestForth(unittest.TestCase):
         self.f.machine.tib.write(0, data)
         #self.f.machine.tib.dump(self.f.machine.tibstart, len(data)+4)
 
-        #TODO dot is signed print, need U.
-        self.f.create_word("TEST", "TIB", "COUNT", ".", ".")
+        self.f.create_word("TEST", "TIB", "COUNT", ".", "U.")
         self.f.execute_word("TEST")
         self.assertEquals("8 32769 ", self.f.outs.get())
 

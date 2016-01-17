@@ -15,16 +15,10 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Fixed dot so it shows signed number.
-However this breaks a lot of test cases, that used to assume it was unsigned.
-
-
+Implemented U. more tests cases passing
 
 TODO
-Implement U. for unsigned print.
-Fix test cases that need unsigned print
-
-
+Implement D. and UD. to print double and unsigned double
 
 Fix remaining NUMBER tests
 

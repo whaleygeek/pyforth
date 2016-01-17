@@ -63,6 +63,19 @@ class NumberBigEndian():
         b1 = (n & 0xFF)
         return (b0, b1)
 
+    @staticmethod
+    def asSigned(number):
+        number = number & 0xFFFF
+        if number >= 0x8000:
+            number = number - 65536
+        return number
+
+    @staticmethod
+    def asUnsigned(number):
+        number = number & 0xFFFF
+        if number < 0:
+            number = number + 65536
+        return number
 
 class DoubleBigEndian():
     """A big-endian 32-bit number helper"""
@@ -81,6 +94,9 @@ class DoubleBigEndian():
         b2 = (n & 0x0000FF00)>>8
         b3 = (n & 0x000000FF)
         return (b0, b1, b2, b3)
+
+    #TODO asSigned
+    #TODO asUnsigned
 
 # The standard says that byte order is not defined. We will use big-endian.
 
@@ -539,7 +555,7 @@ class Stack(IndexedBuffer):
             Debug.fail("negative growth not dumpable yet")
 
         for addr in range(self.start, self.ptr+1):
-            b = self.storage[addr]
+            b = self.readb(addr)
             if b > 32 and b < 127:
                 ch = chr(b)
             else:
@@ -582,6 +598,7 @@ class Stack(IndexedBuffer):
         """Pop a 16 bit number from the stack"""
         b0, b1 = self.pop(2)
         number = Number.from_bytes((b0, b1))
+        #print("popped %d" % number)
         return number
 
     def popd(self):
@@ -1058,6 +1075,8 @@ class Output():
         self.buf += ch
 
     def writen(self, number):
+        """Write a cell sized 16 bit number, as a signed quantity"""
+        number = Number.asSigned(number)
         self.buf += str(number)
 
     def get(self):
@@ -1080,6 +1099,7 @@ class ScreenOutput():
         sys.stdout.write(ch)
 
     def writen(self, number):
+        print("####")
         import sys
         sys.stdout.write(str(number))
 

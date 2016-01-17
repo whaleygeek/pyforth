@@ -15,23 +15,19 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-EOF handling improved on KeyboardInput.getch()
-Added EOF handling (that calls BYE) inside EXPECT
-
-It is now possible to do this:
-
-Davids-MacBook-Air-2:src davidw$ cat > mytest
-1 2 + .
-Davids-MacBook-Air-2:src davidw$ python forth.py < mytest
-3 Ok
-Davids-MacBook-Air-2:src davidw$
-
+Fixed dot so it shows signed number.
+However this breaks a lot of test cases, that used to assume it was unsigned.
 
 
 
 TODO
+Implement U. for unsigned print.
+Fix test cases that need unsigned print
+
+
+
 Fix remaining NUMBER tests
-Fix problem that '.' needs to interpret as a signed number
+
 Fix problem that ABORT really messes things up
 
 Need a way to clear the return stack

@@ -15,16 +15,83 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Unsigned number parsing tested working ok
-Implemented D. and UD., but not tested yet
+Came up with a design of how to cleanly handle parse errors in NUMBER
+such that this integrates well with the REPL.
 
 TODO
-Fix remaining NUMBER tests
+Implement the NUMBER parse error handler
+Test D. and UD. (need a way to push double literals with DLIT() and " DODLIT" runtime)
+Write NUMBER tests for D. and UD. usage
+
+================================================================================
+
+NUMBER parse error handling
+
+Investigate parse errors in NUMBER - see what Brodie and other specs
+say about this. ABORT is quite fatal, what we need to happen here is for
+a parse error to be signalled to the REPL, so that it can display that the
+word is unknown (i.e. if you type in an unknown word, it tries it as a number,
+but if it is not a number, really it should just say ?FRED meaning that
+FRED was not a known word and could not be interpreted as a number either.
+
+ABORT is a bit to final at the moment.
+
+There is no actual number you could pass back on the stack that would identify
+the parse error in NUMBER.
+
+Could pass back an empty stack, and then if there is a way to find out how
+many items are on the stack (DS# perhaps) you could work out if a new item
+was stacked by NUMBER or not (as there may already be other items on the DS
+due to other interpreted words). i.e. if DS# on entry and DS# on exit are
+the same, no number was parsed, so displa ?FRED. But if DS# has grown,
+then leave that item on the stack and go round the REPL loop again to
+consume the next word (which will probably later consume the number pushed
+onto the stack).
+
+DS# should probably just indicate the count of bytes held on the stack.
+Any difference in this can be detected.
+
+----- design:
+
+Here is a design that could be inserted into REPL to sense that a NUMBER
+was or was not produced onto the stack, and display an error message and abort
+the line if it was not a number.
+
+: #DS ( -- n)           # push the count of active bytes in DS onto top of DS
+
+# a is address of name of word being processed, can use for error message later
+# will need to ensure that earlier code leaves this on stack for us. This is not
+# the CFA, it is the FFA??
+
+# hmm, note that FFA has the count and other flags in it, so this will cause a
+# incorrect length if any of the flags are set (will need to mask out the flags
+# after calling COUNT, both here, and also earlier in the REPL where it tries to FIND
+# the word.
+
+DS#                 # ( a #)                    push current byte count of DS onto DS
+NUMBER              # ( a # n) or ( a #)        might push n or d or u or ud, or nothing
+SWAP                # ( a n #) or ( a #)
+DS#                 # ( a n # #) or ( a # #)
+=                   # ( a n ?) or ( a ?)        zero(false) if different, i.e. NUMBER produced something
+0BRANCH -nn         # to:getword
+# unknown           # ( a)                      no n here, as stack did not grow, so word is unknown
+ASCI ? EMIT         # ( a)
+COUNT TYPE          # ( )                       show name of word we could not find
+BRANCH -nn          # to:getline                Ignore rest of this line
+
+
+
 
 ================================================================================
 
 Fix problem that ABORT really messes things up
+In particular, using this in NUMBER when a parse error is detected
 
+--spec
+
+ABORT needs to bubble up to the top level REPL loop (but no further),
+clear the RS, possibly leave the DS intact (I think this is what Brodie says).
+Might need a word to clear the DS.
 
 ================================================================================
 

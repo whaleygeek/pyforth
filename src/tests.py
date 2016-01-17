@@ -551,6 +551,12 @@ class TestForth(unittest.TestCase):
         self.assertEquals("32767 ", self.f.outs.get()) # T8
         self.f.outs.clear()
 
+    def test_read_dshash(self):
+        """Read the size of the data stack in bytes"""
+        self.f.create_word("T", "DS#", "@", ".", LIT(1), "DS#", "@", ".", LIT(2), "DS#", "@", ".")
+        self.f.execute_word("T")
+        self.assertEquals("0 2 4 ", self.f.outs.get())
+
 
     #TODO: need smoke tests for
     #native NIP, TUCK

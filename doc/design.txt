@@ -15,10 +15,20 @@ support for parsing strings and numbers before that will work.
 
 
 JUST DONE
-Came up with a design of how to cleanly handle parse errors in NUMBER
-such that this integrates well with the REPL.
+DS# now a mapped variable that returns number of bytes on stack.
+Tests pass
 
 TODO
+Read further into Brodie about CONVERT and NUMBER.
+We might have to throw away n_number, and write CONVERT and then write NUMBER.
+
+There is a reference there to ABORT, so note that in the real forth, ABORT
+probably clears the return stack and does an uncontrolled jump to a known
+place in the interpreter where it can print the word it was processing and
+then start waiting for the next line to be input.
+
+
+
 Implement the NUMBER parse error handler
 Test D. and UD. (need a way to push double literals with DLIT() and " DODLIT" runtime)
 Write NUMBER tests for D. and UD. usage
@@ -27,19 +37,90 @@ Write NUMBER tests for D. and UD. usage
 
 NUMBER parse error handling
 
-Investigate parse errors in NUMBER - see what Brodie and other specs
-say about this. ABORT is quite fatal, what we need to happen here is for
-a parse error to be signalled to the REPL, so that it can display that the
-word is unknown (i.e. if you type in an unknown word, it tries it as a number,
-but if it is not a number, really it should just say ?FRED meaning that
-FRED was not a known word and could not be interpreted as a number either.
+ABORT is a bit to final and not trappable.
 
-ABORT is a bit to final at the moment.
+
+Reading Brodie P246, CONVERT is a more flexible version written in forth
+itself.
+
+: CONVERT ( ud1 a1 -- ud2 a2)
+
+You push a double zero on the stack which it uses as an accumulator.
+a1 is to a counted string, so it skips the count byte.
+It then scans in numbers in the current base, stopping when it can no
+longer convert a character. It returns the accumulator ud2 and the address
+of the first character not converted.
+
+It's not clear if this stops when count is exceeded (in case the buffer
+has other characters in it), as count preceeded strings do not have zero
+terminators.
+
+The conversion always uses doubles, it is up to the user to decide how
+to interpret this if a number or unsigned is required. Presumably it just
+drops the high number, effectively truncating it. It could check this for
+non zero first, and fail if it is non zero because the number would
+be truncated.
+
+It doesn't say anything about detection of doubles in CONVERT (e.g.
+the presence of a special flag like .) and it doesn't say if
+NUMBER uses CONVERT to do it's work. It does say that NUMBER is a
+simpler version, based on CONVERT, and that most forth's vary.
+
+Also, you can repeatedly call CONVERT for strings like 10/12/2015
+as the address on exit points to the first non convertable char.
+You can check this char then call CONVERT again to convert the
+next bit (presumably zeroing the accumulator first if you want to).
+This implies that the count byte is ignored, in which case, there
+MUST be a terminator char as well (e.g. a zero) in the buffer,
+otherwise false conversions could occur if the count byte is
+not monitored. This does have implications for the LIT() encoding
+of literals into the PF of a word, because anything could follow
+the number in the next PF and it would erroneously be interpreted.
+
+The text interpreter can check DPL and if it is -1, it knows that
+a number is pushed rather than a double.
+
+Here is the definition of NUMBER in Brodie P248
+Note how it calls CONVERT, how it uses DPL to set the decimal position,
+and how it assumes that a blank always occurs after the word.
+
+: NUMBER? ( addr -- d t=successful)
+
+DUP 1+ C@                   # get first digit
+ASCII - =                   # is it a minus sign?
+DUP >R                      # save the flag on the return stack
+-                           # and if so, add 1 to addr, setting it to point to
+                            # the first digit (subtracting the -1 flag is the
+                            # same as adding 1)
+-1 DPL !                    # indicate no punctuation yet
+0 0 ROT                     # provide double length zero as the accumulator
+BEGIN CONVERT               # convert until invalid digit
+DUP C@ DUP ASCII : =        # is the invalid digit a colon or
+SWAP ASCII , ASCII / 1+     # a comma, hyphen, period or
+WITHIN OR                   # slash?
+WHILE 0 DPL ! REPEAT        # if so, reset DPL and continue
+-ROT R> IF DNEGATE THEN     # bring d to top, negate if flag on return stack
+                            # indicates
+ROT C@ BL =               # Is last invalid character a blank as it should be?
+;
+
+: NUMBER ( addr -- d)
+NUMBER? NOT ABORT" ?" ;
+
+DPL variable is the decimal place, managed by NUMBER, and tells you
+the number of digits to the right of the dot, or -1 if no decimal place.
+
+With reference to squashing the unused part if there is no DP
+
+NUMBER DPL @ -1 = IF DROP THEN ...
+
+
+----- spec
 
 There is no actual number you could pass back on the stack that would identify
 the parse error in NUMBER.
 
-Could pass back an empty stack, and then if there is a way to find out how
+Pass back an empty stack, and then if there is a way to find out how
 many items are on the stack (DS# perhaps) you could work out if a new item
 was stacked by NUMBER or not (as there may already be other items on the DS
 due to other interpreted words). i.e. if DS# on entry and DS# on exit are
@@ -68,30 +149,28 @@ the line if it was not a number.
 # after calling COUNT, both here, and also earlier in the REPL where it tries to FIND
 # the word.
 
-DS#                 # ( a #)                    push current byte count of DS onto DS
+
+This is not going to work. If you don't know if it pushes on the stack or not,
+there is no deterministic way to get the two counters on the top of the stack to
+compare them.
+
+The other way to do this might be to push on the stack two numbers, one which is the
+value, and one which is the status of whether it is valid or not.
+
+This can then be picked up by the calling routine to decide if it is an error or
+a valid number.
+
+DS# @               # ( a #)                    push current byte count of DS onto DS
 NUMBER              # ( a # n) or ( a #)        might push n or d or u or ud, or nothing
 SWAP                # ( a n #) or ( a #)
-DS#                 # ( a n # #) or ( a # #)
+DS# @               # ( a n # #) or ( a # #)
 =                   # ( a n ?) or ( a ?)        zero(false) if different, i.e. NUMBER produced something
 0BRANCH -nn         # to:getword
 # unknown           # ( a)                      no n here, as stack did not grow, so word is unknown
-ASCI ? EMIT         # ( a)
+'?' EMIT            # ( a)
 COUNT TYPE          # ( )                       show name of word we could not find
 BRANCH -nn          # to:getline                Ignore rest of this line
 
-
-
-
-================================================================================
-
-Fix problem that ABORT really messes things up
-In particular, using this in NUMBER when a parse error is detected
-
---spec
-
-ABORT needs to bubble up to the top level REPL loop (but no further),
-clear the RS, possibly leave the DS intact (I think this is what Brodie says).
-Might need a word to clear the DS.
 
 ================================================================================
 

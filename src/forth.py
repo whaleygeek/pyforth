@@ -1146,8 +1146,9 @@ class NvMem():
             ("SP",    6, 2,   parent.ds.rd_p,       parent.ds.wr_p),
             ("RP",    8, 2,   parent.rs.rd_p,       parent.rs.wr_p),
             ("UVP",  10, 2,   parent.uv.rd_p,       parent.uv.wr_p),
-            ("BASE", 12, 1,   parent.rd_base,       parent.wr_base),
-            #13
+            ("BASE", 12, 2,   parent.rd_base,       parent.wr_base),
+            ("DS#",  14, 2,   parent.rd_dshash,     None),
+            #15
 
             #("SVP",  12, 2,   parent.sv.rd_p,       parent.sv.wr_p),
             #example of a large buffer
@@ -1183,16 +1184,18 @@ class NvMem():
         name, start, ofs, rd, wr = item
         if wr==None:
             Debug.fail("set: NvMem offset 0x%x does not support write function" % offset)
-        wr(offset, value)
+        wr(offset - start, value)
 
     def __getitem__(self, offset):
+        #print("getitem: %x" % offset)
         item = self.find(offset)
         if item == None:
             raise ValueError("Unknown offset in region: 0x%x" % offset)
         name, start, ofs, rd, wr = item
         if rd==None:
             Debug.fail("get: NvMem offset 0x%x does not support read function" % offset)
-        return rd(offset)
+        #print(" offset:%x ofs:%x" % (offset, ofs))
+        return rd(offset - start)
 
 
 class NvRoutine():
@@ -1433,11 +1436,19 @@ class Machine():
         bytes[offset] = byte
         self.ip = Number.from_bytes(bytes)
 
-    def rd_base(self):
+    def rd_base(self, offset):
         return self.base
 
     def wr_base(self, value):
         self.base = value
+
+    def rd_dshash(self, offset):
+        """Read the number of bytes on the data stack"""
+        if offset not in [0,1]:
+            raise ValueError("Out of range offset:0x%x" % offset)
+        u = self.ds.getused()
+        bytes = Number.to_bytes(u)
+        return bytes[offset]
 
     # temporary testing
     testvalue = 0
@@ -1802,7 +1813,7 @@ class Machine():
 
     def n_number(self):
         """Parse a number using the current BASE"""
-        # ( a -- n) or ( a -- d)
+        # ( a -- n) or ( a -- d) or ( a -- ) if parse error
         # a is address of a counted string
 
         addr = self.ds.popn()
@@ -1836,10 +1847,10 @@ class Machine():
                     accumulator += v
                 else:
                     Debug.trace("Conversion error in NUMBER, out of range digit for base")
-                    self.n_abort() #TODO: need a way to abort with a message
+                    return # nothing pushed onto stack
             else:
                 Debug.trace("Parse error in NUMBER, non digit found")
-                self.n_abort() #TODO: need a way to abort with a message
+                return # nothing pushed onto stack
             index += 1
             count -= 1
 
@@ -2364,7 +2375,7 @@ class Forth():
 
                 # notword                                   # ( a:t a:cfa)
                 "DROP",                                     # ( a:t)
-                "NUMBER",                                   # ( n or u or d or ud) note: will ABORT if cannot parse
+                "NUMBER",                                   # ( n or u or d or ud or -- )
                 "BRANCH", -21,                              # ( ) to:getword
 
                 #TODO: might have to put this in REPL loop, with a way to trap ABORT??
@@ -2380,11 +2391,12 @@ class Forth():
             ]),
             #-----
             ("REPL", [
-                #TODO clear return stack
                 LIT(0), "SPAN", "!",                        # ( )       clear span so we don't get repeat on blank line
                 "TIB", "TIBZ", "EXPECT",                    # ( )       read in a whole line up to CR
                 "TIB", ">IN", "!",                          # ( )       set IN read ptr to start of TIB
                 "INTERPRET",                                # ()
+                #TODO could return true or false depending on whether it worked or failed
+                #this wold allow us to display Ok or Err here
                 STR("Ok"), "COUNT", "TYPE",                 # ()        strcells=3 (dostr)(count,O)(k,-)
                 "CR",
                 "BRANCH", -18                               # ()        to:start

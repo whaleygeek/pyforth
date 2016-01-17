@@ -67,14 +67,14 @@ class NumberBigEndian():
     def asSigned(number):
         number = number & 0xFFFF
         if number >= 0x8000:
-            number = number - 65536
+            number = number - 0x10000
         return number
 
     @staticmethod
     def asUnsigned(number):
         number = number & 0xFFFF
         if number < 0:
-            number = number + 65536
+            number = number + 0x10000
         return number
 
 class DoubleBigEndian():
@@ -95,8 +95,19 @@ class DoubleBigEndian():
         b3 = (n & 0x000000FF)
         return (b0, b1, b2, b3)
 
-    #TODO asSigned
-    #TODO asUnsigned
+    @staticmethod
+    def asSigned(number):
+        number = number & 0xFFFFFFFF
+        if number >= 0x80000000:
+            number = number - 0x1000000
+        return number
+
+    @staticmethod
+    def asUnsigned(number):
+        number = number & 0xFFFFFFFF
+        if number < 0:
+            number = number + 0x1000000
+        return number
 
 # The standard says that byte order is not defined. We will use big-endian.
 
@@ -1074,15 +1085,8 @@ class Output():
     def writech(self, ch):
         self.buf += ch
 
-    def writen(self, number):
-        """Write a cell sized 16 bit number, as a signed quantity"""
-        number = Number.asSigned(number)
-        self.buf += str(number)
-
-    def writeu(self, number):
-        """Write a cell sized 16 bit number, as an unsigned quantity"""
-        number = Number.asUnsigned(number)
-        self.buf += str(number)
+    def writestr(self, string):
+        self.buf += string
 
     def get(self):
         return self.buf
@@ -1102,14 +1106,9 @@ class ScreenOutput():
     def writech(self, ch):
         sys.stdout.write(ch)
 
-    def writen(self, number):
-        number = number.asSigned(number)
-        sys.stdout.write(str(number))
+    def writestr(self, string):
+        sys.stdout.write(string)
 
-    def writeu(self, number):
-        """Write a cell sized 16 bit number, as an unsigned quantity"""
-        number = Number.asUnsigned(number)
-        sys.stdout.write(str(number))
 
 
 class Disk(): #TODO: DiskFile(Disk) - to allow mocking
@@ -1242,6 +1241,8 @@ class NvRoutine():
             ("NUMBER",     parent.n_number),    # 27
             ("BYE",        parent.n_bye),       # 28
             ("U.",         parent.n_udot),      # 29
+            ("D.",         parent.n_ddot),      # 30
+            ("UD.",        parent.n_uddot),     # 31
             #("KEYQ",       parent.n_keyq),
             #(" DOCOL",    parent.n_docol),
             #(" DOCON",     parent.n_docon),
@@ -1394,6 +1395,27 @@ class Machine():
 
     def call(self, addr):
         self.mem.call(addr)
+
+    def writen(self, number):
+        """Write a cell sized 16 bit number, as a signed quantity"""
+        number = Number.asSigned(number)
+        self.outs.writestr(str(number))
+
+    def writeu(self, number):
+        """Write a cell sized 16 bit number, as an unsigned quantity"""
+        number = Number.asUnsigned(number)
+        self.outs.writestr(str(number))
+
+    def writed(self, double):
+        """Write a 2-cell sized 32 bit number, as a signed quantity"""
+        double = Double.asSigned(double)
+        self.outs.writestr(str(double))
+
+    def writeud(self, double):
+        """Write a 2-cell sized 32 bit number, as an unsigned quantity"""
+        double = Number.asUnsigned(double)
+        self.outs.writestr(str(double))
+
 
     # functions for memory mapped registers
 
@@ -1648,14 +1670,28 @@ class Machine():
         """: n_PRINTTOS ( n --)
         { printnum(ds_pop16) } ;"""
         n = self.ds.popn()
-        self.outs.writen(n)
+        self.writen(n)
         self.outs.writech(' ')
 
     def n_udot(self):
         """: n_udot ( u --)
         { printnum(ds_pop16) } ;"""
         u = self.ds.popn()
-        self.outs.writeu(u)
+        self.writeu(u)
+        self.outs.writech(' ')
+
+    def n_ddot(self):
+        """: n_ddot ( u --)
+        { printnum(ds_pop16) } ;"""
+        d = self.ds.popd()
+        self.writed(d)
+        self.outs.writech(' ')
+
+    def n_uddot(self):
+        """: n_uddot ( u --)
+        { printnum(ds_pop16) } ;"""
+        ud = self.ds.popd()
+        self.writeud(ud)
         self.outs.writech(' ')
 
     def n_rdpfa(self):
